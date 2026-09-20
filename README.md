@@ -41,11 +41,11 @@ dotnet tool restore
 dotnet versionize --proj-name beamerpresenter.app
 ```
 
-Der zweite Befehl erzeugt/aktualisiert den Changelog, erstellt den Release-Commit und den Git-Tag `v<Version>`. Das Tag startet den GitHub-Release-Workflow.
+Der zweite Befehl erzeugt/aktualisiert den Changelog, erstellt den Release-Commit und den Git-Tag `v<Version>`. Tags der Entwicklungsreihe `v0.x` bleiben reine Git-Versionen; der GitHub-Release-Workflow veröffentlicht erst stabile Versionen ab `v1.0.0`.
 
 ## Release-Artefakte
 
-Ein Tag `v1.2.0` veröffentlicht zwei Downloads:
+Ein stabiles Tag ab `v1.0.0`, beispielsweise `v1.2.0`, veröffentlicht zwei Downloads:
 
 - `HouseOfLAN-Presenter-1.2.0-Setup.exe` – Inno-Setup-Installer
 - `HouseOfLAN-Presenter-1.2.0-win-x64-portable.zip` – selbstenthaltende portable Variante

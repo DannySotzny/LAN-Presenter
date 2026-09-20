@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["v[1-9]*.*.*"]
 
 permissions:
   contents: write
