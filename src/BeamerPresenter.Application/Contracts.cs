@@ -51,6 +51,15 @@ public interface IMonitorService
     IReadOnlyList<DisplayMonitor> GetAll();
 }
 
+public interface IBrowserController
+{
+    Task StartAsync(CancellationToken cancellationToken = default);
+    Task StopAsync(CancellationToken cancellationToken = default);
+    Task ShowAsync(CancellationToken cancellationToken = default);
+    Task HideAsync(CancellationToken cancellationToken = default);
+    Task<bool> IsRunningAsync(CancellationToken cancellationToken = default);
+}
+
 public sealed record DisplayMonitor(
     string DeviceName,
     string FriendlyName,

@@ -30,6 +30,7 @@ Die Fundament-Stufe ist implementiert:
 - versionierte EF-Core-Migrationen mit verlustfreier Übernahme vorhandener `EnsureCreated`-Datenbanken
 - getrennte lokale Verzeichnisse für Daten, Logs, Backups, Chrome-Profil und Tools
 - persistente Presenter-Optionen für Chrome-Pfad, Zielmonitor, Always-On-Top und Display-/System-Standby-Schutz
+- kontrollierter Chrome-Kiosk-Kindprozess mit separatem Profil, Autoplay-Policy, Zielmonitorpositionierung und Show/Hide/Stop-Steuerung
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 
 Noch nicht enthalten sind Chrome-Kiosk-Steuerung, Playlist-/Segmentlogik, YouTube, SignalR und die Beamer-/Monitorsteuerung. Diese werden in den folgenden Phasen hinter den vorhandenen Application-Contracts ergänzt.

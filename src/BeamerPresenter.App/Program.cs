@@ -71,6 +71,16 @@ internal static class Program
         builder.Services.AddPresenterInfrastructure(paths.DataDirectory, paths.ToolsDirectory);
         builder.Services.AddPresenterWebUi();
         builder.Services.AddSingleton<IMonitorService, WindowsMonitorService>();
+        builder.Services.AddSingleton<IChromeProcessLauncher, ChromeProcessLauncher>();
+        builder.Services.AddSingleton<IChromeWindowController, ChromeWindowController>();
+        builder.Services.AddSingleton<IBrowserController>(provider => new ChromeBrowserController(
+            provider.GetRequiredService<IPresenterSettingsService>(),
+            provider.GetRequiredService<IMonitorService>(),
+            provider.GetRequiredService<IChromeProcessLauncher>(),
+            provider.GetRequiredService<IChromeWindowController>(),
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ChromeBrowserController>>(),
+            paths.ChromeProfileDirectory,
+            $"http://127.0.0.1:{webPort}/presenter"));
         builder.Services.AddSingleton(new StartupRegistrationService(Environment.ProcessPath ?? System.Windows.Forms.Application.ExecutablePath));
         builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options => options.MultipartBodyLengthLimit = 5L * 1024 * 1024 * 1024);
         var application = builder.Build();
