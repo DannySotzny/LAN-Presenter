@@ -8,6 +8,7 @@ internal sealed class PresenterForm : Form
 {
     private readonly IPresenterSettingsService _settingsService;
     private readonly StartupRegistrationService _startupRegistration;
+    private readonly PlaybackController _playback;
     private readonly Label _version = new() { AutoSize = true };
     private readonly Label _build = new() { AutoSize = true };
     private readonly Label _commit = new() { AutoSize = true };
@@ -20,6 +21,11 @@ internal sealed class PresenterForm : Form
     private readonly TextBox _passwordRepeat = new() { Dock = DockStyle.Fill, UseSystemPasswordChar = true };
     private readonly Label _webUrl = new() { AutoSize = true };
     private readonly Label _passwordStatus = new() { AutoSize = true };
+    private readonly ToolStripMenuItem _trayStatus = new() { Enabled = false };
+    private readonly ToolStripMenuItem _activatePresenter = new() { Text = "Presenter aktivieren" };
+    private readonly ToolStripMenuItem _pausePresenter = new() { Text = "Presenter pausieren" };
+    private readonly ToolStripMenuItem _hidePresenter = new() { Text = "Presenter ausblenden" };
+    private readonly ToolStripMenuItem _stopPresenter = new() { Text = "Presenter stoppen" };
     private readonly NotifyIcon _notifyIcon;
     private bool _allowExit;
 
@@ -27,12 +33,12 @@ internal sealed class PresenterForm : Form
     {
         _settingsService = host.Services.GetRequiredService<IPresenterSettingsService>();
         _startupRegistration = host.Services.GetRequiredService<StartupRegistrationService>();
+        _playback = host.Services.GetRequiredService<PlaybackController>();
         var buildInformation = BuildInformation.Current;
         _version.Text = buildInformation.Version;
         _build.Text = buildInformation.BuildTimestampUtc?.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", System.Globalization.CultureInfo.InvariantCulture) ?? "Nicht verfügbar";
         _commit.Text = buildInformation.ShortGitCommitSha;
         _runtime.Text = buildInformation.RuntimeVersion;
-        _presenterStatus.Text = host.Services.GetRequiredService<PlaybackController>().State.ToString().ToUpperInvariant();
         Text = "Beamer Presenter for LAN-Parties"; MinimumSize = new Size(650, 560); StartPosition = FormStartPosition.CenterScreen;
         Controls.Add(CreateContent()); FormClosing += OnFormClosing; Shown += async (_, _) =>
         {
@@ -42,9 +48,14 @@ internal sealed class PresenterForm : Form
                 Hide();
             }
         };
-        var menu = new ContextMenuStrip(); menu.Items.Add("Web UI öffnen", null, (_, _) => OpenWebUi()); menu.Items.Add("Einstellungen", null, (_, _) => ShowFromTray()); menu.Items.Add(new ToolStripSeparator()); menu.Items.Add("Beenden", null, (_, _) => ExitApplication());
+        _activatePresenter.Click += (_, _) => ChangePresenterState(_playback.Activate);
+        _pausePresenter.Click += (_, _) => ChangePresenterState(_playback.Pause);
+        _hidePresenter.Click += (_, _) => ChangePresenterState(_playback.Hide);
+        _stopPresenter.Click += (_, _) => ChangePresenterState(_playback.Stop);
+        var menu = CreateTrayMenu();
         _notifyIcon = new NotifyIcon { Icon = SystemIcons.Application, Text = "Beamer Presenter for LAN-Parties", Visible = true, ContextMenuStrip = menu };
         _notifyIcon.DoubleClick += (_, _) => ShowFromTray();
+        UpdatePresenterStatus();
     }
 
     protected override void Dispose(bool disposing) { if (disposing) _notifyIcon.Dispose(); base.Dispose(disposing); }
@@ -58,6 +69,33 @@ internal sealed class PresenterForm : Form
         root.Controls.Add(new Label { AutoSize = true, Text = "Port-Änderungen gelten nach einem Neustart." }, 1, 13); return root;
     }
     private static void AddRow(TableLayoutPanel panel, int row, string label, Control input) { panel.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, row); panel.Controls.Add(input, 1, row); }
+    private ContextMenuStrip CreateTrayMenu()
+    {
+        var menu = new ContextMenuStrip();
+        menu.Items.Add(_trayStatus);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(_activatePresenter);
+        menu.Items.Add(_pausePresenter);
+        menu.Items.Add(_hidePresenter);
+        menu.Items.Add(_stopPresenter);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Web UI öffnen", null, (_, _) => OpenWebUi());
+        menu.Items.Add("Einstellungen", null, (_, _) => ShowFromTray());
+        menu.Items.Add("Status", null, (_, _) => ShowFromTray());
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Beenden", null, (_, _) => ExitApplication());
+        return menu;
+    }
+    private void ChangePresenterState(Action command) { command(); UpdatePresenterStatus(); }
+    private void UpdatePresenterStatus()
+    {
+        _presenterStatus.Text = _playback.State.ToString().ToUpperInvariant();
+        _trayStatus.Text = $"● Presenter {_playback.State.ToString().ToLowerInvariant()}";
+        _activatePresenter.Enabled = _playback.State != BeamerPresenter.Domain.PresenterState.Active;
+        _pausePresenter.Enabled = _playback.State == BeamerPresenter.Domain.PresenterState.Active;
+        _hidePresenter.Enabled = _playback.State is BeamerPresenter.Domain.PresenterState.Active or BeamerPresenter.Domain.PresenterState.Paused;
+        _stopPresenter.Enabled = _playback.State != BeamerPresenter.Domain.PresenterState.Stopped;
+    }
     private async Task LoadSettingsAsync() { var settings = await _settingsService.GetAsync(); _startWithWindows.Checked = _startupRegistration.IsEnabled(); _mediaFolder.Text = settings.MediaFolder; _webPort.Text = settings.WebPort.ToString(System.Globalization.CultureInfo.InvariantCulture); _webUrl.Text = $"http://localhost:{settings.WebPort}"; _passwordStatus.Text = string.IsNullOrWhiteSpace(settings.PasswordHash) ? "Noch nicht eingerichtet" : "Aktiv"; }
     private async Task SaveSettingsAsync()
     {
