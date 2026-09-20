@@ -36,7 +36,7 @@
 
 - Vor jedem Commit: `dotnet build BeamerPresenterForLanParties.slnx -c Release` und passende Tests ausführen.
 - Der Test `AuthenticatedWebRouteTests.Valid_login_renders_management_page` prüft mit temporärer Datenbank den vollständigen Ablauf aus gültigem Login, Auth-Cookie und Rendering der Managementseite.
-- Kleine, abgeschlossene Conventional-Commit-Schritte verwenden. Nach fertigen, releasbaren Features `dotnet versionize --proj-name beamerpresenter.app` ausführen.
+- Kleine, abgeschlossene Conventional-Commit-Schritte verwenden. Nach fertigen, releasbaren Features `dotnet versionize --workingDir src/BeamerPresenter.App --configDir ../..` ausführen, damit der App-Changelog alle Projektverzeichnisse berücksichtigt.
 - `versionize` verwaltet Changelog, Release-Commit und Tag. Changelog-Dateien nicht manuell editieren.
 - `v0.x`-Tags markieren nur Entwicklungsstände und dürfen keinen GitHub-Release erzeugen. Der Release-Workflow akzeptiert erst stabile Tags ab `v1.0.0`.
 - Bei Änderungen an Release-Dateien die erwarteten Namen `HouseOfLAN-Presenter-<Version>-Setup.exe` und `HouseOfLAN-Presenter-<Version>-win-x64-portable.zip` erhalten.

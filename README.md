@@ -51,10 +51,10 @@ dotnet test tests/BeamerPresenter.Web.Tests -c Release
 
 ```powershell
 dotnet tool restore
-dotnet versionize --proj-name beamerpresenter.app
+dotnet versionize --workingDir src/BeamerPresenter.App --configDir ../..
 ```
 
-Der zweite Befehl erzeugt/aktualisiert den Changelog, erstellt den Release-Commit und den Git-Tag `v<Version>`. Tags der Entwicklungsreihe `v0.x` bleiben reine Git-Versionen; der GitHub-Release-Workflow veröffentlicht erst stabile Versionen ab `v1.0.0`.
+Der zweite Befehl versioniert die ausführbare App, wertet dabei aber die Conventional Commits des gesamten Repositorys aus. Er erzeugt/aktualisiert den Changelog, erstellt den Release-Commit und den Git-Tag `v<Version>`. Tags der Entwicklungsreihe `v0.x` bleiben reine Git-Versionen; der GitHub-Release-Workflow veröffentlicht erst stabile Versionen ab `v1.0.0`.
 
 ## Release-Artefakte
 
