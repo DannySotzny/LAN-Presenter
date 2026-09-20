@@ -1,4 +1,15 @@
 Beamerpresenter.App Changelog
+<a name="0.5.0"></a>
+## [0.5.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.5.0) (2026-09-20)
+
+### Features
+
+* configure presenter display target ([95e48eb](https://www.github.com/DannySotzny/LAN-Presenter/commit/95e48eb54c42a9abb9b7f6106b6fe9365942e13e))
+* connect presenter through signalr ([2936794](https://www.github.com/DannySotzny/LAN-Presenter/commit/2936794e4a29eaa625f9bf4a7ee1e2f44e94e38a))
+* control chrome kiosk process ([7a8f4d9](https://www.github.com/DannySotzny/LAN-Presenter/commit/7a8f4d90fc0a6eb9953be0da9c425eef76389c32))
+* orchestrate presenter lifecycle ([95b5e3b](https://www.github.com/DannySotzny/LAN-Presenter/commit/95b5e3bcfee746a1bd202ca2aa59c5be6880097c))
+* stream local media with range requests ([64e23fa](https://www.github.com/DannySotzny/LAN-Presenter/commit/64e23fa8c822b76bfe0b94b4cb7009eeb0e6d5e4))
+
 <a name="0.4.0"></a>
 ## [0.4.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.4.0) (2026-09-20)
 
