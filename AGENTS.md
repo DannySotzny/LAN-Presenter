@@ -32,6 +32,7 @@
 - `MediaProbeQueue` ist ein deduplizierter `Channel` mit genau zwei Consumern. Reconciliation und Uploads reihen ausschließlich IDs plus Pfad ein; erst nach zwei Sekunden stabiler Dateigröße und Schreibzeit darf FFprobe starten. Ergebnisse dürfen nur gespeichert werden, wenn die Datei während der Analyse unverändert blieb.
 - Die Medienbibliothek bleibt serverseitig renderbar und per GET-Parameter `q` durchsuchbar. `ProbeStatus` und `PlaybackStatus` müssen visuell getrennt ableitbar bleiben; Upload-Formulare verwenden Post/Redirect/Get und zeigen das Ergebnis auf der Managementseite an.
 - `/media/{mediaId}` bleibt für den lokalen Presenter anonym, liefert nur verfügbare DB-Einträge mit Range-Support aus und validiert den kanonischen Dateipfad bei jedem Abruf erneut gegen aktiv konfigurierte Medienordner. Direkte Dateipfade dürfen nie an den Browser gegeben werden.
+- `/presenter` verwendet einen eigenen layoutfreien Fullscreen-View und verbindet sich über das lokal ausgelieferte `presenter.js` direkt mit `/hubs/presenter`. Der Client implementiert den SignalR-JSON-Handshake ohne CDN-Abhängigkeit, reconnectet automatisch und meldet Ready/Playing/Paused/Buffering/Ended/Error/Heartbeat zurück.
 
 ## Arbeitsweise
 

@@ -1,3 +1,15 @@
 @page "/presenter"
+@layout PresenterLayout
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
-<div class="presenter-screen"><h1>Beamer Presenter for LAN-Parties</h1><p>Der Presenter ist bereit. Die Wiedergabe-Steuerung wird über die geschützte Weboberfläche vorgenommen.</p></div>
+
+<div class="presenter-screen" id="presenter-root">
+    <video id="presenter-video" preload="auto" playsinline></video>
+    <div class="presenter-idle" id="presenter-idle">
+        <div class="presenter-pulse"><span></span></div>
+        <p class="presenter-eyebrow">BEAMER PRESENTER</p>
+        <h1>Warte auf das nächste Video</h1>
+        <p id="presenter-status">Echtzeitverbindung wird hergestellt …</p>
+    </div>
+</div>
+
+<script src="_content/BeamerPresenter.Web/js/presenter.js"></script>

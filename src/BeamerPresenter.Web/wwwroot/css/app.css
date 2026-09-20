@@ -330,3 +330,82 @@ body .mud-button-text-secondary {
         margin-top: .75rem;
     }
 }
+
+.presenter-screen {
+    position: fixed;
+    z-index: 10000;
+    inset: 0;
+    overflow: hidden;
+    color: #fff;
+    background:
+        radial-gradient(circle at 50% 25%, rgba(72, 53, 160, .24), transparent 38rem),
+        #020309;
+}
+
+.presenter-screen video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
+.presenter-idle {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: radial-gradient(circle at center, rgba(23, 32, 65, .88), rgba(2, 3, 9, .98) 62%);
+    transition: opacity .35s ease;
+}
+
+.presenter-idle-hidden {
+    pointer-events: none;
+    opacity: 0;
+}
+
+.presenter-idle h1 {
+    margin: .65rem 1.5rem .8rem;
+    font: 800 clamp(2.4rem, 6vw, 5.5rem)/1.02 system-ui, sans-serif;
+    letter-spacing: -.055em;
+}
+
+.presenter-idle > p:last-child {
+    color: #8f9bb7;
+    font: 400 clamp(1rem, 1.6vw, 1.45rem)/1.5 system-ui, sans-serif;
+}
+
+.presenter-eyebrow {
+    margin: 2rem 0 0;
+    color: var(--lan-cyan);
+    font: 800 clamp(.7rem, 1.1vw, 1rem)/1 system-ui, sans-serif;
+    letter-spacing: .28em;
+}
+
+.presenter-pulse {
+    display: grid;
+    width: 6rem;
+    height: 6rem;
+    place-items: center;
+    border: 1px solid rgba(51, 220, 255, .28);
+    border-radius: 50%;
+    box-shadow: 0 0 80px rgba(51, 220, 255, .16);
+}
+
+.presenter-pulse span {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: var(--lan-cyan);
+    box-shadow: 0 0 26px var(--lan-cyan);
+    animation: presenter-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes presenter-pulse {
+    50% {
+        transform: scale(.58);
+        opacity: .45;
+    }
+}

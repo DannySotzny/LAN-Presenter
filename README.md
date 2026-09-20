@@ -17,6 +17,7 @@ Die Fundament-Stufe ist implementiert:
 - Upload unterstützter Videoformate über die geschützte Web UI
 - responsive MudBlazor-Medienbibliothek mit Suche, technischen Metadaten, Kennzahlen und klar erkennbaren Analyse-/Kompatibilitätsfehlern
 - anonyme, ID-basierte lokale Medienauslieferung mit HTTP-Range-Support und erneuter Pfadvalidierung gegen aktive Medienordner
+- dauerhaft geladene Fullscreen-Presenter-Seite mit dediziertem SignalR-Hub, Reconnect, lokalen Video-/Segmentkommandos und Status-/Heartbeat-Rückmeldungen
 - mehrere persistente Videoordner mit optional rekursiver Erfassung; der bisherige Einzelpfad wird automatisch migriert
 - Full Scan beim Start und Reconciliation alle 30 Minuten für neue, geänderte und fehlende lokale Videos
 - dynamische FileSystemWatcher für alle aktiven Medienordner; Ereignisse werden debounct und anschließend über denselben vollständigen Abgleich verarbeitet

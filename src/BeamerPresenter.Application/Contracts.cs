@@ -59,4 +59,14 @@ public sealed record MediaProbeResult(
     int? AudioChannels,
     string? Error);
 
+public interface IPresenterGateway
+{
+    Task LoadLocalVideoAsync(int mediaId, TimeSpan? start, TimeSpan? end, bool autoPlay, CancellationToken cancellationToken = default);
+    Task PlayAsync(CancellationToken cancellationToken = default);
+    Task PauseAsync(CancellationToken cancellationToken = default);
+    Task StopAsync(CancellationToken cancellationToken = default);
+    Task SeekAsync(TimeSpan position, CancellationToken cancellationToken = default);
+    Task SetVolumeAsync(double volume, CancellationToken cancellationToken = default);
+}
+
 public sealed record PresenterStatus(PresenterState State, string Version, string WebUrl);

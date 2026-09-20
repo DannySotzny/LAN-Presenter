@@ -1,5 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
 using BeamerPresenter.Application;
 using BeamerPresenter.Domain;
 using BeamerPresenter.Infrastructure;
@@ -157,6 +160,47 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NotFound, outsideResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task Presenter_page_connects_to_dedicated_signalr_hub_and_reports_status()
+    {
+        var application = _application!;
+        using var client = application.GetTestClient();
+        using var pageResponse = await client.GetAsync("/presenter");
+        var pageHtml = await pageResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, pageResponse.StatusCode);
+        Assert.Contains("presenter-video", pageHtml, StringComparison.Ordinal);
+        Assert.Contains("js/presenter.js", pageHtml, StringComparison.Ordinal);
+
+        using var negotiateResponse = await client.PostAsync("/hubs/presenter/negotiate?negotiateVersion=1", content: null);
+        Assert.Equal(HttpStatusCode.OK, negotiateResponse.StatusCode);
+        using var negotiation = JsonDocument.Parse(await negotiateResponse.Content.ReadAsStringAsync());
+        var connectionToken = negotiation.RootElement.GetProperty("connectionToken").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(connectionToken));
+        Assert.Contains(
+            negotiation.RootElement.GetProperty("availableTransports").EnumerateArray(),
+            transport => transport.GetProperty("transport").GetString() == "WebSockets");
+
+        var webSocketClient = application.GetTestServer().CreateWebSocketClient();
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var socket = await webSocketClient.ConnectAsync(
+            new Uri($"ws://localhost/hubs/presenter?id={Uri.EscapeDataString(connectionToken!)}"),
+            cancellation.Token);
+        await SendSignalRMessageAsync(socket, "{\"protocol\":\"json\",\"version\":1}", cancellation.Token);
+        var handshake = await ReceiveSignalRMessageAsync(socket, cancellation.Token);
+        Assert.Equal("{}", handshake);
+
+        await SendSignalRMessageAsync(
+            socket,
+            "{\"type\":1,\"target\":\"ReportStatus\",\"arguments\":[\"Ready\",12.5,90.0,null]}",
+            cancellation.Token);
+        var connectionState = application.Services.GetRequiredService<PresenterConnectionState>();
+        await WaitForPresenterStatusAsync(connectionState, "Ready", cancellation.Token);
+        Assert.True(connectionState.IsConnected);
+        Assert.Equal(12.5, connectionState.LatestReport.PositionSeconds);
+
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Test completed", cancellation.Token);
+    }
+
     private static VideoAsset CreateVideo(string fileName, string videoCodec, MediaPlaybackStatus playbackStatus) => new()
     {
         FileName = fileName,
@@ -188,6 +232,30 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
         Assert.Equal("/", loginResponse.Headers.Location?.OriginalString);
         return Assert.Single(loginResponse.Headers.GetValues("Set-Cookie")).Split(';', 2)[0];
+    }
+
+    private static async Task SendSignalRMessageAsync(WebSocket socket, string message, CancellationToken cancellationToken)
+    {
+        var bytes = Encoding.UTF8.GetBytes(message + '\u001e');
+        await socket.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, cancellationToken);
+    }
+
+    private static async Task<string> ReceiveSignalRMessageAsync(WebSocket socket, CancellationToken cancellationToken)
+    {
+        var buffer = new byte[1024];
+        var result = await socket.ReceiveAsync(buffer, cancellationToken);
+        return Encoding.UTF8.GetString(buffer, 0, result.Count).TrimEnd('\u001e');
+    }
+
+    private static async Task WaitForPresenterStatusAsync(
+        PresenterConnectionState connectionState,
+        string expectedStatus,
+        CancellationToken cancellationToken)
+    {
+        while (!string.Equals(connectionState.LatestReport.Status, expectedStatus, StringComparison.Ordinal))
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(20), cancellationToken);
+        }
     }
 
     public async Task DisposeAsync()

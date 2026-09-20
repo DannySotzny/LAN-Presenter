@@ -16,6 +16,9 @@ public static class WebApplicationExtensions
     {
         services.AddRazorComponents();
         services.AddMudServices();
+        services.AddSignalR();
+        services.AddSingleton<PresenterConnectionState>();
+        services.AddSingleton<IPresenterGateway, SignalRPresenterGateway>();
         services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
         {
             options.LoginPath = "/login"; options.Cookie.Name = "BeamerPresenter.Auth"; options.Cookie.HttpOnly = true;
@@ -29,6 +32,7 @@ public static class WebApplicationExtensions
         app.MapPost("/account/login", (Delegate)LoginAsync).AllowAnonymous(); app.MapPost("/account/logout", (Delegate)LogoutAsync).RequireAuthorization();
         app.MapPost("/api/videos/upload", (Delegate)UploadAsync).RequireAuthorization();
         app.MapGet("/media/{mediaId:int}", (Delegate)StreamMediaAsync).AllowAnonymous();
+        app.MapHub<PresenterHub>("/hubs/presenter");
         app.MapRazorComponents<PresenterWebApp>(); return app;
     }
 
