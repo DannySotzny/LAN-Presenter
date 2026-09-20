@@ -31,6 +31,11 @@ public interface IMediaScanner
 
 public sealed record MediaScanResult(int Added, int Updated, int Missing, int Unchanged);
 
+public interface IMediaProbeQueue
+{
+    ValueTask QueueAsync(int mediaId, string fullPath, CancellationToken cancellationToken = default);
+}
+
 public interface IFfprobeService
 {
     Task<FfprobeAvailability> CheckAvailabilityAsync(CancellationToken cancellationToken = default);

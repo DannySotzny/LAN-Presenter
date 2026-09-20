@@ -27,6 +27,8 @@ public sealed class MediaScannerTests
             var services = new ServiceCollection();
             services.AddLogging();
             services.AddPresenterInfrastructure(dataDirectory);
+            var probeQueue = new RecordingMediaProbeQueue();
+            services.AddSingleton<IMediaProbeQueue>(probeQueue);
             await using var provider = services.BuildServiceProvider();
             await provider.GetRequiredService<IMediaFolderService>().AddAsync(mediaDirectory, includeSubdirectories: true);
             var scanner = provider.GetRequiredService<IMediaScanner>();
@@ -35,7 +37,9 @@ public sealed class MediaScannerTests
 
             Assert.Equal(new MediaScanResult(2, 0, 0, 0), firstScan);
             Assert.Equal(2, (await provider.GetRequiredService<IMediaLibraryService>().GetAllAsync()).Count);
+            Assert.Equal(2, probeQueue.Paths.Count);
 
+            probeQueue.Paths.Clear();
             await File.AppendAllTextAsync(topLevelVideo, "changed");
             File.Delete(nestedVideo);
             var secondScan = await scanner.ScanAllAsync();
@@ -44,6 +48,7 @@ public sealed class MediaScannerTests
             var videos = await provider.GetRequiredService<IMediaLibraryService>().GetAllAsync();
             Assert.True(videos.Single(video => video.FileName == "intro.mp4").IsAvailable);
             Assert.False(videos.Single(video => video.FileName == "gameplay.mkv").IsAvailable);
+            Assert.Equal([topLevelVideo], probeQueue.Paths);
         }
         finally
         {
@@ -54,6 +59,17 @@ public sealed class MediaScannerTests
             {
                 Directory.Delete(resolvedRoot, recursive: true);
             }
+        }
+    }
+
+    private sealed class RecordingMediaProbeQueue : IMediaProbeQueue
+    {
+        public List<string> Paths { get; } = [];
+
+        public ValueTask QueueAsync(int mediaId, string fullPath, CancellationToken cancellationToken = default)
+        {
+            Paths.Add(fullPath);
+            return ValueTask.CompletedTask;
         }
     }
 }

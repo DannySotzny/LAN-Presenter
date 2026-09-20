@@ -17,12 +17,16 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMediaFolderService, SqliteMediaFolderService>();
         services.AddSingleton<IMediaLibraryService, SqliteMediaLibraryService>();
         services.AddSingleton<IMediaScanner, SqliteMediaScanner>();
+        services.AddSingleton<IFileStabilityChecker, FileStabilityChecker>();
+        services.AddSingleton<MediaProbeQueue>();
+        services.AddSingleton<IMediaProbeQueue>(provider => provider.GetRequiredService<MediaProbeQueue>());
         services.AddSingleton<IExternalProcessRunner, ExternalProcessRunner>();
         services.AddSingleton<IFfprobeService>(provider => new FfprobeService(
             provider.GetRequiredService<IPresenterSettingsService>(),
             provider.GetRequiredService<IExternalProcessRunner>(),
             provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<FfprobeService>>(),
             toolsDirectory ?? Path.Combine(Directory.GetParent(Path.GetFullPath(dataDirectory))?.FullName ?? dataDirectory, "Tools")));
+        services.AddHostedService<MediaProbeQueue>(provider => provider.GetRequiredService<MediaProbeQueue>());
         services.AddHostedService<MediaReconciliationWorker>();
         services.AddSingleton<PlaybackController>();
         return services;
@@ -200,7 +204,8 @@ internal sealed class SqlitePresenterSettingsService(IDbContextFactory<Presenter
 
 internal sealed class SqliteMediaLibraryService(
     IDbContextFactory<PresenterDbContext> contextFactory,
-    IMediaFolderService mediaFolderService) : IMediaLibraryService
+    IMediaFolderService mediaFolderService,
+    IMediaProbeQueue mediaProbeQueue) : IMediaLibraryService
 {
     public async Task<IReadOnlyList<VideoAsset>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -236,7 +241,7 @@ internal sealed class SqliteMediaLibraryService(
         {
             FileName = file.Name,
             FullPath = file.FullName,
-            FileSize = length,
+            FileSize = file.Length,
             AddedAtUtc = now,
             LastWriteUtc = file.LastWriteTimeUtc,
             LastScannedUtc = now,
@@ -245,6 +250,7 @@ internal sealed class SqliteMediaLibraryService(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         context.Videos.Add(asset);
         await context.SaveChangesAsync(cancellationToken);
+        await mediaProbeQueue.QueueAsync(asset.Id, asset.FullPath, cancellationToken);
         return asset;
     }
 

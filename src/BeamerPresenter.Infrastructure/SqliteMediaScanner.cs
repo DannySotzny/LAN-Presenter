@@ -9,6 +9,7 @@ namespace BeamerPresenter.Infrastructure;
 internal sealed class SqliteMediaScanner(
     IDbContextFactory<PresenterDbContext> contextFactory,
     IMediaFolderService mediaFolderService,
+    IMediaProbeQueue mediaProbeQueue,
     ILogger<SqliteMediaScanner> logger) : IMediaScanner
 {
     public async Task<MediaScanResult> ScanAllAsync(CancellationToken cancellationToken = default)
@@ -45,12 +46,13 @@ internal sealed class SqliteMediaScanner(
         var added = 0;
         var updated = 0;
         var unchanged = 0;
+        var probeAssets = new List<VideoAsset>();
         foreach (var (path, file) in discoveredFiles)
         {
             var lastWriteUtc = new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero);
             if (!existingByPath.TryGetValue(path, out var video))
             {
-                context.Videos.Add(new VideoAsset
+                var addedAsset = new VideoAsset
                 {
                     FileName = file.Name,
                     FullPath = file.FullName,
@@ -59,7 +61,9 @@ internal sealed class SqliteMediaScanner(
                     LastWriteUtc = lastWriteUtc,
                     LastScannedUtc = scanTimestamp,
                     IsAvailable = true
-                });
+                };
+                context.Videos.Add(addedAsset);
+                probeAssets.Add(addedAsset);
                 added++;
                 continue;
             }
@@ -72,10 +76,17 @@ internal sealed class SqliteMediaScanner(
             video.IsAvailable = true;
             if (changed)
             {
+                ResetProbeState(video);
+                probeAssets.Add(video);
                 updated++;
             }
             else
             {
+                if (video.ProbeStatus == MediaProbeStatus.Unknown)
+                {
+                    probeAssets.Add(video);
+                }
+
                 unchanged++;
             }
         }
@@ -85,10 +96,18 @@ internal sealed class SqliteMediaScanner(
         {
             video.IsAvailable = false;
             video.LastScannedUtc = scanTimestamp;
+            video.ProbeStatus = MediaProbeStatus.Missing;
+            video.PlaybackStatus = MediaPlaybackStatus.Unsupported;
+            video.ProbeError = "Die Mediendatei wurde nicht gefunden.";
             missing++;
         }
 
         await context.SaveChangesAsync(cancellationToken);
+        foreach (var asset in probeAssets)
+        {
+            await mediaProbeQueue.QueueAsync(asset.Id, asset.FullPath, cancellationToken);
+        }
+
         logger.LogInformation(
             "Media reconciliation completed: {Added} added, {Updated} updated, {Missing} missing, {Unchanged} unchanged",
             added,
@@ -96,6 +115,13 @@ internal sealed class SqliteMediaScanner(
             missing,
             unchanged);
         return new MediaScanResult(added, updated, missing, unchanged);
+    }
+
+    private static void ResetProbeState(VideoAsset video)
+    {
+        video.ProbeStatus = MediaProbeStatus.Unknown;
+        video.PlaybackStatus = MediaPlaybackStatus.Unknown;
+        video.ProbeError = null;
     }
 }
 

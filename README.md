@@ -19,13 +19,14 @@ Die Fundament-Stufe ist implementiert:
 - Full Scan beim Start und Reconciliation alle 30 Minuten für neue, geänderte und fehlende lokale Videos
 - automatische FFprobe-Erkennung mit echtem `-version`-Prozesscheck, manueller Pfadwahl und optionaler WinGet-Installation
 - FFprobe-Metadatenanalyse für Dauer, Container, Video-/Audio-Codec, Auflösung, Framerate und Audiokanäle mit getrenntem Analyse- und Browser-Wiedergabestatus
+- automatische, deduplizierte Analyse-Queue mit höchstens zwei parallelen FFprobe-Prozessen und Stabilitätsprüfung vor der Analyse großer Kopiervorgänge
 - lokale Auslieferung der MudBlazor-Assets für Debug, portable Ausgabe und Inno-Setup-Installation
 - SQLite-Persistenz unter `%LOCALAPPDATA%\HouseOfLAN\Presenter\Data\presenter.db`
 - versionierte EF-Core-Migrationen mit verlustfreier Übernahme vorhandener `EnsureCreated`-Datenbanken
 - getrennte lokale Verzeichnisse für Daten, Logs, Backups, Chrome-Profil und Tools
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 
-Noch nicht enthalten sind die automatische Analyse-Warteschlange, Chrome-Kiosk-Steuerung, Playlist-/Segmentlogik, YouTube, SignalR und die Beamer-/Monitorsteuerung. Diese werden in den folgenden Phasen hinter den vorhandenen Application-Contracts ergänzt.
+Noch nicht enthalten sind die FileSystemWatcher-Soforterkennung, Chrome-Kiosk-Steuerung, Playlist-/Segmentlogik, YouTube, SignalR und die Beamer-/Monitorsteuerung. Diese werden in den folgenden Phasen hinter den vorhandenen Application-Contracts ergänzt.
 
 ## Lokaler Start
 
