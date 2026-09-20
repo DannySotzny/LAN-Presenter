@@ -31,4 +31,12 @@ public interface IMediaScanner
 
 public sealed record MediaScanResult(int Added, int Updated, int Missing, int Unchanged);
 
+public interface IFfprobeService
+{
+    Task<FfprobeAvailability> CheckAvailabilityAsync(CancellationToken cancellationToken = default);
+    Task<FfprobeAvailability> InstallWithWinGetAsync(CancellationToken cancellationToken = default);
+}
+
+public sealed record FfprobeAvailability(bool IsAvailable, string? ExecutablePath, string? Version, string? Error);
+
 public sealed record PresenterStatus(PresenterState State, string Version, string WebUrl);

@@ -19,7 +19,7 @@ public sealed class PresenterDatabaseMigrationTests
 
             await using var connection = new SqliteConnection(PresenterDatabase.CreateConnectionString(dataDirectory));
             await connection.OpenAsync();
-            Assert.EndsWith("_AddMediaScanState", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
+            Assert.EndsWith("_AddFfprobePath", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
             Assert.Equal("wal", await ReadScalarAsync(connection, "PRAGMA journal_mode;"));
             Assert.Equal("1", await ReadScalarAsync(connection, "PRAGMA foreign_keys;"));
         }
@@ -41,8 +41,10 @@ public sealed class PresenterDatabaseMigrationTests
             await using (var context = new PresenterDbContext(options))
             {
                 await context.Database.GetService<IMigrator>().MigrateAsync("20260920165033_InitialSchema");
-                context.Settings.Add(new PresenterSettings { WebPort = 9123, MediaFolder = "D:\\LAN\\Videos" });
-                await context.SaveChangesAsync();
+                await context.Database.ExecuteSqlRawAsync("""
+                    INSERT INTO Settings (Id, WebPort, AllowLanAccess, MediaFolder, PasswordHash, PasswordSalt)
+                    VALUES (1, 9123, 1, 'D:\LAN\Videos', NULL, NULL);
+                    """);
                 await context.Database.ExecuteSqlRawAsync("DROP TABLE __EFMigrationsHistory;");
             }
 
@@ -50,7 +52,7 @@ public sealed class PresenterDatabaseMigrationTests
 
             await using var connection = new SqliteConnection(PresenterDatabase.CreateConnectionString(dataDirectory));
             await connection.OpenAsync();
-            Assert.EndsWith("_AddMediaScanState", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
+            Assert.EndsWith("_AddFfprobePath", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
             Assert.Equal("D:\\LAN\\Videos", await ReadScalarAsync(connection, "SELECT MediaFolder FROM Settings WHERE Id = 1;"));
             Assert.Equal("D:\\LAN\\Videos", await ReadScalarAsync(connection, "SELECT Path FROM MediaFolders LIMIT 1;"));
             Assert.Single(Directory.GetFiles(Path.Combine(Directory.GetParent(dataDirectory)!.FullName, "Backup"), "presenter-before-migration-*.db"));

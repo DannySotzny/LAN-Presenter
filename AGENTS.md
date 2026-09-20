@@ -26,6 +26,7 @@
 - Vor ausstehenden Schema-Migrationen wird die SQLite-Datenbank per SQLite-Backup-API nach `Backup/` kopiert; maximal sieben Migrationsbackups bleiben erhalten.
 - Medienordner sind eigene persistente Entitäten mit `NOCASE`-eindeutigem Vollpfad. Uploads verwenden den ersten aktivierten Ordner und dürfen nicht auf das Legacy-Feld `PresenterSettings.MediaFolder` zurückfallen.
 - `IMediaScanner` ist die verlässliche Quelle für den Dateibestand: Startscan plus 30-Minuten-Reconciliation. Der Scanner ignoriert unzugängliche Pfade und Reparse Points, erfasst nur `MediaFileSupport`-Endungen und markiert verschwundene Dateien, statt Datensätze zu löschen.
+- FFprobe-Kandidaten werden in der Reihenfolge konfigurierter Pfad, lokales `Tools`-Verzeichnis, `PATH`, bekannte Installationsorte geprüft und gelten ausschließlich nach erfolgreichem `ffprobe -version` als verfügbar. Automatische Installation läuft nur über die exakte WinGet-ID `Gyan.FFmpeg`.
 
 ## Arbeitsweise
 

@@ -16,6 +16,7 @@ public sealed class PresenterSettings
     public int WebPort { get; set; } = DefaultWebPort;
     public bool AllowLanAccess { get; set; } = true;
     public string MediaFolder { get; set; } = string.Empty;
+    public string? FfprobePath { get; set; }
     public string? PasswordHash { get; set; }
     public string? PasswordSalt { get; set; }
 }

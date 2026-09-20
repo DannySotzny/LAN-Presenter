@@ -67,7 +67,7 @@ internal static class Program
         builder.Host.UseSerilog(Log.Logger, dispose: false);
         builder.WebHost.UseStaticWebAssets();
         builder.WebHost.UseUrls($"http://0.0.0.0:{webPort}");
-        builder.Services.AddPresenterInfrastructure(paths.DataDirectory);
+        builder.Services.AddPresenterInfrastructure(paths.DataDirectory, paths.ToolsDirectory);
         builder.Services.AddPresenterWebUi();
         builder.Services.AddSingleton(new StartupRegistrationService(Environment.ProcessPath ?? System.Windows.Forms.Application.ExecutablePath));
         builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options => options.MultipartBodyLengthLimit = 5L * 1024 * 1024 * 1024);

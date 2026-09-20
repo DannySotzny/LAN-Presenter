@@ -13,6 +13,7 @@ public sealed class PresenterDbContext(DbContextOptions<PresenterDbContext> opti
     {
         modelBuilder.Entity<PresenterSettings>().HasKey(x => x.Id);
         modelBuilder.Entity<PresenterSettings>().Property(x => x.MediaFolder).HasMaxLength(1024);
+        modelBuilder.Entity<PresenterSettings>().Property(x => x.FfprobePath).HasMaxLength(4096);
         modelBuilder.Entity<VideoAsset>().HasIndex(x => x.FullPath).IsUnique();
         modelBuilder.Entity<VideoAsset>().Property(x => x.FileName).HasMaxLength(260);
         modelBuilder.Entity<VideoAsset>().Property(x => x.FullPath).HasMaxLength(4096).UseCollation("NOCASE");

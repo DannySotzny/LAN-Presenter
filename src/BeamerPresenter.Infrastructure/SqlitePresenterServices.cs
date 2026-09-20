@@ -9,7 +9,7 @@ namespace BeamerPresenter.Infrastructure;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddPresenterInfrastructure(this IServiceCollection services, string dataDirectory)
+    public static IServiceCollection AddPresenterInfrastructure(this IServiceCollection services, string dataDirectory, string? toolsDirectory = null)
     {
         Directory.CreateDirectory(dataDirectory);
         services.AddDbContextFactory<PresenterDbContext>(options => options.UseSqlite(PresenterDatabase.CreateConnectionString(dataDirectory)));
@@ -17,6 +17,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMediaFolderService, SqliteMediaFolderService>();
         services.AddSingleton<IMediaLibraryService, SqliteMediaLibraryService>();
         services.AddSingleton<IMediaScanner, SqliteMediaScanner>();
+        services.AddSingleton<IExternalProcessRunner, ExternalProcessRunner>();
+        services.AddSingleton<IFfprobeService>(provider => new FfprobeService(
+            provider.GetRequiredService<IPresenterSettingsService>(),
+            provider.GetRequiredService<IExternalProcessRunner>(),
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<FfprobeService>>(),
+            toolsDirectory ?? Path.Combine(Directory.GetParent(Path.GetFullPath(dataDirectory))?.FullName ?? dataDirectory, "Tools")));
         services.AddHostedService<MediaReconciliationWorker>();
         services.AddSingleton<PlaybackController>();
         return services;
@@ -149,6 +155,7 @@ internal sealed class SqlitePresenterSettingsService(IDbContextFactory<Presenter
             existing.WebPort = settings.WebPort;
             existing.AllowLanAccess = settings.AllowLanAccess;
             existing.MediaFolder = settings.MediaFolder;
+            existing.FfprobePath = settings.FfprobePath;
         }
 
         await context.SaveChangesAsync(cancellationToken);
