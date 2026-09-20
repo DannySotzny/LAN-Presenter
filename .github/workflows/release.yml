@@ -21,6 +21,7 @@ jobs:
         shell: pwsh
         run: '"VERSION=$($env:VERSION.TrimStart(''v''))" | Out-File -FilePath $env:GITHUB_ENV -Append'
       - run: dotnet restore BeamerPresenterForLanParties.slnx
+      - run: dotnet format BeamerPresenterForLanParties.slnx --verify-no-changes --no-restore
       - run: dotnet build BeamerPresenterForLanParties.slnx -c Release --no-restore -p:Version=${{ env.VERSION }}
       - run: dotnet test BeamerPresenterForLanParties.slnx -c Release --no-build
       - name: Publish self-contained application

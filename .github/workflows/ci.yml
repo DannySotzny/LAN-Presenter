@@ -15,5 +15,6 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet tool restore
       - run: dotnet restore BeamerPresenterForLanParties.slnx
+      - run: dotnet format BeamerPresenterForLanParties.slnx --verify-no-changes --no-restore
       - run: dotnet build BeamerPresenterForLanParties.slnx -c Release --no-restore
       - run: dotnet test BeamerPresenterForLanParties.slnx -c Release --no-build
