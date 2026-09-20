@@ -7,6 +7,7 @@ Lokale Windows-Anwendung zur Steuerung von Videos auf einem Beamer bei LAN-Parti
 Die Fundament-Stufe ist implementiert:
 
 - WinForms-Status-/Einstellungsfenster mit Tray-Icon
+- Statusanzeige mit tatsächlicher Version, Buildzeit, Git-Commit und .NET-Runtime aus dem Buildartefakt
 - Kestrel-Weboberfläche auf Port 8765, inklusive Health-Endpunkt und MudBlazor-Management-UI
 - Passwortschutz per Cookie-Login; das Passwort wird ausschließlich in der Desktop-App gesetzt
 - PBKDF2-SHA512-Hash mit zufälligem Salt, kein Klartextpasswort

@@ -1,0 +1,15 @@
+<Project>
+  <Target Name="AddPresenterBuildMetadata"
+          BeforeTargets="GetAssemblyAttributes"
+          DependsOnTargets="InitializeSourceControlInformation">
+    <PropertyGroup>
+      <BuildTimestampUtc Condition="'$(BuildTimestampUtc)' == ''">$([System.DateTime]::UtcNow.ToString('O'))</BuildTimestampUtc>
+      <GitCommitSha Condition="'$(GitCommitSha)' == ''">$(SourceRevisionId)</GitCommitSha>
+      <GitCommitSha Condition="'$(GitCommitSha)' == ''">unknown</GitCommitSha>
+    </PropertyGroup>
+    <ItemGroup>
+      <AssemblyMetadata Include="BuildTimestampUtc" Value="$(BuildTimestampUtc)" />
+      <AssemblyMetadata Include="GitCommitSha" Value="$(GitCommitSha)" />
+    </ItemGroup>
+  </Target>
+</Project>
