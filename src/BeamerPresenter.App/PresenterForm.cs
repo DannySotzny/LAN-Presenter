@@ -59,6 +59,7 @@ internal sealed class PresenterForm : Form
     }
     private void OpenWebUi() => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_webUrl.Text) { UseShellExecute = true });
     private void ShowFromTray() { Show(); WindowState = FormWindowState.Normal; Activate(); }
+    internal void ShowFromExternalLaunch() => ShowFromTray();
     private void ExitApplication() { _allowExit = true; Close(); }
     private void OnFormClosing(object? sender, FormClosingEventArgs eventArgs) { if (!_allowExit && eventArgs.CloseReason == CloseReason.UserClosing) { eventArgs.Cancel = true; Hide(); } }
 }

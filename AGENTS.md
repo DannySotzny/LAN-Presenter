@@ -17,6 +17,7 @@
 - Der WinForms-Host erstellt kein zusammengeführtes Static-Asset-Manifest. RCL- und MudBlazor-Assets werden daher per MSBuild als `wwwroot/_content/...` in den App-Output kopiert; `UseStaticFiles()` liefert sie aus.
 - Der Kestrel-Web-Root wird explizit auf `AppContext.BaseDirectory/wwwroot` gesetzt, da das Arbeitsverzeichnis beim Start aus Visual Studio oder per Installer abweichen kann.
 - `Directory.Build.targets` schreibt `BuildTimestampUtc` und `GitCommitSha` als Assembly-Metadaten. Diese Werte werden im Statusfenster aus dem tatsächlichen App-Assembly gelesen und dürfen dort nicht hart codiert werden.
+- Single-Instance verwendet einen benutzerspezifischen Named Mutex und eine benutzerspezifische Named Pipe. Der zweite Prozess darf keinen Host starten, sondern fordert ausschließlich das Öffnen des bestehenden Statusfensters an.
 - SQLite kann `DateTimeOffset` nicht serverseitig in `ORDER BY` übersetzen. Die kleine Videoliste wird deshalb zuerst geladen und anschließend im Speicher nach `AddedAtUtc` sortiert; Änderungen daran müssen den authentifizierten Web-Routen-Test bestehen.
 
 ## Arbeitsweise

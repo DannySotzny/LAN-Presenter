@@ -14,10 +14,25 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
+        using var singleInstance = SingleInstanceCoordinator.Acquire();
+        if (!singleInstance.IsPrimary)
+        {
+            singleInstance.SignalPrimaryAsync().GetAwaiter().GetResult();
+            return;
+        }
+
         ApplicationConfiguration.Initialize();
         using var presenterHost = BuildPresenterHost();
         presenterHost.StartAsync().GetAwaiter().GetResult();
-        System.Windows.Forms.Application.Run(new PresenterForm(presenterHost));
+        using var presenterForm = new PresenterForm(presenterHost);
+        singleInstance.StartListening(() =>
+        {
+            if (!presenterForm.IsDisposed && presenterForm.IsHandleCreated)
+            {
+                presenterForm.BeginInvoke(presenterForm.ShowFromExternalLaunch);
+            }
+        });
+        System.Windows.Forms.Application.Run(presenterForm);
         presenterHost.StopAsync().GetAwaiter().GetResult();
     }
 

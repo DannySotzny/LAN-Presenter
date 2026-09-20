@@ -7,6 +7,7 @@
     <Project Path="src/BeamerPresenter.Web/BeamerPresenter.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/BeamerPresenter.App.Tests/BeamerPresenter.App.Tests.csproj" />
     <Project Path="tests/BeamerPresenter.Application.Tests/BeamerPresenter.Application.Tests.csproj" />
     <Project Path="tests/BeamerPresenter.Web.Tests/BeamerPresenter.Web.Tests.csproj" />
   </Folder>
