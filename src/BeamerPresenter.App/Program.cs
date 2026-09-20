@@ -24,10 +24,11 @@ internal static class Program
     private static WebApplication BuildPresenterHost()
     {
         var dataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HouseOfLAN", "Presenter", "Data");
+        var webPort = PresenterDatabase.GetConfiguredWebPort(dataDirectory);
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         builder.Logging.AddConsole();
-        builder.WebHost.UseUrls("http://0.0.0.0:8765");
+        builder.WebHost.UseUrls($"http://0.0.0.0:{webPort}");
         builder.Services.AddPresenterInfrastructure(dataDirectory);
         builder.Services.AddPresenterWebUi();
         builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options => options.MultipartBodyLengthLimit = 5L * 1024 * 1024 * 1024);

@@ -20,6 +20,20 @@ public static class ServiceCollectionExtensions
     }
 }
 
+public static class PresenterDatabase
+{
+    public static int GetConfiguredWebPort(string dataDirectory)
+    {
+        Directory.CreateDirectory(dataDirectory);
+        var databasePath = Path.Combine(dataDirectory, "presenter.db");
+        var options = new DbContextOptionsBuilder<PresenterDbContext>().UseSqlite($"Data Source={databasePath}").Options;
+        using var context = new PresenterDbContext(options);
+        context.Database.EnsureCreated();
+        var configuredPort = context.Settings.AsNoTracking().Where(x => x.Id == 1).Select(x => (int?)x.WebPort).SingleOrDefault();
+        return configuredPort is >= 1024 and <= 65535 ? configuredPort.Value : PresenterSettings.DefaultWebPort;
+    }
+}
+
 internal sealed class SqlitePresenterSettingsService(IDbContextFactory<PresenterDbContext> contextFactory) : IPresenterSettingsService
 {
     private const int PasswordIterations = 600_000;
