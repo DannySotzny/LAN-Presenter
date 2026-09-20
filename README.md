@@ -16,6 +16,7 @@ Die Fundament-Stufe ist implementiert:
 - PBKDF2-SHA512-Hash mit zufälligem Salt, kein Klartextpasswort
 - Upload unterstützter Videoformate über die geschützte Web UI
 - mehrere persistente Videoordner mit optional rekursiver Erfassung; der bisherige Einzelpfad wird automatisch migriert
+- Full Scan beim Start und Reconciliation alle 30 Minuten für neue, geänderte und fehlende lokale Videos
 - lokale Auslieferung der MudBlazor-Assets für Debug, portable Ausgabe und Inno-Setup-Installation
 - SQLite-Persistenz unter `%LOCALAPPDATA%\HouseOfLAN\Presenter\Data\presenter.db`
 - versionierte EF-Core-Migrationen mit verlustfreier Übernahme vorhandener `EnsureCreated`-Datenbanken

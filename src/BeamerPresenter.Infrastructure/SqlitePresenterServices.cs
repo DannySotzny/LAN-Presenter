@@ -16,6 +16,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPresenterSettingsService, SqlitePresenterSettingsService>();
         services.AddSingleton<IMediaFolderService, SqliteMediaFolderService>();
         services.AddSingleton<IMediaLibraryService, SqliteMediaLibraryService>();
+        services.AddSingleton<IMediaScanner, SqliteMediaScanner>();
+        services.AddHostedService<MediaReconciliationWorker>();
         services.AddSingleton<PlaybackController>();
         return services;
     }
@@ -193,11 +195,6 @@ internal sealed class SqliteMediaLibraryService(
     IDbContextFactory<PresenterDbContext> contextFactory,
     IMediaFolderService mediaFolderService) : IMediaLibraryService
 {
-    private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v"
-    };
-
     public async Task<IReadOnlyList<VideoAsset>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -208,8 +205,7 @@ internal sealed class SqliteMediaLibraryService(
     public async Task<VideoAsset> AddUploadAsync(string originalFileName, Stream content, long length, CancellationToken cancellationToken = default)
     {
         var safeName = Path.GetFileName(originalFileName);
-        var extension = Path.GetExtension(safeName);
-        if (string.IsNullOrWhiteSpace(safeName) || !AllowedExtensions.Contains(extension))
+        if (string.IsNullOrWhiteSpace(safeName) || !MediaFileSupport.IsSupported(safeName))
         {
             throw new InvalidOperationException("Dieses Videoformat wird nicht unterstützt.");
         }
@@ -227,7 +223,18 @@ internal sealed class SqliteMediaLibraryService(
             await content.CopyToAsync(destination, cancellationToken);
         }
 
-        var asset = new VideoAsset { FileName = Path.GetFileName(destinationPath), FullPath = destinationPath, FileSize = length, AddedAtUtc = DateTimeOffset.UtcNow };
+        var file = new FileInfo(destinationPath);
+        var now = DateTimeOffset.UtcNow;
+        var asset = new VideoAsset
+        {
+            FileName = file.Name,
+            FullPath = file.FullName,
+            FileSize = length,
+            AddedAtUtc = now,
+            LastWriteUtc = file.LastWriteTimeUtc,
+            LastScannedUtc = now,
+            IsAvailable = true
+        };
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         context.Videos.Add(asset);
         await context.SaveChangesAsync(cancellationToken);

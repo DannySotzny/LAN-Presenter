@@ -24,4 +24,11 @@ public interface IMediaFolderService
     Task RemoveAsync(int id, CancellationToken cancellationToken = default);
 }
 
+public interface IMediaScanner
+{
+    Task<MediaScanResult> ScanAllAsync(CancellationToken cancellationToken = default);
+}
+
+public sealed record MediaScanResult(int Added, int Updated, int Missing, int Unchanged);
+
 public sealed record PresenterStatus(PresenterState State, string Version, string WebUrl);

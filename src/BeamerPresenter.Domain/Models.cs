@@ -27,6 +27,9 @@ public sealed class VideoAsset
     public required string FullPath { get; set; }
     public long FileSize { get; set; }
     public DateTimeOffset AddedAtUtc { get; set; }
+    public DateTimeOffset LastWriteUtc { get; set; }
+    public DateTimeOffset? LastScannedUtc { get; set; }
+    public bool IsAvailable { get; set; } = true;
 }
 
 public sealed class MediaFolder

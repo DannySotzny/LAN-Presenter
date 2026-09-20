@@ -25,6 +25,7 @@
 - Datenbankschemata werden ausschließlich über EF-Core-Migrationen weiterentwickelt. `PresenterDatabase` baselinet einmalig ältere `EnsureCreated`-Datenbanken auf `InitialSchema`; diese Kompatibilität muss durch einen echten SQLite-Test erhalten bleiben.
 - Vor ausstehenden Schema-Migrationen wird die SQLite-Datenbank per SQLite-Backup-API nach `Backup/` kopiert; maximal sieben Migrationsbackups bleiben erhalten.
 - Medienordner sind eigene persistente Entitäten mit `NOCASE`-eindeutigem Vollpfad. Uploads verwenden den ersten aktivierten Ordner und dürfen nicht auf das Legacy-Feld `PresenterSettings.MediaFolder` zurückfallen.
+- `IMediaScanner` ist die verlässliche Quelle für den Dateibestand: Startscan plus 30-Minuten-Reconciliation. Der Scanner ignoriert unzugängliche Pfade und Reparse Points, erfasst nur `MediaFileSupport`-Endungen und markiert verschwundene Dateien, statt Datensätze zu löschen.
 
 ## Arbeitsweise
 
