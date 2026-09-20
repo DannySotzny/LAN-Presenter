@@ -1,0 +1,15 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Aa]rtifacts/
+
+# IDE and user settings
+.vs/
+*.user
+*.suo
+
+# Local application data and logs
+*.db
+*.db-shm
+*.db-wal
+Logs/
