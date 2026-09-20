@@ -40,6 +40,7 @@ internal static class Program
         application.UseStaticFiles();
         application.UseAuthentication();
         application.UseAuthorization();
+        application.UseAntiforgery();
         application.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
         application.MapPresenterWebUi();
         return application;
