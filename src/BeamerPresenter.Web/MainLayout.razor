@@ -1,2 +1,16 @@
+@using MudBlazor
 @inherits LayoutComponentBase
-<main class="shell"><header><a href="/">Beamer Presenter for LAN-Parties</a></header>@Body</main>
+
+<MudLayout>
+    <MudAppBar Color="Color.Primary" Elevation="1">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Videocam" />
+            <MudText Typo="Typo.h6">Beamer Presenter for LAN-Parties</MudText>
+        </MudStack>
+    </MudAppBar>
+    <MudMainContent Class="main-content">
+        <MudContainer MaxWidth="MaxWidth.Large">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>

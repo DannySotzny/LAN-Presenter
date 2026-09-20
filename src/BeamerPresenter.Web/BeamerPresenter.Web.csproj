@@ -13,6 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="MudBlazor" Version="9.10.0" />
     <ProjectReference Include="..\BeamerPresenter.Application\BeamerPresenter.Application.csproj" />
   </ItemGroup>
 

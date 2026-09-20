@@ -25,9 +25,13 @@ internal static class Program
     {
         var dataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HouseOfLAN", "Presenter", "Data");
         var webPort = PresenterDatabase.GetConfiguredWebPort(dataDirectory);
-        var builder = WebApplication.CreateBuilder();
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            WebRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot")
+        });
         builder.Logging.ClearProviders();
         builder.Logging.AddConsole();
+        builder.WebHost.UseStaticWebAssets();
         builder.WebHost.UseUrls($"http://0.0.0.0:{webPort}");
         builder.Services.AddPresenterInfrastructure(dataDirectory);
         builder.Services.AddPresenterWebUi();

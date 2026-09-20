@@ -14,6 +14,8 @@
 - Uploads bleiben authentifizierungspflichtig; Dateinamen immer mit `Path.GetFileName` normalisieren und die erlaubten Endungen zentral prüfen.
 - `/presenter` bleibt absichtlich anonym erreichbar, damit der lokale Kiosk ohne Anmeldung funktioniert. Keine Management-Endpunkte dort hinzufügen.
 - Razor Components benötigen `UseAntiforgery()` nach `UseAuthentication()` und `UseAuthorization()`; ohne diese Middleware antwortet selbst `/login` mit HTTP 500.
+- Der WinForms-Host erstellt kein zusammengeführtes Static-Asset-Manifest. RCL- und MudBlazor-Assets werden daher per MSBuild als `wwwroot/_content/...` in den App-Output kopiert; `UseStaticFiles()` liefert sie aus.
+- Der Kestrel-Web-Root wird explizit auf `AppContext.BaseDirectory/wwwroot` gesetzt, da das Arbeitsverzeichnis beim Start aus Visual Studio oder per Installer abweichen kann.
 
 ## Arbeitsweise
 

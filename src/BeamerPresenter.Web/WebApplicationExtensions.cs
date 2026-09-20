@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using MudBlazor.Services;
 
 namespace BeamerPresenter.Web;
 
@@ -14,6 +15,7 @@ public static class WebApplicationExtensions
     public static IServiceCollection AddPresenterWebUi(this IServiceCollection services)
     {
         services.AddRazorComponents();
+        services.AddMudServices();
         services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
         {
             options.LoginPath = "/login"; options.Cookie.Name = "BeamerPresenter.Auth"; options.Cookie.HttpOnly = true;

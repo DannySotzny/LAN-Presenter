@@ -1,5 +1,6 @@
 @using Microsoft.AspNetCore.Components.Routing
+@using MudBlazor
 @namespace BeamerPresenter.Web
 <!DOCTYPE html>
-<html lang="de"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><base href="/" /><link rel="stylesheet" href="_content/BeamerPresenter.Web/css/app.css" /><title>Beamer Presenter for LAN-Parties</title></head>
-<body><Router AppAssembly="typeof(PresenterWebApp).Assembly"><Found Context="routeData"><RouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)" /></Found><NotFound><LayoutView Layout="typeof(MainLayout)"><p>Diese Seite existiert nicht.</p></LayoutView></NotFound></Router></body></html>
+<html lang="de"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><base href="/" /><link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" /><link rel="stylesheet" href="_content/BeamerPresenter.Web/css/app.css" /><title>Beamer Presenter for LAN-Parties</title></head>
+<body><MudThemeProvider /><MudPopoverProvider /><MudDialogProvider /><MudSnackbarProvider /><Router AppAssembly="typeof(PresenterWebApp).Assembly"><Found Context="routeData"><RouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)" /></Found><NotFound><LayoutView Layout="typeof(MainLayout)"><MudText Typo="Typo.h5">Diese Seite existiert nicht.</MudText></LayoutView></NotFound></Router><script src="_content/MudBlazor/MudBlazor.min.js"></script></body></html>

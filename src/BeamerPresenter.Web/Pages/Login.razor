@@ -1,6 +1,38 @@
 @page "/login"
+@using MudBlazor
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @inject BeamerPresenter.Application.IPresenterSettingsService SettingsService
 @inject NavigationManager Navigation
-<section class="card narrow"><h1>Anmeldung</h1>@if (_isUnconfigured) { <p>Der Passwortschutz wurde noch nicht eingerichtet. Öffne die Einstellungen in der Desktop-App und setze ein Passwort.</p> } else { @if (HasError) { <p class="error">Das Passwort ist nicht korrekt.</p> } <form method="post" action="/account/login"><input type="hidden" name="returnUrl" value="/" /><label for="password">Passwort</label><input id="password" name="password" type="password" autocomplete="current-password" required autofocus /><button type="submit">Anmelden</button></form> }</section>
-@code { private bool _isUnconfigured; private bool HasError => Navigation.ToAbsoluteUri(Navigation.Uri).Query.Contains("error=1", StringComparison.Ordinal); protected override async Task OnInitializedAsync() => _isUnconfigured = !await SettingsService.HasWebPasswordAsync(); }
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="login-shell">
+    <MudPaper Elevation="10" Class="pa-8">
+        <MudStack Spacing="3" AlignItems="AlignItems.Center">
+            <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Large"><MudIcon Icon="@Icons.Material.Filled.Lock" /></MudAvatar>
+            <MudText Typo="Typo.h4" Align="Align.Center">Geschützter Zugriff</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary" Align="Align.Center">Melde dich an, um den Presenter und die Videobibliothek zu steuern.</MudText>
+        </MudStack>
+        @if (_isUnconfigured)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mt-6">Lege zuerst in der Desktop-App ein Web-Passwort fest.</MudAlert>
+        }
+        else
+        {
+            @if (HasError)
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-6">Das Passwort ist nicht korrekt.</MudAlert>
+            }
+            <form method="post" action="/account/login" class="mt-6">
+                <input type="hidden" name="returnUrl" value="/" />
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Passwort</MudText>
+                <input class="mud-input-slot mud-input-root mud-input-root-outlined login-input" id="password" name="password" type="password" autocomplete="current-password" required autofocus />
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large" Class="mt-5">Anmelden</MudButton>
+            </form>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private bool _isUnconfigured;
+    private bool HasError => Navigation.ToAbsoluteUri(Navigation.Uri).Query.Contains("error=1", StringComparison.Ordinal);
+    protected override async Task OnInitializedAsync() => _isUnconfigured = !await SettingsService.HasWebPasswordAsync();
+}
