@@ -60,6 +60,12 @@ public interface IBrowserController
     Task<bool> IsRunningAsync(CancellationToken cancellationToken = default);
 }
 
+public interface IPowerManagementService
+{
+    Task ApplyAsync(bool preventDisplaySleep, bool preventSystemSleep, CancellationToken cancellationToken = default);
+    Task ReleaseAsync(CancellationToken cancellationToken = default);
+}
+
 public sealed record DisplayMonitor(
     string DeviceName,
     string FriendlyName,

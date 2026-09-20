@@ -50,7 +50,8 @@ public sealed class ChromeBrowserControllerTests
 
             Assert.Equal(new IntPtr(42), Assert.Single(windows.Minimized));
             Assert.Equal(new IntPtr(42), Assert.Single(windows.Restored));
-            Assert.Equal(2, windows.Placements.Count);
+            Assert.Equal(3, windows.Placements.Count);
+            Assert.Equal([true, false, true], windows.Placements.Select(placement => placement.Topmost));
 
             await controller.StopAsync();
             Assert.False(await controller.IsRunningAsync());

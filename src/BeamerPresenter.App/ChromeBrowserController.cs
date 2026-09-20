@@ -117,6 +117,8 @@ internal sealed class ChromeBrowserController(
             }
 
             var windowHandle = await WaitForWindowAsync(process, cancellationToken);
+            var settings = await settingsService.GetAsync(cancellationToken);
+            windowController.Place(windowHandle, ResolveMonitor(settings), topmost: false);
             windowController.Minimize(windowHandle);
         }
         finally

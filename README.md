@@ -31,6 +31,7 @@ Die Fundament-Stufe ist implementiert:
 - getrennte lokale Verzeichnisse für Daten, Logs, Backups, Chrome-Profil und Tools
 - persistente Presenter-Optionen für Chrome-Pfad, Zielmonitor, Always-On-Top und Display-/System-Standby-Schutz
 - kontrollierter Chrome-Kiosk-Kindprozess mit separatem Profil, Autoplay-Policy, Zielmonitorpositionierung und Show/Hide/Stop-Steuerung
+- zentral serialisierte Presenter-Zustände, die Chrome, SignalR-Wiedergabe und Windows-Power-Requests gemeinsam aktivieren, pausieren, ausblenden und stoppen
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 
 Noch nicht enthalten sind Chrome-Kiosk-Steuerung, Playlist-/Segmentlogik, YouTube, SignalR und die Beamer-/Monitorsteuerung. Diese werden in den folgenden Phasen hinter den vorhandenen Application-Contracts ergänzt.

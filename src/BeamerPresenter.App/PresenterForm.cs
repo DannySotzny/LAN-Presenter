@@ -12,6 +12,7 @@ internal sealed class PresenterForm : Form
     private readonly IMonitorService _monitorService;
     private readonly StartupRegistrationService _startupRegistration;
     private readonly PlaybackController _playback;
+    private readonly PlaybackOrchestrator _playbackOrchestrator;
     private readonly Label _version = new() { AutoSize = true };
     private readonly Label _build = new() { AutoSize = true };
     private readonly Label _commit = new() { AutoSize = true };
@@ -51,6 +52,7 @@ internal sealed class PresenterForm : Form
         _monitorService = host.Services.GetRequiredService<IMonitorService>();
         _startupRegistration = host.Services.GetRequiredService<StartupRegistrationService>();
         _playback = host.Services.GetRequiredService<PlaybackController>();
+        _playbackOrchestrator = host.Services.GetRequiredService<PlaybackOrchestrator>();
         var buildInformation = BuildInformation.Current;
         _version.Text = buildInformation.Version;
         _build.Text = buildInformation.BuildTimestampUtc?.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", System.Globalization.CultureInfo.InvariantCulture) ?? "Nicht verfügbar";
@@ -65,10 +67,10 @@ internal sealed class PresenterForm : Form
                 Hide();
             }
         };
-        _activatePresenter.Click += (_, _) => ChangePresenterState(_playback.Activate, requiresMonitor: true);
-        _pausePresenter.Click += (_, _) => ChangePresenterState(_playback.Pause);
-        _hidePresenter.Click += (_, _) => ChangePresenterState(_playback.Hide);
-        _stopPresenter.Click += (_, _) => ChangePresenterState(_playback.Stop);
+        _activatePresenter.Click += async (_, _) => await ChangePresenterStateAsync(_playbackOrchestrator.ActivateAsync, requiresMonitor: true);
+        _pausePresenter.Click += async (_, _) => await ChangePresenterStateAsync(_playbackOrchestrator.PauseAsync);
+        _hidePresenter.Click += async (_, _) => await ChangePresenterStateAsync(_playbackOrchestrator.HideAsync);
+        _stopPresenter.Click += async (_, _) => await ChangePresenterStateAsync(_playbackOrchestrator.StopAsync);
         _monitor.SelectedIndexChanged += (_, _) => UpdateSelectedMonitorStatus();
         var menu = CreateTrayMenu();
         _notifyIcon = new NotifyIcon { Icon = SystemIcons.Application, Text = "Beamer Presenter for LAN-Parties", Visible = true, ContextMenuStrip = menu };
@@ -163,7 +165,7 @@ internal sealed class PresenterForm : Form
         menu.Items.Add("Beenden", null, (_, _) => ExitApplication());
         return menu;
     }
-    private void ChangePresenterState(Action command, bool requiresMonitor = false)
+    private async Task ChangePresenterStateAsync(Func<CancellationToken, Task> command, bool requiresMonitor = false)
     {
         if (requiresMonitor && (_configuredMonitorMissing || _monitor.SelectedItem is null))
         {
@@ -171,7 +173,15 @@ internal sealed class PresenterForm : Form
             return;
         }
 
-        command(); UpdatePresenterStatus();
+        try
+        {
+            await command(CancellationToken.None);
+            UpdatePresenterStatus();
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
     private void UpdatePresenterStatus()
     {

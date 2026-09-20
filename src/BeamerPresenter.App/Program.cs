@@ -81,6 +81,8 @@ internal static class Program
             provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ChromeBrowserController>>(),
             paths.ChromeProfileDirectory,
             $"http://127.0.0.1:{webPort}/presenter"));
+        builder.Services.AddSingleton<IPowerManagementService, WindowsPowerManagementService>();
+        builder.Services.AddSingleton<PlaybackOrchestrator>();
         builder.Services.AddSingleton(new StartupRegistrationService(Environment.ProcessPath ?? System.Windows.Forms.Application.ExecutablePath));
         builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options => options.MultipartBodyLengthLimit = 5L * 1024 * 1024 * 1024);
         var application = builder.Build();
