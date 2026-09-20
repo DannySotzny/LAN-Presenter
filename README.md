@@ -32,9 +32,10 @@ Die Fundament-Stufe ist implementiert:
 - persistente Presenter-Optionen für Chrome-Pfad, Zielmonitor, Always-On-Top und Display-/System-Standby-Schutz
 - kontrollierter Chrome-Kiosk-Kindprozess mit separatem Profil, Autoplay-Policy, Zielmonitorpositionierung und Show/Hide/Stop-Steuerung
 - zentral serialisierte Presenter-Zustände, die Chrome, SignalR-Wiedergabe und Windows-Power-Requests gemeinsam aktivieren, pausieren, ausblenden und stoppen
+- deterministische Segmentplanung mit vollständiger Wiedergabe kurzer Videos, zufälligen 7- bis 10-Minuten-Ausschnitten langer Videos, Cooldowns und Ausschluss bereits tatsächlich gespielter Bereiche
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 
-Noch nicht enthalten sind Chrome-Kiosk-Steuerung, Playlist-/Segmentlogik, YouTube, SignalR und die Beamer-/Monitorsteuerung. Diese werden in den folgenden Phasen hinter den vorhandenen Application-Contracts ergänzt.
+Noch nicht enthalten sind die persistente Queue-Steuerung, YouTube, Zeitpläne und die erweiterte Fernsteuerung. Diese werden in den folgenden Phasen hinter den vorhandenen Application-Contracts ergänzt.
 
 ## Lokaler Start
 

@@ -25,6 +25,19 @@ public enum MediaPlaybackStatus
     Failed
 }
 
+public enum MediaSourceType
+{
+    Local,
+    YouTube
+}
+
+public enum PlaybackReason
+{
+    Automatic,
+    ManualNext,
+    ManualNow
+}
+
 public sealed class PresenterSettings
 {
     public const int DefaultWebPort = 8765;
@@ -74,4 +87,20 @@ public sealed class MediaFolder
     public bool IncludeSubdirectories { get; set; } = true;
     public bool Enabled { get; set; } = true;
     public DateTimeOffset CreatedUtc { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class PlaybackHistory
+{
+    public long Id { get; set; }
+    public int MediaId { get; set; }
+    public MediaSourceType SourceType { get; set; }
+    public TimeSpan PlannedStart { get; set; }
+    public TimeSpan PlannedEnd { get; set; }
+    public TimeSpan? ActualStart { get; set; }
+    public TimeSpan? ActualEnd { get; set; }
+    public DateTimeOffset StartedUtc { get; set; }
+    public DateTimeOffset? FinishedUtc { get; set; }
+    public bool Completed { get; set; }
+    public bool Interrupted { get; set; }
+    public PlaybackReason PlaybackReason { get; set; }
 }
