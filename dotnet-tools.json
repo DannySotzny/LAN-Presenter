@@ -2,6 +2,13 @@
   "version": 1,
   "isRoot": true,
   "tools": {
+    "dotnet-ef": {
+      "version": "10.0.11",
+      "commands": [
+        "dotnet-ef"
+      ],
+      "rollForward": false
+    },
     "versionize": {
       "version": "2.7.0",
       "commands": [

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using BeamerPresenter.Application;
 using BeamerPresenter.Domain;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,8 +12,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddPresenterInfrastructure(this IServiceCollection services, string dataDirectory)
     {
         Directory.CreateDirectory(dataDirectory);
-        var databasePath = Path.Combine(dataDirectory, "presenter.db");
-        services.AddDbContextFactory<PresenterDbContext>(options => options.UseSqlite($"Data Source={databasePath}"));
+        services.AddDbContextFactory<PresenterDbContext>(options => options.UseSqlite(PresenterDatabase.CreateConnectionString(dataDirectory)));
         services.AddSingleton<IPresenterSettingsService, SqlitePresenterSettingsService>();
         services.AddSingleton<IMediaLibraryService, SqliteMediaLibraryService>();
         services.AddSingleton<PlaybackController>();
@@ -22,15 +22,68 @@ public static class ServiceCollectionExtensions
 
 public static class PresenterDatabase
 {
+    private const string InitialMigrationId = "20260920165033_InitialSchema";
+
     public static int GetConfiguredWebPort(string dataDirectory)
     {
         Directory.CreateDirectory(dataDirectory);
-        var databasePath = Path.Combine(dataDirectory, "presenter.db");
-        var options = new DbContextOptionsBuilder<PresenterDbContext>().UseSqlite($"Data Source={databasePath}").Options;
+        var options = new DbContextOptionsBuilder<PresenterDbContext>().UseSqlite(CreateConnectionString(dataDirectory)).Options;
         using var context = new PresenterDbContext(options);
-        context.Database.EnsureCreated();
+        BaselineLegacyDatabase(context);
+        context.Database.Migrate();
+        context.Database.ExecuteSqlRaw("PRAGMA journal_mode = WAL;");
         var configuredPort = context.Settings.AsNoTracking().Where(x => x.Id == 1).Select(x => (int?)x.WebPort).SingleOrDefault();
         return configuredPort is >= 1024 and <= 65535 ? configuredPort.Value : PresenterSettings.DefaultWebPort;
+    }
+
+    internal static string CreateConnectionString(string dataDirectory)
+    {
+        var databasePath = Path.Combine(dataDirectory, "presenter.db");
+        return new SqliteConnectionStringBuilder
+        {
+            DataSource = databasePath,
+            ForeignKeys = true,
+            DefaultTimeout = 5
+        }.ToString();
+    }
+
+    private static void BaselineLegacyDatabase(PresenterDbContext context)
+    {
+        var connection = context.Database.GetDbConnection();
+        connection.Open();
+        var hasSettings = TableExists(connection, "Settings");
+        var hasVideos = TableExists(connection, "Videos");
+        if (!hasSettings && !hasVideos)
+        {
+            return;
+        }
+
+        if (!hasSettings || !hasVideos)
+        {
+            throw new InvalidOperationException("Die bestehende Presenter-Datenbank besitzt kein vollständiges Basisschema.");
+        }
+
+        using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+                "MigrationId" TEXT NOT NULL CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY,
+                "ProductVersion" TEXT NOT NULL
+            );
+            INSERT OR IGNORE INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+            VALUES ('{InitialMigrationId}', '10.0.11');
+            """;
+        command.ExecuteNonQuery();
+    }
+
+    private static bool TableExists(System.Data.Common.DbConnection connection, string tableName)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = $tableName;";
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "$tableName";
+        parameter.Value = tableName;
+        command.Parameters.Add(parameter);
+        return Convert.ToInt64(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0;
     }
 }
 

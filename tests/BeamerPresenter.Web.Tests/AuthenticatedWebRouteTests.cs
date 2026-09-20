@@ -32,7 +32,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         {
             var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PresenterDbContext>>();
             await using var context = await factory.CreateDbContextAsync();
-            await context.Database.EnsureCreatedAsync();
+            await context.Database.MigrateAsync();
         }
 
         _application.UseAuthentication();

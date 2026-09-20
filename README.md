@@ -17,6 +17,7 @@ Die Fundament-Stufe ist implementiert:
 - Upload unterstützter Videoformate über die geschützte Web UI
 - lokale Auslieferung der MudBlazor-Assets für Debug, portable Ausgabe und Inno-Setup-Installation
 - SQLite-Persistenz unter `%LOCALAPPDATA%\HouseOfLAN\Presenter\Data\presenter.db`
+- versionierte EF-Core-Migrationen mit verlustfreier Übernahme vorhandener `EnsureCreated`-Datenbanken
 - getrennte lokale Verzeichnisse für Daten, Logs, Backups, Chrome-Profil und Tools
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 

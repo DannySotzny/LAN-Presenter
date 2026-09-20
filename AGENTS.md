@@ -22,6 +22,7 @@
 - Autostart wird unter `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` registriert. Der Wert enthält immer den vollständig quotierten Executable-Pfad plus `--autostart`; dieser Startmodus öffnet nicht automatisch das Statusfenster.
 - Serilog schreibt strukturierte Tageslogs nach `%LOCALAPPDATA%\HouseOfLAN\Presenter\Logs` und bewahrt höchstens 14 Dateien auf. Passwörter, Cookies, Tokens und Request-Bodies dürfen nie geloggt werden.
 - SQLite kann `DateTimeOffset` nicht serverseitig in `ORDER BY` übersetzen. Die kleine Videoliste wird deshalb zuerst geladen und anschließend im Speicher nach `AddedAtUtc` sortiert; Änderungen daran müssen den authentifizierten Web-Routen-Test bestehen.
+- Datenbankschemata werden ausschließlich über EF-Core-Migrationen weiterentwickelt. `PresenterDatabase` baselinet einmalig ältere `EnsureCreated`-Datenbanken auf `InitialSchema`; diese Kompatibilität muss durch einen echten SQLite-Test erhalten bleiben.
 
 ## Arbeitsweise
 

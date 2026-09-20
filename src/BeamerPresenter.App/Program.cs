@@ -3,7 +3,6 @@ using BeamerPresenter.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
@@ -73,10 +72,6 @@ internal static class Program
         builder.Services.AddSingleton(new StartupRegistrationService(Environment.ProcessPath ?? System.Windows.Forms.Application.ExecutablePath));
         builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options => options.MultipartBodyLengthLimit = 5L * 1024 * 1024 * 1024);
         var application = builder.Build();
-        using (var scope = application.Services.CreateScope())
-        {
-            scope.ServiceProvider.GetRequiredService<IDbContextFactory<PresenterDbContext>>().CreateDbContext().Database.EnsureCreated();
-        }
         application.UseStaticFiles();
         application.UseAuthentication();
         application.UseAuthorization();
