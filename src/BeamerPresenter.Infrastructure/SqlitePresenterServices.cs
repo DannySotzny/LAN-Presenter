@@ -120,7 +120,8 @@ internal sealed class SqliteMediaLibraryService(
     public async Task<IReadOnlyList<VideoAsset>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.Videos.OrderByDescending(x => x.AddedAtUtc).AsNoTracking().ToListAsync(cancellationToken);
+        var videos = await context.Videos.AsNoTracking().ToListAsync(cancellationToken);
+        return videos.OrderByDescending(x => x.AddedAtUtc).ToList();
     }
 
     public async Task<VideoAsset> AddUploadAsync(string originalFileName, Stream content, long length, CancellationToken cancellationToken = default)

@@ -2,7 +2,7 @@
 
 Lokale Windows-Anwendung zur Steuerung von Videos auf einem Beamer bei LAN-Parties. Die Anwendung kombiniert eine WinForms-Tray-App mit einer im selben Prozess gestarteten ASP.NET-Core-Weboberfläche.
 
-## Aktueller Stand (0.1.0)
+## Aktueller Stand
 
 Die Fundament-Stufe ist implementiert:
 
@@ -25,6 +25,12 @@ dotnet run --project src/BeamerPresenter.App
 ```
 
 Beim ersten Start in der Desktop-App einen Videoordner und ein Web-Passwort festlegen. Dann ist die Web UI unter `http://localhost:8765` erreichbar. Für LAN-Zugriff muss die Windows-Firewall den gewählten Port erlauben; in Produktion sollte ein starkes Passwort verwendet werden.
+
+Der authentifizierte Ablauf ist durch einen Integrationstest mit temporärer SQLite-Datenbank abgesichert. Er prüft den gültigen Login, das Auth-Cookie und das anschließende Rendering der Managementseite:
+
+```powershell
+dotnet test tests/BeamerPresenter.Web.Tests -c Release
+```
 
 ## Versionen und Changelog
 
