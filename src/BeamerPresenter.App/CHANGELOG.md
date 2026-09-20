@@ -1,4 +1,7 @@
 Beamerpresenter.App Changelog
+<a name="0.2.1"></a>
+## [0.2.1](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.2.1) (2026-09-20)
+
 <a name="0.2.0"></a>
 ## [0.2.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.2.0) (2026-09-20)
 
