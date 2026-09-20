@@ -1,4 +1,18 @@
 Beamerpresenter.App Changelog
+<a name="0.4.0"></a>
+## [0.4.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.4.0) (2026-09-20)
+
+### Features
+
+* adopt versioned database migrations ([ea9008a](https://www.github.com/DannySotzny/LAN-Presenter/commit/ea9008aaa1b7d75c1881076556b73fb6d4389bc7))
+* analyze media metadata with ffprobe ([ddcaaf2](https://www.github.com/DannySotzny/LAN-Presenter/commit/ddcaaf244fb94122f7ba81502deb73a8c03067e5))
+* detect and install ffprobe ([c6608ec](https://www.github.com/DannySotzny/LAN-Presenter/commit/c6608ec1ff199e1e8f4b9a76387fa11f6f04842c))
+* manage multiple media folders ([d4d7e74](https://www.github.com/DannySotzny/LAN-Presenter/commit/d4d7e7494cefbd24770e967f27d8f1c54b414f2f))
+* queue stable media analysis ([a2f8ab2](https://www.github.com/DannySotzny/LAN-Presenter/commit/a2f8ab23887adb0698bd8ab970db6e5ac2cee16b))
+* reconcile local media library ([e4c6623](https://www.github.com/DannySotzny/LAN-Presenter/commit/e4c6623e6b97083d663c4499706647c018155571))
+* redesign searchable media library ([7f03b85](https://www.github.com/DannySotzny/LAN-Presenter/commit/7f03b8567c5738c64533a1fc58e6577a3806b52d))
+* watch media folders for changes ([32bad3a](https://www.github.com/DannySotzny/LAN-Presenter/commit/32bad3af02aaa806854c3331690cfe60cd96187f))
+
 <a name="0.3.0"></a>
 ## [0.3.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.3.0) (2026-09-20)
 
@@ -44,4 +58,3 @@ Beamerpresenter.App Changelog
 ### Bug Fixes
 
 * exclude generated build artifacts
-
