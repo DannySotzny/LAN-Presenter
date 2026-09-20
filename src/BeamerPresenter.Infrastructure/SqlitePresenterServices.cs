@@ -161,6 +161,12 @@ internal sealed class SqlitePresenterSettingsService(IDbContextFactory<Presenter
             existing.AllowLanAccess = settings.AllowLanAccess;
             existing.MediaFolder = settings.MediaFolder;
             existing.FfprobePath = settings.FfprobePath;
+            existing.ChromePath = settings.ChromePath;
+            existing.MonitorDeviceName = settings.MonitorDeviceName;
+            existing.AlwaysOnTop = settings.AlwaysOnTop;
+            existing.AggressiveTopmost = settings.AggressiveTopmost;
+            existing.PreventDisplaySleep = settings.PreventDisplaySleep;
+            existing.PreventSystemSleep = settings.PreventSystemSleep;
         }
 
         await context.SaveChangesAsync(cancellationToken);

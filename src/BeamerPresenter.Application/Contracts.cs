@@ -46,6 +46,20 @@ public interface IFfprobeService
 
 public sealed record FfprobeAvailability(bool IsAvailable, string? ExecutablePath, string? Version, string? Error);
 
+public interface IMonitorService
+{
+    IReadOnlyList<DisplayMonitor> GetAll();
+}
+
+public sealed record DisplayMonitor(
+    string DeviceName,
+    string FriendlyName,
+    int X,
+    int Y,
+    int Width,
+    int Height,
+    bool IsPrimary);
+
 public sealed record MediaProbeResult(
     MediaProbeStatus ProbeStatus,
     MediaPlaybackStatus PlaybackStatus,

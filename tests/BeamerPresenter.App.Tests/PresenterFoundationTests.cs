@@ -46,6 +46,22 @@ public sealed class PresenterFoundationTests
         }
     }
 
+    [Fact]
+    public void Windows_monitor_service_returns_unique_valid_displays()
+    {
+        var monitors = new WindowsMonitorService().GetAll();
+
+        Assert.NotEmpty(monitors);
+        Assert.Equal(monitors.Count, monitors.Select(monitor => monitor.DeviceName).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.All(monitors, monitor =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(monitor.DeviceName));
+            Assert.False(string.IsNullOrWhiteSpace(monitor.FriendlyName));
+            Assert.True(monitor.Width > 0);
+            Assert.True(monitor.Height > 0);
+        });
+    }
+
     private static string CreateTestRoot() => Path.Combine(Path.GetTempPath(), "BeamerPresenter.Tests", Guid.NewGuid().ToString("N"));
 
     private static void DeleteTestRoot(string testRoot)

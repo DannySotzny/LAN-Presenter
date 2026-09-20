@@ -34,6 +34,12 @@ public sealed class PresenterSettings
     public bool AllowLanAccess { get; set; } = true;
     public string MediaFolder { get; set; } = string.Empty;
     public string? FfprobePath { get; set; }
+    public string? ChromePath { get; set; }
+    public string? MonitorDeviceName { get; set; }
+    public bool AlwaysOnTop { get; set; } = true;
+    public bool AggressiveTopmost { get; set; }
+    public bool PreventDisplaySleep { get; set; } = true;
+    public bool PreventSystemSleep { get; set; } = true;
     public string? PasswordHash { get; set; }
     public string? PasswordSalt { get; set; }
 }

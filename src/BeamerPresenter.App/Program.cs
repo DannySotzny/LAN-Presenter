@@ -1,3 +1,4 @@
+using BeamerPresenter.Application;
 using BeamerPresenter.Infrastructure;
 using BeamerPresenter.Web;
 using Microsoft.AspNetCore.Builder;
@@ -69,6 +70,7 @@ internal static class Program
         builder.WebHost.UseUrls($"http://0.0.0.0:{webPort}");
         builder.Services.AddPresenterInfrastructure(paths.DataDirectory, paths.ToolsDirectory);
         builder.Services.AddPresenterWebUi();
+        builder.Services.AddSingleton<IMonitorService, WindowsMonitorService>();
         builder.Services.AddSingleton(new StartupRegistrationService(Environment.ProcessPath ?? System.Windows.Forms.Application.ExecutablePath));
         builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options => options.MultipartBodyLengthLimit = 5L * 1024 * 1024 * 1024);
         var application = builder.Build();

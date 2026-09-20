@@ -10,6 +10,7 @@ Die Fundament-Stufe ist implementiert:
 - Statusanzeige mit tatsächlicher Version, Buildzeit, Git-Commit und .NET-Runtime aus dem Buildartefakt
 - Single-Instance pro Windows-Benutzer: ein zweiter Start aktiviert über eine Named Pipe das Fenster der laufenden Instanz
 - optionaler Autostart ohne Administratorrechte über den benutzerbezogenen Windows-Run-Schlüssel
+- Windows-Monitorerkennung mit Friendly Name, DeviceName, Auflösung und Position; ein verschwundener Zielmonitor blockiert die Aktivierung bis zur bewussten Fallback-Auswahl
 - strukturiertes JSONL-Logging mit täglicher Rotation und 14 Tagen Aufbewahrung unter `%LOCALAPPDATA%\HouseOfLAN\Presenter\Logs`
 - Kestrel-Weboberfläche auf Port 8765, inklusive Health-Endpunkt und MudBlazor-Management-UI
 - Passwortschutz per Cookie-Login; das Passwort wird ausschließlich in der Desktop-App gesetzt
@@ -28,6 +29,7 @@ Die Fundament-Stufe ist implementiert:
 - SQLite-Persistenz unter `%LOCALAPPDATA%\HouseOfLAN\Presenter\Data\presenter.db`
 - versionierte EF-Core-Migrationen mit verlustfreier Übernahme vorhandener `EnsureCreated`-Datenbanken
 - getrennte lokale Verzeichnisse für Daten, Logs, Backups, Chrome-Profil und Tools
+- persistente Presenter-Optionen für Chrome-Pfad, Zielmonitor, Always-On-Top und Display-/System-Standby-Schutz
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 
 Noch nicht enthalten sind Chrome-Kiosk-Steuerung, Playlist-/Segmentlogik, YouTube, SignalR und die Beamer-/Monitorsteuerung. Diese werden in den folgenden Phasen hinter den vorhandenen Application-Contracts ergänzt.

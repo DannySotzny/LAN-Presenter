@@ -9,6 +9,7 @@ internal sealed class PresenterForm : Form
     private readonly IPresenterSettingsService _settingsService;
     private readonly IMediaFolderService _mediaFolderService;
     private readonly IFfprobeService _ffprobeService;
+    private readonly IMonitorService _monitorService;
     private readonly StartupRegistrationService _startupRegistration;
     private readonly PlaybackController _playback;
     private readonly Label _version = new() { AutoSize = true };
@@ -16,6 +17,13 @@ internal sealed class PresenterForm : Form
     private readonly Label _commit = new() { AutoSize = true };
     private readonly Label _runtime = new() { AutoSize = true };
     private readonly Label _presenterStatus = new() { AutoSize = true };
+    private readonly ComboBox _monitor = new() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly Label _monitorStatus = new() { AutoSize = true };
+    private readonly TextBox _chromePath = new() { Dock = DockStyle.Fill };
+    private readonly CheckBox _alwaysOnTop = new() { AutoSize = true, Checked = true, Text = "Always On Top" };
+    private readonly CheckBox _aggressiveTopmost = new() { AutoSize = true, Text = "Aggressive Topmost" };
+    private readonly CheckBox _preventDisplaySleep = new() { AutoSize = true, Checked = true, Text = "Bildschirmabschaltung verhindern" };
+    private readonly CheckBox _preventSystemSleep = new() { AutoSize = true, Checked = true, Text = "Windows-Standby verhindern" };
     private readonly CheckBox _startWithWindows = new() { AutoSize = true, Text = "Mit Windows starten" };
     private readonly ListBox _mediaFolders = new() { Dock = DockStyle.Fill, Height = 90 };
     private readonly CheckBox _includeSubdirectories = new() { AutoSize = true, Checked = true, Text = "Unterverzeichnisse durchsuchen" };
@@ -33,12 +41,14 @@ internal sealed class PresenterForm : Form
     private readonly ToolStripMenuItem _stopPresenter = new() { Text = "Presenter stoppen" };
     private readonly NotifyIcon _notifyIcon;
     private bool _allowExit;
+    private bool _configuredMonitorMissing;
 
     public PresenterForm(WebApplication host, bool startMinimized = false)
     {
         _settingsService = host.Services.GetRequiredService<IPresenterSettingsService>();
         _mediaFolderService = host.Services.GetRequiredService<IMediaFolderService>();
         _ffprobeService = host.Services.GetRequiredService<IFfprobeService>();
+        _monitorService = host.Services.GetRequiredService<IMonitorService>();
         _startupRegistration = host.Services.GetRequiredService<StartupRegistrationService>();
         _playback = host.Services.GetRequiredService<PlaybackController>();
         var buildInformation = BuildInformation.Current;
@@ -55,10 +65,11 @@ internal sealed class PresenterForm : Form
                 Hide();
             }
         };
-        _activatePresenter.Click += (_, _) => ChangePresenterState(_playback.Activate);
+        _activatePresenter.Click += (_, _) => ChangePresenterState(_playback.Activate, requiresMonitor: true);
         _pausePresenter.Click += (_, _) => ChangePresenterState(_playback.Pause);
         _hidePresenter.Click += (_, _) => ChangePresenterState(_playback.Hide);
         _stopPresenter.Click += (_, _) => ChangePresenterState(_playback.Stop);
+        _monitor.SelectedIndexChanged += (_, _) => UpdateSelectedMonitorStatus();
         var menu = CreateTrayMenu();
         _notifyIcon = new NotifyIcon { Icon = SystemIcons.Application, Text = "Beamer Presenter for LAN-Parties", Visible = true, ContextMenuStrip = menu };
         _notifyIcon.DoubleClick += (_, _) => ShowFromTray();
@@ -68,12 +79,13 @@ internal sealed class PresenterForm : Form
     protected override void Dispose(bool disposing) { if (disposing) _notifyIcon.Dispose(); base.Dispose(disposing); }
     private Control CreateContent()
     {
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(18), ColumnCount = 2, RowCount = 16 };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(18), ColumnCount = 2, RowCount = 20, AutoScroll = true };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32)); root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 68));
         AddRow(root, 0, "Version:", _version); AddRow(root, 1, "Build:", _build); AddRow(root, 2, "Commit:", _commit); AddRow(root, 3, "Runtime:", _runtime); AddRow(root, 4, "Presenter:", _presenterStatus);
-        AddRow(root, 5, "Autostart:", _startWithWindows); AddRow(root, 6, "Web UI:", _webUrl); AddRow(root, 7, "Web UI Port:", _webPort); AddRow(root, 8, "Videoordner:", CreateMediaFolderControl()); AddRow(root, 9, "FFprobe-Pfad:", CreateFfprobePathControl()); AddRow(root, 10, "FFprobe-Status:", CreateFfprobeStatusControl()); AddRow(root, 11, "Web-Passwort:", _password); AddRow(root, 12, "Passwort wiederholen:", _passwordRepeat); AddRow(root, 13, "Schutzstatus:", _passwordStatus);
-        var save = new Button { Text = "Einstellungen speichern", AutoSize = true, Anchor = AnchorStyles.Left }; save.Click += async (_, _) => await SaveSettingsAsync(); root.Controls.Add(save, 1, 14);
-        root.Controls.Add(new Label { AutoSize = true, Text = "Port-Änderungen gelten nach einem Neustart." }, 1, 15); return root;
+        AddRow(root, 5, "Monitor:", _monitor); AddRow(root, 6, "Monitorstatus:", _monitorStatus); AddRow(root, 7, "Chrome:", CreateChromePathControl()); AddRow(root, 8, "Presenter-Optionen:", CreatePresenterOptionsControl());
+        AddRow(root, 9, "Autostart:", _startWithWindows); AddRow(root, 10, "Web UI:", _webUrl); AddRow(root, 11, "Web UI Port:", _webPort); AddRow(root, 12, "Videoordner:", CreateMediaFolderControl()); AddRow(root, 13, "FFprobe-Pfad:", CreateFfprobePathControl()); AddRow(root, 14, "FFprobe-Status:", CreateFfprobeStatusControl()); AddRow(root, 15, "Web-Passwort:", _password); AddRow(root, 16, "Passwort wiederholen:", _passwordRepeat); AddRow(root, 17, "Schutzstatus:", _passwordStatus);
+        var save = new Button { Text = "Einstellungen speichern", AutoSize = true, Anchor = AnchorStyles.Left }; save.Click += async (_, _) => await SaveSettingsAsync(); root.Controls.Add(save, 1, 18);
+        root.Controls.Add(new Label { AutoSize = true, Text = "Port-Änderungen gelten nach einem Neustart." }, 1, 19); return root;
     }
     private static void AddRow(TableLayoutPanel panel, int row, string label, Control input) { panel.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, row); panel.Controls.Add(input, 1, row); }
     private Control CreateMediaFolderControl()
@@ -100,6 +112,26 @@ internal sealed class PresenterForm : Form
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         panel.Controls.Add(_ffprobePath, 0, 0);
         panel.Controls.Add(select, 1, 0);
+        return panel;
+    }
+    private Control CreateChromePathControl()
+    {
+        var select = new Button { Text = "Auswählen", AutoSize = true };
+        select.Click += (_, _) => SelectChromePath();
+        var panel = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 2, RowCount = 1 };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        panel.Controls.Add(_chromePath, 0, 0);
+        panel.Controls.Add(select, 1, 0);
+        return panel;
+    }
+    private Control CreatePresenterOptionsControl()
+    {
+        var panel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        panel.Controls.Add(_alwaysOnTop);
+        panel.Controls.Add(_aggressiveTopmost);
+        panel.Controls.Add(_preventDisplaySleep);
+        panel.Controls.Add(_preventSystemSleep);
         return panel;
     }
     private Control CreateFfprobeStatusControl()
@@ -131,7 +163,16 @@ internal sealed class PresenterForm : Form
         menu.Items.Add("Beenden", null, (_, _) => ExitApplication());
         return menu;
     }
-    private void ChangePresenterState(Action command) { command(); UpdatePresenterStatus(); }
+    private void ChangePresenterState(Action command, bool requiresMonitor = false)
+    {
+        if (requiresMonitor && (_configuredMonitorMissing || _monitor.SelectedItem is null))
+        {
+            MessageBox.Show(this, "Der konfigurierte Monitor ist nicht verfügbar. Bitte einen Fallback-Monitor auswählen und die Einstellungen speichern.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        command(); UpdatePresenterStatus();
+    }
     private void UpdatePresenterStatus()
     {
         _presenterStatus.Text = _playback.State.ToString().ToUpperInvariant();
@@ -147,8 +188,14 @@ internal sealed class PresenterForm : Form
         _startWithWindows.Checked = _startupRegistration.IsEnabled();
         _webPort.Text = settings.WebPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
         _ffprobePath.Text = settings.FfprobePath ?? string.Empty;
+        _chromePath.Text = settings.ChromePath ?? string.Empty;
+        _alwaysOnTop.Checked = settings.AlwaysOnTop;
+        _aggressiveTopmost.Checked = settings.AggressiveTopmost;
+        _preventDisplaySleep.Checked = settings.PreventDisplaySleep;
+        _preventSystemSleep.Checked = settings.PreventSystemSleep;
         _webUrl.Text = $"http://localhost:{settings.WebPort}";
         _passwordStatus.Text = string.IsNullOrWhiteSpace(settings.PasswordHash) ? "Noch nicht eingerichtet" : "Aktiv";
+        LoadMonitors(settings.MonitorDeviceName);
         await LoadMediaFoldersAsync();
         await RefreshFfprobeStatusAsync();
     }
@@ -187,6 +234,45 @@ internal sealed class PresenterForm : Form
             _ffprobePath.Text = dialog.FileName;
         }
     }
+    private void SelectChromePath()
+    {
+        using var dialog = new OpenFileDialog { Filter = "Google Chrome|chrome.exe|Programme|*.exe", CheckFileExists = true, Multiselect = false, Title = "Chrome auswählen" };
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            _chromePath.Text = dialog.FileName;
+        }
+    }
+    private void LoadMonitors(string? configuredDeviceName)
+    {
+        _monitor.Items.Clear();
+        var monitors = _monitorService.GetAll().Select(DisplayMonitorListItem.From).ToArray();
+        _monitor.Items.AddRange(monitors);
+        var configuredMonitor = monitors.FirstOrDefault(item => string.Equals(item.DeviceName, configuredDeviceName, StringComparison.OrdinalIgnoreCase));
+        _configuredMonitorMissing = !string.IsNullOrWhiteSpace(configuredDeviceName) && configuredMonitor is null;
+        if (configuredMonitor is not null)
+        {
+            _monitor.SelectedItem = configuredMonitor;
+        }
+        else if (!_configuredMonitorMissing)
+        {
+            _monitor.SelectedItem = monitors.FirstOrDefault(item => item.IsPrimary) ?? monitors.FirstOrDefault();
+        }
+
+        _monitorStatus.Text = _configuredMonitorMissing
+            ? $"Nicht verfügbar: {configuredDeviceName}"
+            : monitors.Length == 0 ? "Keine Anzeige erkannt" : "Verfügbar";
+    }
+    private void UpdateSelectedMonitorStatus()
+    {
+        if (_configuredMonitorMissing && _monitor.SelectedItem is DisplayMonitorListItem)
+        {
+            _monitorStatus.Text = "Fallback ausgewählt – bitte speichern";
+        }
+        else if (_monitor.SelectedItem is DisplayMonitorListItem)
+        {
+            _monitorStatus.Text = "Verfügbar";
+        }
+    }
     private async Task RefreshFfprobeStatusAsync()
     {
         _ffprobeStatus.Text = "Wird geprüft …";
@@ -208,7 +294,8 @@ internal sealed class PresenterForm : Form
         if (!int.TryParse(_webPort.Text, out var webPort) || webPort is < 1024 or > 65535) { MessageBox.Show(this, "Bitte einen Port zwischen 1024 und 65535 angeben.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
         if (!string.IsNullOrWhiteSpace(_password.Text) && _password.Text != _passwordRepeat.Text) { MessageBox.Show(this, "Die Passwörter stimmen nicht überein.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
         try { _startupRegistration.SetEnabled(_startWithWindows.Checked); } catch (UnauthorizedAccessException) { MessageBox.Show(this, "Der Windows-Autostart konnte nicht geändert werden.", Text, MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
-        var settings = await _settingsService.GetAsync(); settings.WebPort = webPort; settings.FfprobePath = string.IsNullOrWhiteSpace(_ffprobePath.Text) ? null : Path.GetFullPath(_ffprobePath.Text.Trim()); await _settingsService.SaveAsync(settings); if (!string.IsNullOrWhiteSpace(_password.Text)) await _settingsService.SetWebPasswordAsync(_password.Text);
+        if (_monitor.SelectedItem is not DisplayMonitorListItem selectedMonitor) { MessageBox.Show(this, "Bitte einen verfügbaren Monitor auswählen.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+        var settings = await _settingsService.GetAsync(); settings.WebPort = webPort; settings.FfprobePath = string.IsNullOrWhiteSpace(_ffprobePath.Text) ? null : Path.GetFullPath(_ffprobePath.Text.Trim()); settings.ChromePath = string.IsNullOrWhiteSpace(_chromePath.Text) ? null : Path.GetFullPath(_chromePath.Text.Trim()); settings.MonitorDeviceName = selectedMonitor.DeviceName; settings.AlwaysOnTop = _alwaysOnTop.Checked; settings.AggressiveTopmost = _aggressiveTopmost.Checked; settings.PreventDisplaySleep = _preventDisplaySleep.Checked; settings.PreventSystemSleep = _preventSystemSleep.Checked; await _settingsService.SaveAsync(settings); if (!string.IsNullOrWhiteSpace(_password.Text)) await _settingsService.SetWebPasswordAsync(_password.Text);
         _password.Clear(); _passwordRepeat.Clear(); await LoadSettingsAsync(); MessageBox.Show(this, "Einstellungen gespeichert.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
     private void OpenWebUi() => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_webUrl.Text) { UseShellExecute = true });
@@ -220,5 +307,13 @@ internal sealed class PresenterForm : Form
     private sealed record MediaFolderListItem(int Id, string Path, bool IncludeSubdirectories)
     {
         public override string ToString() => IncludeSubdirectories ? $"{Path} (inkl. Unterordner)" : Path;
+    }
+
+    private sealed record DisplayMonitorListItem(string DeviceName, string FriendlyName, int X, int Y, int Width, int Height, bool IsPrimary)
+    {
+        public static DisplayMonitorListItem From(DisplayMonitor monitor) =>
+            new(monitor.DeviceName, monitor.FriendlyName, monitor.X, monitor.Y, monitor.Width, monitor.Height, monitor.IsPrimary);
+
+        public override string ToString() => $"{FriendlyName} / {DeviceName} — {Width} × {Height} @ {X}, {Y}{(IsPrimary ? " (Primär)" : string.Empty)}";
     }
 }

@@ -1,9 +1,11 @@
+using BeamerPresenter.Application;
 using BeamerPresenter.Domain;
 using BeamerPresenter.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BeamerPresenter.Infrastructure.Tests;
 
@@ -19,7 +21,7 @@ public sealed class PresenterDatabaseMigrationTests
 
             await using var connection = new SqliteConnection(PresenterDatabase.CreateConnectionString(dataDirectory));
             await connection.OpenAsync();
-            Assert.EndsWith("_AddMediaMetadata", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
+            Assert.EndsWith("_AddPresenterDisplaySettings", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
             Assert.Equal("wal", await ReadScalarAsync(connection, "PRAGMA journal_mode;"));
             Assert.Equal("1", await ReadScalarAsync(connection, "PRAGMA foreign_keys;"));
         }
@@ -52,10 +54,49 @@ public sealed class PresenterDatabaseMigrationTests
 
             await using var connection = new SqliteConnection(PresenterDatabase.CreateConnectionString(dataDirectory));
             await connection.OpenAsync();
-            Assert.EndsWith("_AddMediaMetadata", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
+            Assert.EndsWith("_AddPresenterDisplaySettings", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
             Assert.Equal("D:\\LAN\\Videos", await ReadScalarAsync(connection, "SELECT MediaFolder FROM Settings WHERE Id = 1;"));
             Assert.Equal("D:\\LAN\\Videos", await ReadScalarAsync(connection, "SELECT Path FROM MediaFolders LIMIT 1;"));
+            Assert.Equal("1", await ReadScalarAsync(connection, "SELECT AlwaysOnTop FROM Settings WHERE Id = 1;"));
+            Assert.Equal("1", await ReadScalarAsync(connection, "SELECT PreventDisplaySleep FROM Settings WHERE Id = 1;"));
+            Assert.Equal("1", await ReadScalarAsync(connection, "SELECT PreventSystemSleep FROM Settings WHERE Id = 1;"));
             Assert.Single(Directory.GetFiles(Path.Combine(Directory.GetParent(dataDirectory)!.FullName, "Backup"), "presenter-before-migration-*.db"));
+        }
+        finally
+        {
+            DeleteTestDirectory(dataDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task Presenter_display_settings_are_persisted()
+    {
+        var dataDirectory = CreateTestDirectory();
+        try
+        {
+            PresenterDatabase.GetConfiguredWebPort(dataDirectory);
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddPresenterInfrastructure(dataDirectory);
+            await using var provider = services.BuildServiceProvider();
+            var settingsService = provider.GetRequiredService<IPresenterSettingsService>();
+            var settings = await settingsService.GetAsync();
+            settings.ChromePath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+            settings.MonitorDeviceName = "\\\\.\\DISPLAY2";
+            settings.AlwaysOnTop = false;
+            settings.AggressiveTopmost = true;
+            settings.PreventDisplaySleep = false;
+            settings.PreventSystemSleep = true;
+
+            await settingsService.SaveAsync(settings);
+            var persisted = await settingsService.GetAsync();
+
+            Assert.Equal(settings.ChromePath, persisted.ChromePath);
+            Assert.Equal(settings.MonitorDeviceName, persisted.MonitorDeviceName);
+            Assert.False(persisted.AlwaysOnTop);
+            Assert.True(persisted.AggressiveTopmost);
+            Assert.False(persisted.PreventDisplaySleep);
+            Assert.True(persisted.PreventSystemSleep);
         }
         finally
         {
