@@ -23,6 +23,8 @@
 - Serilog schreibt strukturierte Tageslogs nach `%LOCALAPPDATA%\HouseOfLAN\Presenter\Logs` und bewahrt höchstens 14 Dateien auf. Passwörter, Cookies, Tokens und Request-Bodies dürfen nie geloggt werden.
 - SQLite kann `DateTimeOffset` nicht serverseitig in `ORDER BY` übersetzen. Die kleine Videoliste wird deshalb zuerst geladen und anschließend im Speicher nach `AddedAtUtc` sortiert; Änderungen daran müssen den authentifizierten Web-Routen-Test bestehen.
 - Datenbankschemata werden ausschließlich über EF-Core-Migrationen weiterentwickelt. `PresenterDatabase` baselinet einmalig ältere `EnsureCreated`-Datenbanken auf `InitialSchema`; diese Kompatibilität muss durch einen echten SQLite-Test erhalten bleiben.
+- Vor ausstehenden Schema-Migrationen wird die SQLite-Datenbank per SQLite-Backup-API nach `Backup/` kopiert; maximal sieben Migrationsbackups bleiben erhalten.
+- Medienordner sind eigene persistente Entitäten mit `NOCASE`-eindeutigem Vollpfad. Uploads verwenden den ersten aktivierten Ordner und dürfen nicht auf das Legacy-Feld `PresenterSettings.MediaFolder` zurückfallen.
 
 ## Arbeitsweise
 

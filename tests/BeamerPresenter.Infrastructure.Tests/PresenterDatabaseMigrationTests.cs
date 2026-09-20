@@ -2,6 +2,8 @@ using BeamerPresenter.Domain;
 using BeamerPresenter.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace BeamerPresenter.Infrastructure.Tests;
 
@@ -17,7 +19,7 @@ public sealed class PresenterDatabaseMigrationTests
 
             await using var connection = new SqliteConnection(PresenterDatabase.CreateConnectionString(dataDirectory));
             await connection.OpenAsync();
-            Assert.Equal("20260920165033_InitialSchema", await ReadAppliedMigrationAsync(connection));
+            Assert.EndsWith("_AddMediaFolders", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
             Assert.Equal("wal", await ReadScalarAsync(connection, "PRAGMA journal_mode;"));
             Assert.Equal("1", await ReadScalarAsync(connection, "PRAGMA foreign_keys;"));
         }
@@ -38,17 +40,20 @@ public sealed class PresenterDatabaseMigrationTests
                 .Options;
             await using (var context = new PresenterDbContext(options))
             {
-                await context.Database.EnsureCreatedAsync();
+                await context.Database.GetService<IMigrator>().MigrateAsync("20260920165033_InitialSchema");
                 context.Settings.Add(new PresenterSettings { WebPort = 9123, MediaFolder = "D:\\LAN\\Videos" });
                 await context.SaveChangesAsync();
+                await context.Database.ExecuteSqlRawAsync("DROP TABLE __EFMigrationsHistory;");
             }
 
             Assert.Equal(9123, PresenterDatabase.GetConfiguredWebPort(dataDirectory));
 
             await using var connection = new SqliteConnection(PresenterDatabase.CreateConnectionString(dataDirectory));
             await connection.OpenAsync();
-            Assert.Equal("20260920165033_InitialSchema", await ReadAppliedMigrationAsync(connection));
+            Assert.EndsWith("_AddMediaFolders", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
             Assert.Equal("D:\\LAN\\Videos", await ReadScalarAsync(connection, "SELECT MediaFolder FROM Settings WHERE Id = 1;"));
+            Assert.Equal("D:\\LAN\\Videos", await ReadScalarAsync(connection, "SELECT Path FROM MediaFolders LIMIT 1;"));
+            Assert.Single(Directory.GetFiles(Path.Combine(Directory.GetParent(dataDirectory)!.FullName, "Backup"), "presenter-before-migration-*.db"));
         }
         finally
         {
@@ -68,9 +73,10 @@ public sealed class PresenterDatabaseMigrationTests
 
     private static string CreateTestDirectory()
     {
-        var directory = Path.Combine(Path.GetTempPath(), "BeamerPresenter.Tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(directory);
-        return directory;
+        var testRoot = Path.Combine(Path.GetTempPath(), "BeamerPresenter.Tests", Guid.NewGuid().ToString("N"));
+        var dataDirectory = Path.Combine(testRoot, "Data");
+        Directory.CreateDirectory(dataDirectory);
+        return dataDirectory;
     }
 
     private static void DeleteTestDirectory(string dataDirectory)
@@ -78,9 +84,10 @@ public sealed class PresenterDatabaseMigrationTests
         SqliteConnection.ClearAllPools();
         var allowedRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "BeamerPresenter.Tests"));
         var resolvedDirectory = Path.GetFullPath(dataDirectory);
-        if (resolvedDirectory.StartsWith(allowedRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && Directory.Exists(resolvedDirectory))
+        var testRoot = Directory.GetParent(resolvedDirectory)?.FullName;
+        if (testRoot is not null && testRoot.StartsWith(allowedRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && Directory.Exists(testRoot))
         {
-            Directory.Delete(resolvedDirectory, recursive: true);
+            Directory.Delete(testRoot, recursive: true);
         }
     }
 }

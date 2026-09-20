@@ -14,6 +14,7 @@ public static class ServiceCollectionExtensions
         Directory.CreateDirectory(dataDirectory);
         services.AddDbContextFactory<PresenterDbContext>(options => options.UseSqlite(PresenterDatabase.CreateConnectionString(dataDirectory)));
         services.AddSingleton<IPresenterSettingsService, SqlitePresenterSettingsService>();
+        services.AddSingleton<IMediaFolderService, SqliteMediaFolderService>();
         services.AddSingleton<IMediaLibraryService, SqliteMediaLibraryService>();
         services.AddSingleton<PlaybackController>();
         return services;
@@ -29,7 +30,12 @@ public static class PresenterDatabase
         Directory.CreateDirectory(dataDirectory);
         var options = new DbContextOptionsBuilder<PresenterDbContext>().UseSqlite(CreateConnectionString(dataDirectory)).Options;
         using var context = new PresenterDbContext(options);
-        BaselineLegacyDatabase(context);
+        var hasExistingSchema = BaselineLegacyDatabase(context);
+        if (hasExistingSchema && context.Database.GetPendingMigrations().Any())
+        {
+            CreateBackup(context, dataDirectory);
+        }
+
         context.Database.Migrate();
         context.Database.ExecuteSqlRaw("PRAGMA journal_mode = WAL;");
         var configuredPort = context.Settings.AsNoTracking().Where(x => x.Id == 1).Select(x => (int?)x.WebPort).SingleOrDefault();
@@ -47,7 +53,7 @@ public static class PresenterDatabase
         }.ToString();
     }
 
-    private static void BaselineLegacyDatabase(PresenterDbContext context)
+    private static bool BaselineLegacyDatabase(PresenterDbContext context)
     {
         var connection = context.Database.GetDbConnection();
         connection.Open();
@@ -55,7 +61,7 @@ public static class PresenterDatabase
         var hasVideos = TableExists(connection, "Videos");
         if (!hasSettings && !hasVideos)
         {
-            return;
+            return false;
         }
 
         if (!hasSettings || !hasVideos)
@@ -73,6 +79,28 @@ public static class PresenterDatabase
             VALUES ('{InitialMigrationId}', '10.0.11');
             """;
         command.ExecuteNonQuery();
+        return true;
+    }
+
+    private static void CreateBackup(PresenterDbContext context, string dataDirectory)
+    {
+        var presenterDirectory = Directory.GetParent(Path.GetFullPath(dataDirectory))?.FullName ?? Path.GetFullPath(dataDirectory);
+        var backupDirectory = Path.Combine(presenterDirectory, "Backup");
+        Directory.CreateDirectory(backupDirectory);
+        var backupPath = Path.Combine(backupDirectory, $"presenter-before-migration-{DateTime.UtcNow:yyyyMMddHHmmssfff}.db");
+        var sourceConnection = (SqliteConnection)context.Database.GetDbConnection();
+        using (var destinationConnection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = backupPath }.ToString()))
+        {
+            destinationConnection.Open();
+            sourceConnection.BackupDatabase(destinationConnection);
+        }
+
+        foreach (var obsoleteBackup in Directory.GetFiles(backupDirectory, "presenter-before-migration-*.db")
+                     .OrderByDescending(File.GetCreationTimeUtc)
+                     .Skip(7))
+        {
+            File.Delete(obsoleteBackup);
+        }
     }
 
     private static bool TableExists(System.Data.Common.DbConnection connection, string tableName)
@@ -163,7 +191,7 @@ internal sealed class SqlitePresenterSettingsService(IDbContextFactory<Presenter
 
 internal sealed class SqliteMediaLibraryService(
     IDbContextFactory<PresenterDbContext> contextFactory,
-    IPresenterSettingsService settingsService) : IMediaLibraryService
+    IMediaFolderService mediaFolderService) : IMediaLibraryService
 {
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -186,14 +214,14 @@ internal sealed class SqliteMediaLibraryService(
             throw new InvalidOperationException("Dieses Videoformat wird nicht unterstützt.");
         }
 
-        var settings = await settingsService.GetAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(settings.MediaFolder))
+        var mediaFolder = (await mediaFolderService.GetAllAsync(cancellationToken)).FirstOrDefault(folder => folder.Enabled);
+        if (mediaFolder is null)
         {
             throw new InvalidOperationException("Bitte zuerst einen Videoordner in der Desktop-App festlegen.");
         }
 
-        Directory.CreateDirectory(settings.MediaFolder);
-        var destinationPath = MakeUniquePath(settings.MediaFolder, safeName);
+        Directory.CreateDirectory(mediaFolder.Path);
+        var destinationPath = MakeUniquePath(mediaFolder.Path, safeName);
         await using (var destination = new FileStream(destinationPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 128, useAsync: true))
         {
             await content.CopyToAsync(destination, cancellationToken);

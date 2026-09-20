@@ -17,4 +17,11 @@ public interface IMediaLibraryService
     Task<VideoAsset> AddUploadAsync(string originalFileName, Stream content, long length, CancellationToken cancellationToken = default);
 }
 
+public interface IMediaFolderService
+{
+    Task<IReadOnlyList<MediaFolder>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<MediaFolder> AddAsync(string path, bool includeSubdirectories, CancellationToken cancellationToken = default);
+    Task RemoveAsync(int id, CancellationToken cancellationToken = default);
+}
+
 public sealed record PresenterStatus(PresenterState State, string Version, string WebUrl);

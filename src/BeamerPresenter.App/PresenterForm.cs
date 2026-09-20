@@ -7,6 +7,7 @@ namespace BeamerPresenter.App;
 internal sealed class PresenterForm : Form
 {
     private readonly IPresenterSettingsService _settingsService;
+    private readonly IMediaFolderService _mediaFolderService;
     private readonly StartupRegistrationService _startupRegistration;
     private readonly PlaybackController _playback;
     private readonly Label _version = new() { AutoSize = true };
@@ -15,7 +16,8 @@ internal sealed class PresenterForm : Form
     private readonly Label _runtime = new() { AutoSize = true };
     private readonly Label _presenterStatus = new() { AutoSize = true };
     private readonly CheckBox _startWithWindows = new() { AutoSize = true, Text = "Mit Windows starten" };
-    private readonly TextBox _mediaFolder = new() { Dock = DockStyle.Fill };
+    private readonly ListBox _mediaFolders = new() { Dock = DockStyle.Fill, Height = 90 };
+    private readonly CheckBox _includeSubdirectories = new() { AutoSize = true, Checked = true, Text = "Unterverzeichnisse durchsuchen" };
     private readonly TextBox _webPort = new() { Dock = DockStyle.Fill };
     private readonly TextBox _password = new() { Dock = DockStyle.Fill, UseSystemPasswordChar = true };
     private readonly TextBox _passwordRepeat = new() { Dock = DockStyle.Fill, UseSystemPasswordChar = true };
@@ -32,6 +34,7 @@ internal sealed class PresenterForm : Form
     public PresenterForm(WebApplication host, bool startMinimized = false)
     {
         _settingsService = host.Services.GetRequiredService<IPresenterSettingsService>();
+        _mediaFolderService = host.Services.GetRequiredService<IMediaFolderService>();
         _startupRegistration = host.Services.GetRequiredService<StartupRegistrationService>();
         _playback = host.Services.GetRequiredService<PlaybackController>();
         var buildInformation = BuildInformation.Current;
@@ -39,7 +42,7 @@ internal sealed class PresenterForm : Form
         _build.Text = buildInformation.BuildTimestampUtc?.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", System.Globalization.CultureInfo.InvariantCulture) ?? "Nicht verfügbar";
         _commit.Text = buildInformation.ShortGitCommitSha;
         _runtime.Text = buildInformation.RuntimeVersion;
-        Text = "Beamer Presenter for LAN-Parties"; MinimumSize = new Size(650, 560); StartPosition = FormStartPosition.CenterScreen;
+        Text = "Beamer Presenter for LAN-Parties"; MinimumSize = new Size(700, 650); StartPosition = FormStartPosition.CenterScreen;
         Controls.Add(CreateContent()); FormClosing += OnFormClosing; Shown += async (_, _) =>
         {
             await LoadSettingsAsync();
@@ -64,11 +67,26 @@ internal sealed class PresenterForm : Form
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(18), ColumnCount = 2, RowCount = 14 };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32)); root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 68));
         AddRow(root, 0, "Version:", _version); AddRow(root, 1, "Build:", _build); AddRow(root, 2, "Commit:", _commit); AddRow(root, 3, "Runtime:", _runtime); AddRow(root, 4, "Presenter:", _presenterStatus);
-        AddRow(root, 5, "Autostart:", _startWithWindows); AddRow(root, 6, "Web UI:", _webUrl); AddRow(root, 7, "Web UI Port:", _webPort); AddRow(root, 8, "Videoordner:", _mediaFolder); AddRow(root, 9, "Web-Passwort:", _password); AddRow(root, 10, "Passwort wiederholen:", _passwordRepeat); AddRow(root, 11, "Schutzstatus:", _passwordStatus);
+        AddRow(root, 5, "Autostart:", _startWithWindows); AddRow(root, 6, "Web UI:", _webUrl); AddRow(root, 7, "Web UI Port:", _webPort); AddRow(root, 8, "Videoordner:", CreateMediaFolderControl()); AddRow(root, 9, "Web-Passwort:", _password); AddRow(root, 10, "Passwort wiederholen:", _passwordRepeat); AddRow(root, 11, "Schutzstatus:", _passwordStatus);
         var save = new Button { Text = "Einstellungen speichern", AutoSize = true, Anchor = AnchorStyles.Left }; save.Click += async (_, _) => await SaveSettingsAsync(); root.Controls.Add(save, 1, 12);
         root.Controls.Add(new Label { AutoSize = true, Text = "Port-Änderungen gelten nach einem Neustart." }, 1, 13); return root;
     }
     private static void AddRow(TableLayoutPanel panel, int row, string label, Control input) { panel.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, row); panel.Controls.Add(input, 1, row); }
+    private Control CreateMediaFolderControl()
+    {
+        var add = new Button { Text = "Hinzufügen", AutoSize = true };
+        add.Click += async (_, _) => await AddMediaFolderAsync();
+        var remove = new Button { Text = "Entfernen", AutoSize = true };
+        remove.Click += async (_, _) => await RemoveMediaFolderAsync();
+        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
+        actions.Controls.Add(add);
+        actions.Controls.Add(remove);
+        actions.Controls.Add(_includeSubdirectories);
+        var panel = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, RowCount = 2, ColumnCount = 1 };
+        panel.Controls.Add(_mediaFolders, 0, 0);
+        panel.Controls.Add(actions, 0, 1);
+        return panel;
+    }
     private ContextMenuStrip CreateTrayMenu()
     {
         var menu = new ContextMenuStrip();
@@ -96,14 +114,48 @@ internal sealed class PresenterForm : Form
         _hidePresenter.Enabled = _playback.State is BeamerPresenter.Domain.PresenterState.Active or BeamerPresenter.Domain.PresenterState.Paused;
         _stopPresenter.Enabled = _playback.State != BeamerPresenter.Domain.PresenterState.Stopped;
     }
-    private async Task LoadSettingsAsync() { var settings = await _settingsService.GetAsync(); _startWithWindows.Checked = _startupRegistration.IsEnabled(); _mediaFolder.Text = settings.MediaFolder; _webPort.Text = settings.WebPort.ToString(System.Globalization.CultureInfo.InvariantCulture); _webUrl.Text = $"http://localhost:{settings.WebPort}"; _passwordStatus.Text = string.IsNullOrWhiteSpace(settings.PasswordHash) ? "Noch nicht eingerichtet" : "Aktiv"; }
+    private async Task LoadSettingsAsync()
+    {
+        var settings = await _settingsService.GetAsync();
+        _startWithWindows.Checked = _startupRegistration.IsEnabled();
+        _webPort.Text = settings.WebPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _webUrl.Text = $"http://localhost:{settings.WebPort}";
+        _passwordStatus.Text = string.IsNullOrWhiteSpace(settings.PasswordHash) ? "Noch nicht eingerichtet" : "Aktiv";
+        await LoadMediaFoldersAsync();
+    }
+    private async Task LoadMediaFoldersAsync()
+    {
+        var folders = await _mediaFolderService.GetAllAsync();
+        _mediaFolders.Items.Clear();
+        _mediaFolders.Items.AddRange(folders.Select(folder => new MediaFolderListItem(folder.Id, folder.Path, folder.IncludeSubdirectories)).ToArray());
+    }
+    private async Task AddMediaFolderAsync()
+    {
+        using var dialog = new FolderBrowserDialog { Description = "Videoordner auswählen", UseDescriptionForTitle = true, ShowNewFolderButton = true };
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        await _mediaFolderService.AddAsync(dialog.SelectedPath, _includeSubdirectories.Checked);
+        await LoadMediaFoldersAsync();
+    }
+    private async Task RemoveMediaFolderAsync()
+    {
+        if (_mediaFolders.SelectedItem is not MediaFolderListItem selectedFolder)
+        {
+            return;
+        }
+
+        await _mediaFolderService.RemoveAsync(selectedFolder.Id);
+        await LoadMediaFoldersAsync();
+    }
     private async Task SaveSettingsAsync()
     {
-        if (string.IsNullOrWhiteSpace(_mediaFolder.Text)) { MessageBox.Show(this, "Bitte einen Videoordner angeben.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
         if (!int.TryParse(_webPort.Text, out var webPort) || webPort is < 1024 or > 65535) { MessageBox.Show(this, "Bitte einen Port zwischen 1024 und 65535 angeben.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
         if (!string.IsNullOrWhiteSpace(_password.Text) && _password.Text != _passwordRepeat.Text) { MessageBox.Show(this, "Die Passwörter stimmen nicht überein.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
         try { _startupRegistration.SetEnabled(_startWithWindows.Checked); } catch (UnauthorizedAccessException) { MessageBox.Show(this, "Der Windows-Autostart konnte nicht geändert werden.", Text, MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
-        var settings = await _settingsService.GetAsync(); settings.MediaFolder = _mediaFolder.Text.Trim(); settings.WebPort = webPort; await _settingsService.SaveAsync(settings); if (!string.IsNullOrWhiteSpace(_password.Text)) await _settingsService.SetWebPasswordAsync(_password.Text);
+        var settings = await _settingsService.GetAsync(); settings.WebPort = webPort; await _settingsService.SaveAsync(settings); if (!string.IsNullOrWhiteSpace(_password.Text)) await _settingsService.SetWebPasswordAsync(_password.Text);
         _password.Clear(); _passwordRepeat.Clear(); await LoadSettingsAsync(); MessageBox.Show(this, "Einstellungen gespeichert.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
     private void OpenWebUi() => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_webUrl.Text) { UseShellExecute = true });
@@ -111,4 +163,9 @@ internal sealed class PresenterForm : Form
     internal void ShowFromExternalLaunch() => ShowFromTray();
     private void ExitApplication() { _allowExit = true; Close(); }
     private void OnFormClosing(object? sender, FormClosingEventArgs eventArgs) { if (!_allowExit && eventArgs.CloseReason == CloseReason.UserClosing) { eventArgs.Cancel = true; Hide(); } }
+
+    private sealed record MediaFolderListItem(int Id, string Path, bool IncludeSubdirectories)
+    {
+        public override string ToString() => IncludeSubdirectories ? $"{Path} (inkl. Unterordner)" : Path;
+    }
 }

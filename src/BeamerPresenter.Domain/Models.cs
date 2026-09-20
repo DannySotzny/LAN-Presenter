@@ -28,3 +28,12 @@ public sealed class VideoAsset
     public long FileSize { get; set; }
     public DateTimeOffset AddedAtUtc { get; set; }
 }
+
+public sealed class MediaFolder
+{
+    public int Id { get; set; }
+    public required string Path { get; set; }
+    public bool IncludeSubdirectories { get; set; } = true;
+    public bool Enabled { get; set; } = true;
+    public DateTimeOffset CreatedUtc { get; set; } = DateTimeOffset.UtcNow;
+}
