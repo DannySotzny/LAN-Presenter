@@ -10,12 +10,14 @@ Die Fundament-Stufe ist implementiert:
 - Statusanzeige mit tatsächlicher Version, Buildzeit, Git-Commit und .NET-Runtime aus dem Buildartefakt
 - Single-Instance pro Windows-Benutzer: ein zweiter Start aktiviert über eine Named Pipe das Fenster der laufenden Instanz
 - optionaler Autostart ohne Administratorrechte über den benutzerbezogenen Windows-Run-Schlüssel
+- strukturiertes JSONL-Logging mit täglicher Rotation und 14 Tagen Aufbewahrung unter `%LOCALAPPDATA%\HouseOfLAN\Presenter\Logs`
 - Kestrel-Weboberfläche auf Port 8765, inklusive Health-Endpunkt und MudBlazor-Management-UI
 - Passwortschutz per Cookie-Login; das Passwort wird ausschließlich in der Desktop-App gesetzt
 - PBKDF2-SHA512-Hash mit zufälligem Salt, kein Klartextpasswort
 - Upload unterstützter Videoformate über die geschützte Web UI
 - lokale Auslieferung der MudBlazor-Assets für Debug, portable Ausgabe und Inno-Setup-Installation
 - SQLite-Persistenz unter `%LOCALAPPDATA%\HouseOfLAN\Presenter\Data\presenter.db`
+- getrennte lokale Verzeichnisse für Daten, Logs, Backups, Chrome-Profil und Tools
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 
 Noch nicht enthalten sind Chrome-Kiosk-Steuerung, FFprobe-Analyse, Playlist-/Segmentlogik, YouTube, SignalR und die Beamer-/Monitorsteuerung. Diese werden in den folgenden Phasen hinter den vorhandenen Application-Contracts ergänzt.

@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace BeamerPresenter.App;
 
@@ -26,34 +26,49 @@ internal static class Program
             return;
         }
 
-        ApplicationConfiguration.Initialize();
-        using var presenterHost = BuildPresenterHost();
-        presenterHost.StartAsync().GetAwaiter().GetResult();
-        using var presenterForm = new PresenterForm(presenterHost, startMinimized);
-        singleInstance.StartListening(() =>
+        var paths = PresenterPaths.CreateDefault();
+        Log.Logger = PresenterLogging.CreateLogger(paths.LogsDirectory);
+        try
         {
-            if (!presenterForm.IsDisposed && presenterForm.IsHandleCreated)
+            var build = BuildInformation.Current;
+            Log.Information("Starting presenter {Version} ({GitCommitSha})", build.Version, build.ShortGitCommitSha);
+            ApplicationConfiguration.Initialize();
+            using var presenterHost = BuildPresenterHost(paths);
+            presenterHost.StartAsync().GetAwaiter().GetResult();
+            using var presenterForm = new PresenterForm(presenterHost, startMinimized);
+            singleInstance.StartListening(() =>
             {
-                presenterForm.BeginInvoke(presenterForm.ShowFromExternalLaunch);
-            }
-        });
-        System.Windows.Forms.Application.Run(presenterForm);
-        presenterHost.StopAsync().GetAwaiter().GetResult();
+                if (!presenterForm.IsDisposed && presenterForm.IsHandleCreated)
+                {
+                    presenterForm.BeginInvoke(presenterForm.ShowFromExternalLaunch);
+                }
+            });
+            System.Windows.Forms.Application.Run(presenterForm);
+            presenterHost.StopAsync().GetAwaiter().GetResult();
+            Log.Information("Presenter stopped normally");
+        }
+        catch (Exception exception)
+        {
+            Log.Fatal(exception, "Presenter terminated unexpectedly");
+            throw;
+        }
+        finally
+        {
+            Log.CloseAndFlush();
+        }
     }
 
-    private static WebApplication BuildPresenterHost()
+    private static WebApplication BuildPresenterHost(PresenterPaths paths)
     {
-        var dataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HouseOfLAN", "Presenter", "Data");
-        var webPort = PresenterDatabase.GetConfiguredWebPort(dataDirectory);
+        var webPort = PresenterDatabase.GetConfiguredWebPort(paths.DataDirectory);
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             WebRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot")
         });
-        builder.Logging.ClearProviders();
-        builder.Logging.AddConsole();
+        builder.Host.UseSerilog(Log.Logger, dispose: false);
         builder.WebHost.UseStaticWebAssets();
         builder.WebHost.UseUrls($"http://0.0.0.0:{webPort}");
-        builder.Services.AddPresenterInfrastructure(dataDirectory);
+        builder.Services.AddPresenterInfrastructure(paths.DataDirectory);
         builder.Services.AddPresenterWebUi();
         builder.Services.AddSingleton(new StartupRegistrationService(Environment.ProcessPath ?? System.Windows.Forms.Application.ExecutablePath));
         builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options => options.MultipartBodyLengthLimit = 5L * 1024 * 1024 * 1024);
@@ -66,6 +81,7 @@ internal static class Program
         application.UseAuthentication();
         application.UseAuthorization();
         application.UseAntiforgery();
+        application.UseSerilogRequestLogging();
         application.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
         application.MapPresenterWebUi();
         return application;

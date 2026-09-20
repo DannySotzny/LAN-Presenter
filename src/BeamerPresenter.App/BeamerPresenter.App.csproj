@@ -12,6 +12,8 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <InternalsVisibleTo Include="BeamerPresenter.App.Tests" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <ProjectReference Include="..\BeamerPresenter.Infrastructure\BeamerPresenter.Infrastructure.csproj" />
     <ProjectReference Include="..\BeamerPresenter.Web\BeamerPresenter.Web.csproj" />
   </ItemGroup>

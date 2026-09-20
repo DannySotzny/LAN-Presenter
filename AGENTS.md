@@ -19,6 +19,7 @@
 - `Directory.Build.targets` schreibt `BuildTimestampUtc` und `GitCommitSha` als Assembly-Metadaten. Diese Werte werden im Statusfenster aus dem tatsächlichen App-Assembly gelesen und dürfen dort nicht hart codiert werden.
 - Single-Instance verwendet einen benutzerspezifischen Named Mutex und eine benutzerspezifische Named Pipe. Der zweite Prozess darf keinen Host starten, sondern fordert ausschließlich das Öffnen des bestehenden Statusfensters an.
 - Autostart wird unter `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` registriert. Der Wert enthält immer den vollständig quotierten Executable-Pfad plus `--autostart`; dieser Startmodus öffnet nicht automatisch das Statusfenster.
+- Serilog schreibt strukturierte Tageslogs nach `%LOCALAPPDATA%\HouseOfLAN\Presenter\Logs` und bewahrt höchstens 14 Dateien auf. Passwörter, Cookies, Tokens und Request-Bodies dürfen nie geloggt werden.
 - SQLite kann `DateTimeOffset` nicht serverseitig in `ORDER BY` übersetzen. Die kleine Videoliste wird deshalb zuerst geladen und anschließend im Speicher nach `AddedAtUtc` sortiert; Änderungen daran müssen den authentifizierten Web-Routen-Test bestehen.
 
 ## Arbeitsweise
