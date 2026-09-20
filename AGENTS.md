@@ -30,6 +30,7 @@
 - FFprobe-Kandidaten werden in der Reihenfolge konfigurierter Pfad, lokales `Tools`-Verzeichnis, `PATH`, bekannte Installationsorte geprüft und gelten ausschließlich nach erfolgreichem `ffprobe -version` als verfügbar. Automatische Installation läuft nur über die exakte WinGet-ID `Gyan.FFmpeg`.
 - FFprobe liefert JSON über den zentralen `IFfprobeService`. Analysezustand (`ProbeStatus`) und erwartete Browser-Kompatibilität (`PlaybackStatus`) sind getrennte persistente Werte; ein fehlendes FFprobe darf daher nicht als inkompatibles Medium gespeichert werden.
 - `MediaProbeQueue` ist ein deduplizierter `Channel` mit genau zwei Consumern. Reconciliation und Uploads reihen ausschließlich IDs plus Pfad ein; erst nach zwei Sekunden stabiler Dateigröße und Schreibzeit darf FFprobe starten. Ergebnisse dürfen nur gespeichert werden, wenn die Datei während der Analyse unverändert blieb.
+- Die Medienbibliothek bleibt serverseitig renderbar und per GET-Parameter `q` durchsuchbar. `ProbeStatus` und `PlaybackStatus` müssen visuell getrennt ableitbar bleiben; Upload-Formulare verwenden Post/Redirect/Get und zeigen das Ergebnis auf der Managementseite an.
 
 ## Arbeitsweise
 

@@ -2,10 +2,13 @@
 @inherits LayoutComponentBase
 
 <MudLayout>
-    <MudAppBar Color="Color.Primary" Elevation="1">
+    <MudAppBar Color="Color.Transparent" Elevation="0" Class="app-bar">
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-            <MudIcon Icon="@Icons.Material.Filled.Videocam" />
-            <MudText Typo="Typo.h6">Beamer Presenter for LAN-Parties</MudText>
+            <div class="brand-mark"><MudIcon Icon="@Icons.Material.Filled.Videocam" /></div>
+            <div>
+                <MudText Typo="Typo.h6" Class="brand-title">Beamer Presenter</MudText>
+                <MudText Typo="Typo.caption" Class="brand-subtitle">FOR LAN-PARTIES</MudText>
+            </div>
         </MudStack>
     </MudAppBar>
     <MudMainContent Class="main-content">

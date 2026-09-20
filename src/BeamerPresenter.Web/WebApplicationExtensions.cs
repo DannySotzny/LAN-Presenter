@@ -44,8 +44,21 @@ public static class WebApplicationExtensions
         if (!context.Request.HasFormContentType) return Results.BadRequest(new { error = "Bitte eine multipart/form-data-Anfrage senden." });
         var form = await context.Request.ReadFormAsync(cancellationToken); var video = form.Files.GetFile("video");
         if (video is null || video.Length == 0) return Results.BadRequest(new { error = "Es wurde keine Videodatei ausgewählt." });
-        try { await using var stream = video.OpenReadStream(); var asset = await mediaLibraryService.AddUploadAsync(video.FileName, stream, video.Length, cancellationToken); return Results.Ok(new { asset.Id, asset.FileName, asset.FileSize }); }
-        catch (InvalidOperationException exception) { return Results.BadRequest(new { error = exception.Message }); }
+        var returnUrl = form["returnUrl"].ToString();
+        try
+        {
+            await using var stream = video.OpenReadStream();
+            var asset = await mediaLibraryService.AddUploadAsync(video.FileName, stream, video.Length, cancellationToken);
+            return IsLocalUrl(returnUrl)
+                ? Results.Redirect($"{returnUrl}?upload=success")
+                : Results.Ok(new { asset.Id, asset.FileName, asset.FileSize });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return IsLocalUrl(returnUrl)
+                ? Results.Redirect($"{returnUrl}?upload=error&message={Uri.EscapeDataString(exception.Message)}")
+                : Results.BadRequest(new { error = exception.Message });
+        }
     }
     private static bool IsLocalUrl(string value) => value.StartsWith("/", StringComparison.Ordinal) && !value.StartsWith("//", StringComparison.Ordinal);
 }

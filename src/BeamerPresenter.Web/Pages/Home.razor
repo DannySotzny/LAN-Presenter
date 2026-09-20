@@ -1,26 +1,219 @@
 @page "/"
+@using BeamerPresenter.Domain
 @using MudBlazor
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject BeamerPresenter.Application.IMediaLibraryService MediaLibraryService
 @inject BeamerPresenter.Application.PlaybackController Playback
 
 <MudStack Spacing="4">
-    <MudPaper Elevation="2" Class="pa-6 hero-panel">
-        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
-            <div><MudText Typo="Typo.h4">Steuerzentrale</MudText><MudText Typo="Typo.body1" Color="Color.Secondary">Presenter und Medien für die nächste LAN-Party.</MudText></div>
-            <MudChip T="string" Color="Color.Info" Variant="Variant.Filled" Icon="@Icons.Material.Filled.PauseCircle">@Playback.State</MudChip>
-        </MudStack>
+    <MudPaper Elevation="0" Class="hero-panel pa-7 pa-sm-9">
+        <MudGrid Class="hero-grid">
+            <MudItem xs="12" md="8">
+                <MudText Typo="Typo.overline" Class="hero-kicker">LAN PARTY CONTROL DECK</MudText>
+                <MudText Typo="Typo.h3" Class="hero-title">Bereit für den nächsten Clip.</MudText>
+                <MudText Typo="Typo.body1" Class="hero-copy">Lokale Medien prüfen, neue Videos einsammeln und den Beamer im Blick behalten.</MudText>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <div class="presenter-state-card">
+                    <MudIcon Icon="@PresenterIcon" Size="Size.Large" />
+                    <div>
+                        <MudText Typo="Typo.caption" Class="state-label">PRESENTER</MudText>
+                        <MudText Typo="Typo.h5">@Playback.State</MudText>
+                    </div>
+                </div>
+            </MudItem>
+        </MudGrid>
     </MudPaper>
 
-    <MudGrid Spacing="4">
-        <MudItem xs="12" md="5"><MudPaper Elevation="2" Class="pa-6 full-height"><MudStack Spacing="3"><MudIcon Icon="@Icons.Material.Filled.CloudUpload" Color="Color.Primary" Size="Size.Large" /><MudText Typo="Typo.h5">Neues Video hochladen</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Das Video wird in den Desktop-konfigurierten Videoordner geschrieben.</MudText><form method="post" enctype="multipart/form-data" action="/api/videos/upload"><input class="upload-input" type="file" name="video" accept="video/mp4,video/x-matroska,video/webm,video/quicktime,video/x-msvideo" required /><MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Upload">Video hochladen</MudButton></form></MudStack></MudPaper></MudItem>
-        <MudItem xs="12" md="7"><MudPaper Elevation="2" Class="pa-6 full-height"><MudStack Spacing="2"><MudText Typo="Typo.h5">Videobibliothek</MudText>@if (_videos.Count == 0) { <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Noch keine Videos erfasst.</MudAlert> } else { <MudList T="string" Dense="true">@foreach (var video in _videos) { <MudListItem T="string" Icon="@Icons.Material.Filled.Movie"><MudText>@video.FileName</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">@FormatSize(video.FileSize)</MudText></MudListItem> }</MudList> }</MudStack></MudPaper></MudItem>
+    @if (UploadResult == "success")
+    {
+        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Das Video wurde gespeichert und für die Medienanalyse eingereiht.</MudAlert>
+    }
+    else if (UploadResult == "error")
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(UploadMessage) ? UploadMessage : "Das Video konnte nicht hochgeladen werden.")</MudAlert>
+    }
+
+    <MudGrid Spacing="3">
+        <MudItem xs="6" md="3">
+            <MudPaper Elevation="0" Class="metric-card">
+                <MudIcon Icon="@Icons.Material.Filled.VideoLibrary" Color="Color.Primary" />
+                <MudText Typo="Typo.h4">@_videos.Count</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Videos gesamt</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Elevation="0" Class="metric-card">
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
+                <MudText Typo="Typo.h4">@ReadyCount</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Abspielbereit</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Elevation="0" Class="metric-card">
+                <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Color="Color.Info" />
+                <MudText Typo="Typo.h4">@PendingCount</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">In Analyse</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Elevation="0" Class="metric-card">
+                <MudIcon Icon="@Icons.Material.Filled.WarningAmber" Color="Color.Warning" />
+                <MudText Typo="Typo.h4">@ProblemCount</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Prüfen</MudText>
+            </MudPaper>
+        </MudItem>
     </MudGrid>
-    <form method="post" action="/account/logout"><MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Logout">Abmelden</MudButton></form>
+
+    <MudGrid Spacing="4">
+        <MudItem xs="12" lg="4">
+            <MudPaper Elevation="0" Class="content-panel pa-6 full-height">
+                <div class="panel-icon"><MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" /></div>
+                <MudText Typo="Typo.h5" Class="mt-4">Video hinzufügen</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2 mb-5">Die Datei landet im ersten aktiven Videoordner. Analyse und Status aktualisieren sich automatisch.</MudText>
+                <form method="post" enctype="multipart/form-data" action="/api/videos/upload">
+                    <input type="hidden" name="returnUrl" value="/" />
+                    <label class="upload-dropzone" for="video-upload">
+                        <MudIcon Icon="@Icons.Material.Filled.AddToDrive" Size="Size.Large" />
+                        <span>Datei auswählen</span>
+                        <small>MP4, MKV, WebM, MOV oder AVI</small>
+                    </label>
+                    <input class="visually-hidden-file" id="video-upload" type="file" name="video" accept="video/mp4,video/x-matroska,video/webm,video/quicktime,video/x-msvideo" required />
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large" StartIcon="@Icons.Material.Filled.Upload" Class="mt-4">Hochladen</MudButton>
+                </form>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" lg="8">
+            <MudPaper Elevation="0" Class="content-panel pa-6 full-height">
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
+                    <div>
+                        <MudText Typo="Typo.h5">Videobibliothek</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@FilteredVideos.Count von @_videos.Count Einträgen</MudText>
+                    </div>
+                    <form method="get" action="/" class="library-search-form">
+                        <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" />
+                        <input name="q" value="@Search" type="search" class="library-search" placeholder="Datei, Codec oder Container" aria-label="Videobibliothek durchsuchen" />
+                        <button type="submit">Suchen</button>
+                    </form>
+                </MudStack>
+
+                @if (FilteredVideos.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">@(string.IsNullOrWhiteSpace(Search) ? "Noch keine Videos erfasst." : "Keine Videos passen zu dieser Suche.")</MudAlert>
+                }
+                else
+                {
+                    <MudTable T="VideoAsset" Items="@FilteredVideos" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Class="media-table">
+                        <HeaderContent>
+                            <MudTh>Video</MudTh>
+                            <MudTh>Status</MudTh>
+                            <MudTh>Format</MudTh>
+                            <MudTh>Dauer</MudTh>
+                            <MudTh>Größe</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Video">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                    <div class="media-file-icon"><MudIcon Icon="@Icons.Material.Filled.Movie" Size="Size.Small" /></div>
+                                    <div class="media-name-cell">
+                                        <MudText Typo="Typo.body2">@context.FileName</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@(context.IsAvailable ? FormatResolution(context) : "Datei nicht verfügbar")</MudText>
+                                    </div>
+                                </MudStack>
+                            </MudTd>
+                            <MudTd DataLabel="Status">
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@GetStatusColor(context)" Icon="@GetStatusIcon(context)">@GetStatusText(context)</MudChip>
+                            </MudTd>
+                            <MudTd DataLabel="Format"><span class="codec-label">@FormatCodec(context)</span></MudTd>
+                            <MudTd DataLabel="Dauer">@FormatDuration(context.Duration)</MudTd>
+                            <MudTd DataLabel="Größe">@FormatSize(context.FileSize)</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <form method="post" action="/account/logout" class="logout-form">
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Logout">Abmelden</MudButton>
+    </form>
 </MudStack>
 
 @code {
-    private IReadOnlyList<BeamerPresenter.Domain.VideoAsset> _videos = [];
+    private IReadOnlyList<VideoAsset> _videos = [];
+
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "q")]
+    public string? Search { get; set; }
+
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "upload")]
+    public string? UploadResult { get; set; }
+
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "message")]
+    public string? UploadMessage { get; set; }
+
+    private string PresenterIcon => Playback.State == PresenterState.Active ? Icons.Material.Filled.PlayCircle : Icons.Material.Filled.PauseCircle;
+    private int ReadyCount => _videos.Count(video => video.IsAvailable && video.PlaybackStatus == MediaPlaybackStatus.Supported);
+    private int PendingCount => _videos.Count(video => video.IsAvailable && video.ProbeStatus == MediaProbeStatus.Unknown);
+    private int ProblemCount => _videos.Count(video => !video.IsAvailable || video.ProbeStatus is MediaProbeStatus.Invalid or MediaProbeStatus.Missing || video.PlaybackStatus == MediaPlaybackStatus.Unsupported);
+    private IReadOnlyList<VideoAsset> FilteredVideos => string.IsNullOrWhiteSpace(Search)
+        ? _videos
+        : _videos.Where(MatchesSearch).ToList();
+
     protected override async Task OnInitializedAsync() => _videos = await MediaLibraryService.GetAllAsync();
-    private static string FormatSize(long bytes) => $"{bytes / 1024d / 1024d:0.0} MB";
+
+    private bool MatchesSearch(VideoAsset video)
+    {
+        var search = Search!.Trim();
+        return video.FileName.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || (video.VideoCodec?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (video.AudioCodec?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (video.Container?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    private static Color GetStatusColor(VideoAsset video) => video switch
+    {
+        { IsAvailable: false } => Color.Error,
+        { ProbeStatus: MediaProbeStatus.Invalid or MediaProbeStatus.Missing } => Color.Error,
+        { PlaybackStatus: MediaPlaybackStatus.Unsupported } => Color.Warning,
+        { ProbeStatus: MediaProbeStatus.Valid, PlaybackStatus: MediaPlaybackStatus.Supported } => Color.Success,
+        _ => Color.Info
+    };
+
+    private static string GetStatusIcon(VideoAsset video) => video switch
+    {
+        { IsAvailable: false } => Icons.Material.Filled.LinkOff,
+        { ProbeStatus: MediaProbeStatus.Invalid or MediaProbeStatus.Missing } => Icons.Material.Filled.Error,
+        { PlaybackStatus: MediaPlaybackStatus.Unsupported } => Icons.Material.Filled.Warning,
+        { ProbeStatus: MediaProbeStatus.Valid, PlaybackStatus: MediaPlaybackStatus.Supported } => Icons.Material.Filled.CheckCircle,
+        _ => Icons.Material.Filled.HourglassTop
+    };
+
+    private static string GetStatusText(VideoAsset video) => video switch
+    {
+        { IsAvailable: false } => "Fehlt",
+        { ProbeStatus: MediaProbeStatus.Invalid } => "Fehlerhaft",
+        { PlaybackStatus: MediaPlaybackStatus.Unsupported } => "Inkompatibel",
+        { ProbeStatus: MediaProbeStatus.Valid, PlaybackStatus: MediaPlaybackStatus.Supported } => "Bereit",
+        _ => "Analyse"
+    };
+
+    private static string FormatResolution(VideoAsset video) => video.VideoWidth is > 0 && video.VideoHeight is > 0
+        ? $"{video.VideoWidth} × {video.VideoHeight}"
+        : "Auflösung wird ermittelt";
+
+    private static string FormatCodec(VideoAsset video)
+    {
+        var codecs = new[] { video.VideoCodec, video.AudioCodec }.Where(value => !string.IsNullOrWhiteSpace(value));
+        var codecText = string.Join(" / ", codecs);
+        return !string.IsNullOrWhiteSpace(codecText) ? codecText.ToUpperInvariant() : "–";
+    }
+
+    private static string FormatDuration(TimeSpan? duration) => duration is null
+        ? "–"
+        : duration.Value.TotalHours >= 1 ? duration.Value.ToString(@"h\:mm\:ss") : duration.Value.ToString(@"m\:ss");
+
+    private static string FormatSize(long bytes) => bytes >= 1024L * 1024 * 1024
+        ? $"{bytes / 1024d / 1024d / 1024d:0.0} GB"
+        : $"{bytes / 1024d / 1024d:0.0} MB";
 }

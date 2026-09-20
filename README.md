@@ -15,6 +15,7 @@ Die Fundament-Stufe ist implementiert:
 - Passwortschutz per Cookie-Login; das Passwort wird ausschließlich in der Desktop-App gesetzt
 - PBKDF2-SHA512-Hash mit zufälligem Salt, kein Klartextpasswort
 - Upload unterstützter Videoformate über die geschützte Web UI
+- responsive MudBlazor-Medienbibliothek mit Suche, technischen Metadaten, Kennzahlen und klar erkennbaren Analyse-/Kompatibilitätsfehlern
 - mehrere persistente Videoordner mit optional rekursiver Erfassung; der bisherige Einzelpfad wird automatisch migriert
 - Full Scan beim Start und Reconciliation alle 30 Minuten für neue, geänderte und fehlende lokale Videos
 - dynamische FileSystemWatcher für alle aktiven Medienordner; Ereignisse werden debounct und anschließend über denselben vollständigen Abgleich verarbeitet
