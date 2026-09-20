@@ -17,6 +17,7 @@ Die Fundament-Stufe ist implementiert:
 - Upload unterstützter Videoformate über die geschützte Web UI
 - mehrere persistente Videoordner mit optional rekursiver Erfassung; der bisherige Einzelpfad wird automatisch migriert
 - Full Scan beim Start und Reconciliation alle 30 Minuten für neue, geänderte und fehlende lokale Videos
+- dynamische FileSystemWatcher für alle aktiven Medienordner; Ereignisse werden debounct und anschließend über denselben vollständigen Abgleich verarbeitet
 - automatische FFprobe-Erkennung mit echtem `-version`-Prozesscheck, manueller Pfadwahl und optionaler WinGet-Installation
 - FFprobe-Metadatenanalyse für Dauer, Container, Video-/Audio-Codec, Auflösung, Framerate und Audiokanäle mit getrenntem Analyse- und Browser-Wiedergabestatus
 - automatische, deduplizierte Analyse-Queue mit höchstens zwei parallelen FFprobe-Prozessen und Stabilitätsprüfung vor der Analyse großer Kopiervorgänge
@@ -26,7 +27,7 @@ Die Fundament-Stufe ist implementiert:
 - getrennte lokale Verzeichnisse für Daten, Logs, Backups, Chrome-Profil und Tools
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 
-Noch nicht enthalten sind die FileSystemWatcher-Soforterkennung, Chrome-Kiosk-Steuerung, Playlist-/Segmentlogik, YouTube, SignalR und die Beamer-/Monitorsteuerung. Diese werden in den folgenden Phasen hinter den vorhandenen Application-Contracts ergänzt.
+Noch nicht enthalten sind Chrome-Kiosk-Steuerung, Playlist-/Segmentlogik, YouTube, SignalR und die Beamer-/Monitorsteuerung. Diese werden in den folgenden Phasen hinter den vorhandenen Application-Contracts ergänzt.
 
 ## Lokaler Start
 

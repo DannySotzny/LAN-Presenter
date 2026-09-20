@@ -27,6 +27,7 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<FfprobeService>>(),
             toolsDirectory ?? Path.Combine(Directory.GetParent(Path.GetFullPath(dataDirectory))?.FullName ?? dataDirectory, "Tools")));
         services.AddHostedService<MediaProbeQueue>(provider => provider.GetRequiredService<MediaProbeQueue>());
+        services.AddHostedService<MediaFolderWatcher>();
         services.AddHostedService<MediaReconciliationWorker>();
         services.AddSingleton<PlaybackController>();
         return services;

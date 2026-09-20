@@ -12,7 +12,22 @@ internal sealed class SqliteMediaScanner(
     IMediaProbeQueue mediaProbeQueue,
     ILogger<SqliteMediaScanner> logger) : IMediaScanner
 {
+    private readonly SemaphoreSlim scanGate = new(1, 1);
+
     public async Task<MediaScanResult> ScanAllAsync(CancellationToken cancellationToken = default)
+    {
+        await scanGate.WaitAsync(cancellationToken);
+        try
+        {
+            return await ScanAllCoreAsync(cancellationToken);
+        }
+        finally
+        {
+            scanGate.Release();
+        }
+    }
+
+    private async Task<MediaScanResult> ScanAllCoreAsync(CancellationToken cancellationToken)
     {
         var folders = (await mediaFolderService.GetAllAsync(cancellationToken)).Where(folder => folder.Enabled).ToList();
         var discoveredFiles = new Dictionary<string, FileInfo>(StringComparer.OrdinalIgnoreCase);
