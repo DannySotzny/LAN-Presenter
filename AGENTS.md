@@ -31,6 +31,7 @@
 - FFprobe liefert JSON über den zentralen `IFfprobeService`. Analysezustand (`ProbeStatus`) und erwartete Browser-Kompatibilität (`PlaybackStatus`) sind getrennte persistente Werte; ein fehlendes FFprobe darf daher nicht als inkompatibles Medium gespeichert werden.
 - `MediaProbeQueue` ist ein deduplizierter `Channel` mit genau zwei Consumern. Reconciliation und Uploads reihen ausschließlich IDs plus Pfad ein; erst nach zwei Sekunden stabiler Dateigröße und Schreibzeit darf FFprobe starten. Ergebnisse dürfen nur gespeichert werden, wenn die Datei während der Analyse unverändert blieb.
 - Die Medienbibliothek bleibt serverseitig renderbar und per GET-Parameter `q` durchsuchbar. `ProbeStatus` und `PlaybackStatus` müssen visuell getrennt ableitbar bleiben; Upload-Formulare verwenden Post/Redirect/Get und zeigen das Ergebnis auf der Managementseite an.
+- `/media/{mediaId}` bleibt für den lokalen Presenter anonym, liefert nur verfügbare DB-Einträge mit Range-Support aus und validiert den kanonischen Dateipfad bei jedem Abruf erneut gegen aktiv konfigurierte Medienordner. Direkte Dateipfade dürfen nie an den Browser gegeben werden.
 
 ## Arbeitsweise
 

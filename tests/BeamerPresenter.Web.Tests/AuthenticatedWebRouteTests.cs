@@ -111,6 +111,52 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.True(File.Exists(Path.Combine(uploadDirectory, "uploaded-clip.mp4")));
     }
 
+    [Fact]
+    public async Task Media_endpoint_supports_ranges_and_rejects_paths_outside_configured_folders()
+    {
+        var mediaDirectory = Path.Combine(_dataDirectory, "Media");
+        var outsideDirectory = Path.Combine(_dataDirectory, "Outside");
+        Directory.CreateDirectory(mediaDirectory);
+        Directory.CreateDirectory(outsideDirectory);
+        var mediaPath = Path.Combine(mediaDirectory, "range-test.mp4");
+        var outsidePath = Path.Combine(outsideDirectory, "outside.mp4");
+        await File.WriteAllBytesAsync(mediaPath, Enumerable.Range(0, 16).Select(value => (byte)value).ToArray());
+        await File.WriteAllBytesAsync(outsidePath, [10, 11, 12]);
+        await _application!.Services.GetRequiredService<IMediaFolderService>().AddAsync(mediaDirectory, includeSubdirectories: false);
+
+        int mediaId;
+        int outsideId;
+        await using (var scope = _application.Services.CreateAsyncScope())
+        {
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PresenterDbContext>>();
+            await using var context = await factory.CreateDbContextAsync();
+            var media = CreateVideo("range-test.mp4", "h264", MediaPlaybackStatus.Supported);
+            media.FullPath = mediaPath;
+            media.FileSize = 16;
+            var outside = CreateVideo("outside.mp4", "h264", MediaPlaybackStatus.Supported);
+            outside.FullPath = outsidePath;
+            outside.FileSize = 3;
+            context.Videos.AddRange(media, outside);
+            await context.SaveChangesAsync();
+            mediaId = media.Id;
+            outsideId = outside.Id;
+        }
+
+        using var client = _application.GetTestClient();
+        using var rangeRequest = new HttpRequestMessage(HttpMethod.Get, $"/media/{mediaId}");
+        rangeRequest.Headers.Range = new RangeHeaderValue(2, 5);
+        using var rangeResponse = await client.SendAsync(rangeRequest);
+
+        Assert.Equal(HttpStatusCode.PartialContent, rangeResponse.StatusCode);
+        Assert.Equal("video/mp4", rangeResponse.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("bytes 2-5/16", rangeResponse.Content.Headers.ContentRange?.ToString());
+        Assert.Equal([2, 3, 4, 5], await rangeResponse.Content.ReadAsByteArrayAsync());
+        Assert.Contains("bytes", rangeResponse.Headers.AcceptRanges);
+
+        using var outsideResponse = await client.GetAsync($"/media/{outsideId}");
+        Assert.Equal(HttpStatusCode.NotFound, outsideResponse.StatusCode);
+    }
+
     private static VideoAsset CreateVideo(string fileName, string videoCodec, MediaPlaybackStatus playbackStatus) => new()
     {
         FileName = fileName,
