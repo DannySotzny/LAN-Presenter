@@ -35,8 +35,22 @@ public interface IFfprobeService
 {
     Task<FfprobeAvailability> CheckAvailabilityAsync(CancellationToken cancellationToken = default);
     Task<FfprobeAvailability> InstallWithWinGetAsync(CancellationToken cancellationToken = default);
+    Task<MediaProbeResult> ProbeAsync(string mediaPath, CancellationToken cancellationToken = default);
 }
 
 public sealed record FfprobeAvailability(bool IsAvailable, string? ExecutablePath, string? Version, string? Error);
+
+public sealed record MediaProbeResult(
+    MediaProbeStatus ProbeStatus,
+    MediaPlaybackStatus PlaybackStatus,
+    TimeSpan? Duration,
+    string? Container,
+    string? VideoCodec,
+    int? VideoWidth,
+    int? VideoHeight,
+    double? FrameRate,
+    string? AudioCodec,
+    int? AudioChannels,
+    string? Error);
 
 public sealed record PresenterStatus(PresenterState State, string Version, string WebUrl);

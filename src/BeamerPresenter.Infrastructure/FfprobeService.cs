@@ -1,5 +1,8 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Text.Json;
 using BeamerPresenter.Application;
+using BeamerPresenter.Domain;
 using Microsoft.Extensions.Logging;
 
 namespace BeamerPresenter.Infrastructure;
@@ -108,6 +111,40 @@ internal sealed class FfprobeService(
         }
     }
 
+    public async Task<MediaProbeResult> ProbeAsync(string mediaPath, CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(mediaPath))
+        {
+            return FailedProbe(MediaProbeStatus.Missing, "Die Mediendatei wurde nicht gefunden.");
+        }
+
+        var availability = await CheckAvailabilityAsync(cancellationToken);
+        if (!availability.IsAvailable || availability.ExecutablePath is null)
+        {
+            return FailedProbe(MediaProbeStatus.Unknown, availability.Error ?? "FFprobe ist nicht verfügbar.");
+        }
+
+        try
+        {
+            var result = await processRunner.RunAsync(
+                availability.ExecutablePath,
+                ["-v", "error", "-show_entries", "format=duration,format_name:stream=codec_type,codec_name,width,height,r_frame_rate,channels", "-of", "json", mediaPath],
+                TimeSpan.FromMinutes(2),
+                cancellationToken);
+            if (result.ExitCode != 0)
+            {
+                return FailedProbe(MediaProbeStatus.Invalid, LimitError(result.StandardError));
+            }
+
+            return ParseProbeResult(result.StandardOutput);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "FFprobe analysis failed for {MediaPath}", mediaPath);
+            return FailedProbe(MediaProbeStatus.Invalid, LimitError(exception.Message));
+        }
+    }
+
     private IEnumerable<string> GetCandidates(string? configuredPath)
     {
         var candidates = new List<string?>
@@ -132,4 +169,107 @@ internal sealed class FfprobeService(
             .Where(File.Exists)
             .Distinct(StringComparer.OrdinalIgnoreCase);
     }
+
+    private static MediaProbeResult ParseProbeResult(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        var format = root.TryGetProperty("format", out var formatElement) ? formatElement : default;
+        var duration = format.ValueKind == JsonValueKind.Object
+            && format.TryGetProperty("duration", out var durationElement)
+            && double.TryParse(durationElement.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var durationSeconds)
+                ? TimeSpan.FromSeconds(durationSeconds)
+                : (TimeSpan?)null;
+        var container = format.ValueKind == JsonValueKind.Object && format.TryGetProperty("format_name", out var containerElement)
+            ? containerElement.GetString()
+            : null;
+
+        JsonElement? videoStream = null;
+        JsonElement? audioStream = null;
+        if (root.TryGetProperty("streams", out var streams) && streams.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var stream in streams.EnumerateArray())
+            {
+                var codecType = GetString(stream, "codec_type");
+                if (videoStream is null && string.Equals(codecType, "video", StringComparison.Ordinal))
+                {
+                    videoStream = stream.Clone();
+                }
+                else if (audioStream is null && string.Equals(codecType, "audio", StringComparison.Ordinal))
+                {
+                    audioStream = stream.Clone();
+                }
+            }
+        }
+
+        var videoCodec = videoStream is { } video ? GetString(video, "codec_name") : null;
+        var audioCodec = audioStream is { } audio ? GetString(audio, "codec_name") : null;
+        var playbackStatus = IsChromeCompatible(videoCodec, audioCodec)
+            ? MediaPlaybackStatus.Supported
+            : MediaPlaybackStatus.Unsupported;
+        return new MediaProbeResult(
+            MediaProbeStatus.Valid,
+            playbackStatus,
+            duration,
+            container,
+            videoCodec,
+            videoStream is { } widthVideo ? GetInt32(widthVideo, "width") : null,
+            videoStream is { } heightVideo ? GetInt32(heightVideo, "height") : null,
+            videoStream is { } frameRateVideo ? ParseFrameRate(GetString(frameRateVideo, "r_frame_rate")) : null,
+            audioCodec,
+            audioStream is { } channelsAudio ? GetInt32(channelsAudio, "channels") : null,
+            null);
+    }
+
+    private static string? GetString(JsonElement element, string propertyName) =>
+        element.TryGetProperty(propertyName, out var property) ? property.GetString() : null;
+
+    private static int? GetInt32(JsonElement element, string propertyName) =>
+        element.TryGetProperty(propertyName, out var property) && property.TryGetInt32(out var value) ? value : null;
+
+    private static double? ParseFrameRate(string? frameRate)
+    {
+        if (string.IsNullOrWhiteSpace(frameRate))
+        {
+            return null;
+        }
+
+        var parts = frameRate.Split('/', 2);
+        if (!double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var numerator))
+        {
+            return null;
+        }
+
+        if (parts.Length == 1)
+        {
+            return numerator;
+        }
+
+        return double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var denominator) && denominator != 0
+            ? numerator / denominator
+            : null;
+    }
+
+    private static bool IsChromeCompatible(string? videoCodec, string? audioCodec)
+    {
+        var videoSupported = videoCodec is "h264" or "vp8" or "vp9" or "av1";
+        var audioSupported = audioCodec is null or "aac" or "mp3" or "opus" or "vorbis";
+        return videoSupported && audioSupported;
+    }
+
+    private static MediaProbeResult FailedProbe(MediaProbeStatus status, string error) =>
+        new(
+            status,
+            status == MediaProbeStatus.Unknown ? MediaPlaybackStatus.Unknown : MediaPlaybackStatus.Unsupported,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            LimitError(error));
+
+    private static string LimitError(string error) => error.Length <= 4096 ? error : error[..4096];
 }

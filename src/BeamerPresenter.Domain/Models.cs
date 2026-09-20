@@ -8,6 +8,23 @@ public enum PresenterState
     Hidden
 }
 
+public enum MediaProbeStatus
+{
+    Unknown,
+    Valid,
+    Invalid,
+    Unsupported,
+    Missing
+}
+
+public enum MediaPlaybackStatus
+{
+    Unknown,
+    Supported,
+    Unsupported,
+    Failed
+}
+
 public sealed class PresenterSettings
 {
     public const int DefaultWebPort = 8765;
@@ -31,6 +48,17 @@ public sealed class VideoAsset
     public DateTimeOffset LastWriteUtc { get; set; }
     public DateTimeOffset? LastScannedUtc { get; set; }
     public bool IsAvailable { get; set; } = true;
+    public TimeSpan? Duration { get; set; }
+    public string? Container { get; set; }
+    public string? VideoCodec { get; set; }
+    public int? VideoWidth { get; set; }
+    public int? VideoHeight { get; set; }
+    public double? FrameRate { get; set; }
+    public string? AudioCodec { get; set; }
+    public int? AudioChannels { get; set; }
+    public MediaProbeStatus ProbeStatus { get; set; }
+    public MediaPlaybackStatus PlaybackStatus { get; set; }
+    public string? ProbeError { get; set; }
 }
 
 public sealed class MediaFolder

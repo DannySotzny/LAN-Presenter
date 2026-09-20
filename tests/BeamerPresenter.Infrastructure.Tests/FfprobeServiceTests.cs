@@ -1,4 +1,5 @@
 using BeamerPresenter.Application;
+using BeamerPresenter.Domain;
 using BeamerPresenter.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
@@ -51,6 +52,57 @@ public sealed class FfprobeServiceTests
         }
     }
 
+    [Fact]
+    public async Task Probe_reads_media_metadata_and_reports_browser_compatibility()
+    {
+        var testRoot = Path.Combine(Path.GetTempPath(), "BeamerPresenter.Tests", Guid.NewGuid().ToString("N"));
+        var dataDirectory = Path.Combine(testRoot, "Data");
+        var toolsDirectory = Path.Combine(testRoot, "Tools");
+        var configuredFfprobe = Path.Combine(testRoot, "Configured", "ffprobe.exe");
+        var mediaPath = Path.Combine(testRoot, "Videos", "intro.mp4");
+        Directory.CreateDirectory(Path.GetDirectoryName(configuredFfprobe)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(mediaPath)!);
+        await File.WriteAllTextAsync(configuredFfprobe, string.Empty);
+        await File.WriteAllTextAsync(mediaPath, string.Empty);
+
+        try
+        {
+            PresenterDatabase.GetConfiguredWebPort(dataDirectory);
+            var runner = new FakeProcessRunner(configuredFfprobe, Path.Combine(toolsDirectory, "ffprobe.exe"));
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddPresenterInfrastructure(dataDirectory, toolsDirectory);
+            services.AddSingleton<IExternalProcessRunner>(runner);
+            await using var provider = services.BuildServiceProvider();
+            var settingsService = provider.GetRequiredService<IPresenterSettingsService>();
+            var settings = await settingsService.GetAsync();
+            settings.FfprobePath = configuredFfprobe;
+            await settingsService.SaveAsync(settings);
+
+            var result = await provider.GetRequiredService<IFfprobeService>().ProbeAsync(mediaPath);
+
+            Assert.Equal(MediaProbeStatus.Valid, result.ProbeStatus);
+            Assert.Equal(MediaPlaybackStatus.Supported, result.PlaybackStatus);
+            Assert.Equal(TimeSpan.FromSeconds(65.5), result.Duration);
+            Assert.Equal("mov,mp4,m4a,3gp,3g2,mj2", result.Container);
+            Assert.Equal("h264", result.VideoCodec);
+            Assert.Equal(1920, result.VideoWidth);
+            Assert.Equal(1080, result.VideoHeight);
+            Assert.Equal(29.970, result.FrameRate!.Value, precision: 3);
+            Assert.Equal("aac", result.AudioCodec);
+            Assert.Equal(2, result.AudioChannels);
+            Assert.Null(result.Error);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(testRoot))
+            {
+                Directory.Delete(testRoot, recursive: true);
+            }
+        }
+    }
+
     private sealed class FakeProcessRunner(string configuredFfprobe, string localFfprobe) : IExternalProcessRunner
     {
         public List<string> ExecutedPaths { get; } = [];
@@ -58,6 +110,19 @@ public sealed class FfprobeServiceTests
         public Task<ProcessExecutionResult> RunAsync(string executablePath, IReadOnlyList<string> arguments, TimeSpan timeout, CancellationToken cancellationToken)
         {
             ExecutedPaths.Add(executablePath);
+            if (arguments.Contains("-show_entries", StringComparer.Ordinal))
+            {
+                return Task.FromResult(new ProcessExecutionResult(0, """
+                    {
+                      "streams": [
+                        { "codec_type": "video", "codec_name": "h264", "width": 1920, "height": 1080, "r_frame_rate": "30000/1001" },
+                        { "codec_type": "audio", "codec_name": "aac", "channels": 2 }
+                      ],
+                      "format": { "format_name": "mov,mp4,m4a,3gp,3g2,mj2", "duration": "65.500000" }
+                    }
+                    """, string.Empty));
+            }
+
             var result = string.Equals(executablePath, configuredFfprobe, StringComparison.OrdinalIgnoreCase)
                 ? new ProcessExecutionResult(0, "ffprobe version test\n", string.Empty)
                 : string.Equals(executablePath, localFfprobe, StringComparison.OrdinalIgnoreCase)
