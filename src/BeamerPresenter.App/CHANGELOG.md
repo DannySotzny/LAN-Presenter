@@ -1,4 +1,11 @@
 Beamerpresenter.App Changelog
+<a name="0.2.0"></a>
+## [0.2.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.2.0) (2026-09-20)
+
+### Features
+
+* adopt MudBlazor management UI ([25aaf2a](https://www.github.com/DannySotzny/LAN-Presenter/commit/25aaf2a3c2ab7fafb73b3e32849d5be863e4c073))
+
 <a name="0.1.2"></a>
 ## [0.1.2](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.1.2) (2026-09-20)
 
