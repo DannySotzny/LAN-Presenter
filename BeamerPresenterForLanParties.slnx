@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BeamerPresenter.App/BeamerPresenter.App.csproj" />
+    <Project Path="src/BeamerPresenter.Application/BeamerPresenter.Application.csproj" />
+    <Project Path="src/BeamerPresenter.Domain/BeamerPresenter.Domain.csproj" />
+    <Project Path="src/BeamerPresenter.Infrastructure/BeamerPresenter.Infrastructure.csproj" />
+    <Project Path="src/BeamerPresenter.Web/BeamerPresenter.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BeamerPresenter.Application.Tests/BeamerPresenter.Application.Tests.csproj" />
+  </Folder>
+</Solution>

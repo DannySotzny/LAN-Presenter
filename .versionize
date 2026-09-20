@@ -1,0 +1,129 @@
+{
+  "Projects": [
+    {
+      "Name": "beamerpresenter.application",
+      "Path": "src/BeamerPresenter.Application",
+      "TagTemplate": "{name}-v{version}",
+      "Changelog": {
+        "Header": "Beamerpresenter.Application Changelog",
+        "Sections": [
+          {
+            "Type": "feat",
+            "Section": "Features",
+            "Hidden": false
+          },
+          {
+            "Type": "fix",
+            "Section": "Bug Fixes",
+            "Hidden": false
+          },
+          {
+            "Type": "perf",
+            "Section": "Performance",
+            "Hidden": false
+          }
+        ]
+      }
+    },
+    {
+      "Name": "beamerpresenter.app",
+      "Path": "src/BeamerPresenter.App",
+      "TagTemplate": "v{version}",
+      "Changelog": {
+        "Header": "Beamerpresenter.App Changelog",
+        "Sections": [
+          {
+            "Type": "feat",
+            "Section": "Features",
+            "Hidden": false
+          },
+          {
+            "Type": "fix",
+            "Section": "Bug Fixes",
+            "Hidden": false
+          },
+          {
+            "Type": "perf",
+            "Section": "Performance",
+            "Hidden": false
+          }
+        ]
+      }
+    },
+    {
+      "Name": "beamerpresenter.domain",
+      "Path": "src/BeamerPresenter.Domain",
+      "TagTemplate": "{name}-v{version}",
+      "Changelog": {
+        "Header": "Beamerpresenter.Domain Changelog",
+        "Sections": [
+          {
+            "Type": "feat",
+            "Section": "Features",
+            "Hidden": false
+          },
+          {
+            "Type": "fix",
+            "Section": "Bug Fixes",
+            "Hidden": false
+          },
+          {
+            "Type": "perf",
+            "Section": "Performance",
+            "Hidden": false
+          }
+        ]
+      }
+    },
+    {
+      "Name": "beamerpresenter.infrastructure",
+      "Path": "src/BeamerPresenter.Infrastructure",
+      "TagTemplate": "{name}-v{version}",
+      "Changelog": {
+        "Header": "Beamerpresenter.Infrastructure Changelog",
+        "Sections": [
+          {
+            "Type": "feat",
+            "Section": "Features",
+            "Hidden": false
+          },
+          {
+            "Type": "fix",
+            "Section": "Bug Fixes",
+            "Hidden": false
+          },
+          {
+            "Type": "perf",
+            "Section": "Performance",
+            "Hidden": false
+          }
+        ]
+      }
+    },
+    {
+      "Name": "beamerpresenter.web",
+      "Path": "src/BeamerPresenter.Web",
+      "TagTemplate": "{name}-v{version}",
+      "Changelog": {
+        "Header": "Beamerpresenter.Web Changelog",
+        "Sections": [
+          {
+            "Type": "feat",
+            "Section": "Features",
+            "Hidden": false
+          },
+          {
+            "Type": "fix",
+            "Section": "Bug Fixes",
+            "Hidden": false
+          },
+          {
+            "Type": "perf",
+            "Section": "Performance",
+            "Hidden": false
+          }
+        ]
+      }
+    }
+  ]
+}

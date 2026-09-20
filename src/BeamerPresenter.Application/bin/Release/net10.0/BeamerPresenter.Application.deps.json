@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "BeamerPresenter.Application/0.1.0": {
+        "dependencies": {
+          "BeamerPresenter.Domain": "0.1.0"
+        },
+        "runtime": {
+          "BeamerPresenter.Application.dll": {}
+        }
+      },
+      "BeamerPresenter.Domain/0.1.0": {
+        "runtime": {
+          "BeamerPresenter.Domain.dll": {
+            "assemblyVersion": "0.1.0.0",
+            "fileVersion": "0.1.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "BeamerPresenter.Application/0.1.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "BeamerPresenter.Domain/0.1.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

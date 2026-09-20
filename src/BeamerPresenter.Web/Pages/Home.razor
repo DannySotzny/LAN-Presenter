@@ -1,0 +1,8 @@
+@page "/"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject BeamerPresenter.Application.IMediaLibraryService MediaLibraryService
+@inject BeamerPresenter.Application.PlaybackController Playback
+<section class="card"><div class="row"><div><h1>Steuerzentrale</h1><p>Der Webzugriff ist passwortgeschützt.</p></div><form method="post" action="/account/logout"><button class="secondary">Abmelden</button></form></div><div class="status">Presenter: <strong>@Playback.State</strong></div></section>
+<section class="card"><h2>Neues Video hochladen</h2><p>Das Video wird direkt in den in der Desktop-App festgelegten Videoordner geschrieben und anschließend in die Bibliothek aufgenommen.</p><form method="post" enctype="multipart/form-data" action="/api/videos/upload"><input type="file" name="video" accept="video/mp4,video/x-matroska,video/webm,video/quicktime,video/x-msvideo" required /><button type="submit">Video hochladen</button></form></section>
+<section class="card"><h2>Videobibliothek</h2>@if (_videos.Count == 0) { <p>Noch keine Videos erfasst.</p> } else { <ul>@foreach (var video in _videos) { <li>@video.FileName <span class="muted">(@FormatSize(video.FileSize))</span></li> }</ul> }</section>
+@code { private IReadOnlyList<BeamerPresenter.Domain.VideoAsset> _videos = []; protected override async Task OnInitializedAsync() => _videos = await MediaLibraryService.GetAllAsync(); private static string FormatSize(long bytes) => $"{bytes / 1024d / 1024d:0.0} MB"; }

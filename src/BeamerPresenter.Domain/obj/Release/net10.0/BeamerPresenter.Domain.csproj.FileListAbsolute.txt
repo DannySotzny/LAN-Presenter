@@ -1,0 +1,11 @@
+D:\git\VideoPresenter\src\BeamerPresenter.Domain\bin\Release\net10.0\BeamerPresenter.Domain.deps.json
+D:\git\VideoPresenter\src\BeamerPresenter.Domain\bin\Release\net10.0\BeamerPresenter.Domain.dll
+D:\git\VideoPresenter\src\BeamerPresenter.Domain\bin\Release\net10.0\BeamerPresenter.Domain.pdb
+D:\git\VideoPresenter\src\BeamerPresenter.Domain\obj\Release\net10.0\BeamerPresenter.Domain.GeneratedMSBuildEditorConfig.editorconfig
+D:\git\VideoPresenter\src\BeamerPresenter.Domain\obj\Release\net10.0\BeamerPresenter.Domain.AssemblyInfoInputs.cache
+D:\git\VideoPresenter\src\BeamerPresenter.Domain\obj\Release\net10.0\BeamerPresenter.Domain.AssemblyInfo.cs
+D:\git\VideoPresenter\src\BeamerPresenter.Domain\obj\Release\net10.0\BeamerPresenter.Domain.csproj.CoreCompileInputs.cache
+D:\git\VideoPresenter\src\BeamerPresenter.Domain\obj\Release\net10.0\BeamerPresenter.Domain.dll
+D:\git\VideoPresenter\src\BeamerPresenter.Domain\obj\Release\net10.0\refint\BeamerPresenter.Domain.dll
+D:\git\VideoPresenter\src\BeamerPresenter.Domain\obj\Release\net10.0\BeamerPresenter.Domain.pdb
+D:\git\VideoPresenter\src\BeamerPresenter.Domain\obj\Release\net10.0\ref\BeamerPresenter.Domain.dll

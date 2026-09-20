@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  package-and-release:
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Set release version
+        shell: pwsh
+        run: '"VERSION=$($env:VERSION.TrimStart(''v''))" | Out-File -FilePath $env:GITHUB_ENV -Append'
+      - run: dotnet restore BeamerPresenterForLanParties.slnx
+      - run: dotnet build BeamerPresenterForLanParties.slnx -c Release --no-restore -p:Version=${{ env.VERSION }}
+      - run: dotnet test BeamerPresenterForLanParties.slnx -c Release --no-build
+      - name: Publish self-contained application
+        run: dotnet publish src/BeamerPresenter.App/BeamerPresenter.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/publish -p:Version=${{ env.VERSION }}
+      - name: Create portable archive
+        shell: pwsh
+        run: Compress-Archive -Path artifacts/publish/* -DestinationPath HouseOfLAN-Presenter-${{ env.VERSION }}-win-x64-portable.zip
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+      - name: Build installer
+        shell: pwsh
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=${{ env.VERSION }}" installer\BeamerPresenter.iss'
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME HouseOfLAN-Presenter-${{ env.VERSION }}-win-x64-portable.zip artifacts/HouseOfLAN-Presenter-${{ env.VERSION }}-Setup.exe --title "Beamer Presenter for LAN-Parties ${{ env.VERSION }}" --generate-notes

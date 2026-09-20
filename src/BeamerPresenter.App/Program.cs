@@ -1,0 +1,46 @@
+using BeamerPresenter.Infrastructure;
+using BeamerPresenter.Web;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
+namespace BeamerPresenter.App;
+
+internal static class Program
+{
+    [STAThread]
+    private static void Main()
+    {
+        ApplicationConfiguration.Initialize();
+        using var presenterHost = BuildPresenterHost();
+        presenterHost.StartAsync().GetAwaiter().GetResult();
+        System.Windows.Forms.Application.Run(new PresenterForm(presenterHost));
+        presenterHost.StopAsync().GetAwaiter().GetResult();
+    }
+
+    private static WebApplication BuildPresenterHost()
+    {
+        var dataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HouseOfLAN", "Presenter", "Data");
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders();
+        builder.Logging.AddConsole();
+        builder.WebHost.UseUrls("http://0.0.0.0:8765");
+        builder.Services.AddPresenterInfrastructure(dataDirectory);
+        builder.Services.AddPresenterWebUi();
+        builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options => options.MultipartBodyLengthLimit = 5L * 1024 * 1024 * 1024);
+        var application = builder.Build();
+        using (var scope = application.Services.CreateScope())
+        {
+            scope.ServiceProvider.GetRequiredService<IDbContextFactory<PresenterDbContext>>().CreateDbContext().Database.EnsureCreated();
+        }
+        application.UseStaticFiles();
+        application.UseAuthentication();
+        application.UseAuthorization();
+        application.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+        application.MapPresenterWebUi();
+        return application;
+    }
+}

@@ -1,0 +1,149 @@
+using System.Security.Cryptography;
+using BeamerPresenter.Application;
+using BeamerPresenter.Domain;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace BeamerPresenter.Infrastructure;
+
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddPresenterInfrastructure(this IServiceCollection services, string dataDirectory)
+    {
+        Directory.CreateDirectory(dataDirectory);
+        var databasePath = Path.Combine(dataDirectory, "presenter.db");
+        services.AddDbContextFactory<PresenterDbContext>(options => options.UseSqlite($"Data Source={databasePath}"));
+        services.AddSingleton<IPresenterSettingsService, SqlitePresenterSettingsService>();
+        services.AddSingleton<IMediaLibraryService, SqliteMediaLibraryService>();
+        services.AddSingleton<PlaybackController>();
+        return services;
+    }
+}
+
+internal sealed class SqlitePresenterSettingsService(IDbContextFactory<PresenterDbContext> contextFactory) : IPresenterSettingsService
+{
+    private const int PasswordIterations = 600_000;
+
+    public async Task<PresenterSettings> GetAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var settings = await context.Settings.SingleOrDefaultAsync(x => x.Id == 1, cancellationToken);
+        if (settings is not null)
+        {
+            return settings;
+        }
+
+        settings = new PresenterSettings { MediaFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Beamer Presenter") };
+        context.Settings.Add(settings);
+        await context.SaveChangesAsync(cancellationToken);
+        return settings;
+    }
+
+    public async Task SaveAsync(PresenterSettings settings, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var existing = await context.Settings.SingleOrDefaultAsync(x => x.Id == 1, cancellationToken);
+        if (existing is null)
+        {
+            context.Settings.Add(settings);
+        }
+        else
+        {
+            existing.WebPort = settings.WebPort;
+            existing.AllowLanAccess = settings.AllowLanAccess;
+            existing.MediaFolder = settings.MediaFolder;
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task SetWebPasswordAsync(string password, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(password);
+        var settings = await GetAsync(cancellationToken);
+        var salt = RandomNumberGenerator.GetBytes(16);
+        var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, PasswordIterations, HashAlgorithmName.SHA512, 32);
+        settings.PasswordSalt = Convert.ToBase64String(salt);
+        settings.PasswordHash = Convert.ToBase64String(hash);
+        await SavePasswordAsync(settings, cancellationToken);
+    }
+
+    public async Task<bool> VerifyWebPasswordAsync(string password, CancellationToken cancellationToken = default)
+    {
+        var settings = await GetAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(settings.PasswordHash) || string.IsNullOrWhiteSpace(settings.PasswordSalt))
+        {
+            return false;
+        }
+
+        var expected = Convert.FromBase64String(settings.PasswordHash);
+        var actual = Rfc2898DeriveBytes.Pbkdf2(password, Convert.FromBase64String(settings.PasswordSalt), PasswordIterations, HashAlgorithmName.SHA512, expected.Length);
+        return CryptographicOperations.FixedTimeEquals(expected, actual);
+    }
+
+    public async Task<bool> HasWebPasswordAsync(CancellationToken cancellationToken = default) =>
+        !string.IsNullOrWhiteSpace((await GetAsync(cancellationToken)).PasswordHash);
+
+    private async Task SavePasswordAsync(PresenterSettings settings, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var existing = await context.Settings.SingleAsync(x => x.Id == 1, cancellationToken);
+        existing.PasswordHash = settings.PasswordHash;
+        existing.PasswordSalt = settings.PasswordSalt;
+        await context.SaveChangesAsync(cancellationToken);
+    }
+}
+
+internal sealed class SqliteMediaLibraryService(
+    IDbContextFactory<PresenterDbContext> contextFactory,
+    IPresenterSettingsService settingsService) : IMediaLibraryService
+{
+    private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v"
+    };
+
+    public async Task<IReadOnlyList<VideoAsset>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.Videos.OrderByDescending(x => x.AddedAtUtc).AsNoTracking().ToListAsync(cancellationToken);
+    }
+
+    public async Task<VideoAsset> AddUploadAsync(string originalFileName, Stream content, long length, CancellationToken cancellationToken = default)
+    {
+        var safeName = Path.GetFileName(originalFileName);
+        var extension = Path.GetExtension(safeName);
+        if (string.IsNullOrWhiteSpace(safeName) || !AllowedExtensions.Contains(extension))
+        {
+            throw new InvalidOperationException("Dieses Videoformat wird nicht unterstützt.");
+        }
+
+        var settings = await settingsService.GetAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(settings.MediaFolder))
+        {
+            throw new InvalidOperationException("Bitte zuerst einen Videoordner in der Desktop-App festlegen.");
+        }
+
+        Directory.CreateDirectory(settings.MediaFolder);
+        var destinationPath = MakeUniquePath(settings.MediaFolder, safeName);
+        await using (var destination = new FileStream(destinationPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 128, useAsync: true))
+        {
+            await content.CopyToAsync(destination, cancellationToken);
+        }
+
+        var asset = new VideoAsset { FileName = Path.GetFileName(destinationPath), FullPath = destinationPath, FileSize = length, AddedAtUtc = DateTimeOffset.UtcNow };
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        context.Videos.Add(asset);
+        await context.SaveChangesAsync(cancellationToken);
+        return asset;
+    }
+
+    private static string MakeUniquePath(string folder, string fileName)
+    {
+        var candidate = Path.Combine(folder, fileName);
+        if (!File.Exists(candidate)) return candidate;
+        var baseName = Path.GetFileNameWithoutExtension(fileName);
+        var extension = Path.GetExtension(fileName);
+        return Path.Combine(folder, $"{baseName}-{DateTime.UtcNow:yyyyMMddHHmmss}{extension}");
+    }
+}
