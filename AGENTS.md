@@ -37,6 +37,7 @@
 - `/media/{mediaId}` bleibt für den lokalen Presenter anonym, liefert nur verfügbare DB-Einträge mit Range-Support aus und validiert den kanonischen Dateipfad bei jedem Abruf erneut gegen aktiv konfigurierte Medienordner. Direkte Dateipfade dürfen nie an den Browser gegeben werden.
 - `/presenter` verwendet einen eigenen layoutfreien Fullscreen-View und verbindet sich über das lokal ausgelieferte `presenter.js` direkt mit `/hubs/presenter`. Der Client implementiert den SignalR-JSON-Handshake ohne CDN-Abhängigkeit, reconnectet automatisch und meldet Ready/Playing/Paused/Buffering/Ended/Error/Heartbeat zurück.
 - `MediaSegmentPlanner` wählt zuerst gleichverteilt ein geeignetes Video und erst danach dessen Segment. Nur tatsächlich gespielte `ActualStart`-/`ActualEnd`-Bereiche sperren Material; zweisekündige Grenztoleranz darf keine inhaltlichen Überschneidungen erzeugen. Zufall bleibt über `IRandomSource` in Tests deterministisch.
+- Queue und Wiedergabehistorie werden über `IPlaybackStore` in SQLite persistiert. `GetQueueAsync` liefert nur Pending/Playing nach `SortOrder`; die Historie wird wegen der SQLite-`DateTimeOffset`-Grenze erst geladen und im Speicher sortiert. Planungsparameter gehören zum migrierten `PresenterSettings`-Datensatz.
 
 ## Arbeitsweise
 

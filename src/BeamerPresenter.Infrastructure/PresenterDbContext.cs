@@ -8,6 +8,8 @@ public sealed class PresenterDbContext(DbContextOptions<PresenterDbContext> opti
     public DbSet<PresenterSettings> Settings => Set<PresenterSettings>();
     public DbSet<VideoAsset> Videos => Set<VideoAsset>();
     public DbSet<MediaFolder> MediaFolders => Set<MediaFolder>();
+    public DbSet<QueueEntry> QueueEntries => Set<QueueEntry>();
+    public DbSet<PlaybackHistory> PlaybackHistory => Set<PlaybackHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -19,6 +21,12 @@ public sealed class PresenterDbContext(DbContextOptions<PresenterDbContext> opti
         modelBuilder.Entity<PresenterSettings>().Property(x => x.AlwaysOnTop).HasDefaultValue(true);
         modelBuilder.Entity<PresenterSettings>().Property(x => x.PreventDisplaySleep).HasDefaultValue(true);
         modelBuilder.Entity<PresenterSettings>().Property(x => x.PreventSystemSleep).HasDefaultValue(true);
+        modelBuilder.Entity<PresenterSettings>().Property(x => x.ShortVideoThresholdSeconds).HasDefaultValue(PresenterSettings.DefaultShortVideoThresholdSeconds);
+        modelBuilder.Entity<PresenterSettings>().Property(x => x.ClipLengthMinSeconds).HasDefaultValue(PresenterSettings.DefaultClipLengthMinSeconds);
+        modelBuilder.Entity<PresenterSettings>().Property(x => x.ClipLengthMaxSeconds).HasDefaultValue(PresenterSettings.DefaultClipLengthMaxSeconds);
+        modelBuilder.Entity<PresenterSettings>().Property(x => x.VideoCooldownCount).HasDefaultValue(PresenterSettings.DefaultVideoCooldownCount);
+        modelBuilder.Entity<PresenterSettings>().Property(x => x.TimeCooldownMinutes).HasDefaultValue(PresenterSettings.DefaultTimeCooldownMinutes);
+        modelBuilder.Entity<PresenterSettings>().Property(x => x.QueueTargetLength).HasDefaultValue(PresenterSettings.DefaultQueueTargetLength);
         modelBuilder.Entity<VideoAsset>().HasIndex(x => x.FullPath).IsUnique();
         modelBuilder.Entity<VideoAsset>().Property(x => x.FileName).HasMaxLength(260);
         modelBuilder.Entity<VideoAsset>().Property(x => x.FullPath).HasMaxLength(4096).UseCollation("NOCASE");
@@ -28,5 +36,8 @@ public sealed class PresenterDbContext(DbContextOptions<PresenterDbContext> opti
         modelBuilder.Entity<VideoAsset>().Property(x => x.ProbeError).HasMaxLength(4096);
         modelBuilder.Entity<MediaFolder>().HasIndex(x => x.Path).IsUnique();
         modelBuilder.Entity<MediaFolder>().Property(x => x.Path).HasMaxLength(4096).UseCollation("NOCASE");
+        modelBuilder.Entity<QueueEntry>().HasIndex(x => new { x.Status, x.SortOrder });
+        modelBuilder.Entity<QueueEntry>().Property(x => x.ExternalSourceKey).HasMaxLength(2048);
+        modelBuilder.Entity<PlaybackHistory>().HasIndex(x => new { x.MediaId, x.StartedUtc });
     }
 }

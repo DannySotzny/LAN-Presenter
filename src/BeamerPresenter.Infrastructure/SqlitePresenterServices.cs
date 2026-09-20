@@ -16,6 +16,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPresenterSettingsService, SqlitePresenterSettingsService>();
         services.AddSingleton<IMediaFolderService, SqliteMediaFolderService>();
         services.AddSingleton<IMediaLibraryService, SqliteMediaLibraryService>();
+        services.AddSingleton<IPlaybackStore, SqlitePlaybackStore>();
         services.AddSingleton<IMediaScanner, SqliteMediaScanner>();
         services.AddSingleton<IFileStabilityChecker, FileStabilityChecker>();
         services.AddSingleton<MediaProbeQueue>();
@@ -167,6 +168,12 @@ internal sealed class SqlitePresenterSettingsService(IDbContextFactory<Presenter
             existing.AggressiveTopmost = settings.AggressiveTopmost;
             existing.PreventDisplaySleep = settings.PreventDisplaySleep;
             existing.PreventSystemSleep = settings.PreventSystemSleep;
+            existing.ShortVideoThresholdSeconds = settings.ShortVideoThresholdSeconds;
+            existing.ClipLengthMinSeconds = settings.ClipLengthMinSeconds;
+            existing.ClipLengthMaxSeconds = settings.ClipLengthMaxSeconds;
+            existing.VideoCooldownCount = settings.VideoCooldownCount;
+            existing.TimeCooldownMinutes = settings.TimeCooldownMinutes;
+            existing.QueueTargetLength = settings.QueueTargetLength;
         }
 
         await context.SaveChangesAsync(cancellationToken);
@@ -206,6 +213,63 @@ internal sealed class SqlitePresenterSettingsService(IDbContextFactory<Presenter
         existing.PasswordHash = settings.PasswordHash;
         existing.PasswordSalt = settings.PasswordSalt;
         await context.SaveChangesAsync(cancellationToken);
+    }
+}
+
+internal sealed class SqlitePlaybackStore(IDbContextFactory<PresenterDbContext> contextFactory) : IPlaybackStore
+{
+    public async Task<IReadOnlyList<QueueEntry>> GetQueueAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.QueueEntries
+            .AsNoTracking()
+            .Where(entry => entry.Status == QueueEntryStatus.Pending || entry.Status == QueueEntryStatus.Playing)
+            .OrderBy(entry => entry.SortOrder)
+            .ThenBy(entry => entry.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<QueueEntry> AddQueueEntryAsync(QueueEntry entry, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        context.QueueEntries.Add(entry);
+        await context.SaveChangesAsync(cancellationToken);
+        return entry;
+    }
+
+    public async Task UpdateQueueEntryAsync(QueueEntry entry, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        context.QueueEntries.Update(entry);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<PlaybackHistory>> GetHistoryAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var history = await context.PlaybackHistory.AsNoTracking().ToListAsync(cancellationToken);
+        return history.OrderByDescending(entry => entry.StartedUtc).ThenByDescending(entry => entry.Id).ToList();
+    }
+
+    public async Task<PlaybackHistory> AddHistoryAsync(PlaybackHistory entry, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        context.PlaybackHistory.Add(entry);
+        await context.SaveChangesAsync(cancellationToken);
+        return entry;
+    }
+
+    public async Task UpdateHistoryAsync(PlaybackHistory entry, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        context.PlaybackHistory.Update(entry);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ClearHistoryAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await context.PlaybackHistory.ExecuteDeleteAsync(cancellationToken);
     }
 }
 

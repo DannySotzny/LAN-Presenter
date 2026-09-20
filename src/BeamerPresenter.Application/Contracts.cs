@@ -98,4 +98,15 @@ public interface IPresenterGateway
     Task SetVolumeAsync(double volume, CancellationToken cancellationToken = default);
 }
 
+public interface IPlaybackStore
+{
+    Task<IReadOnlyList<QueueEntry>> GetQueueAsync(CancellationToken cancellationToken = default);
+    Task<QueueEntry> AddQueueEntryAsync(QueueEntry entry, CancellationToken cancellationToken = default);
+    Task UpdateQueueEntryAsync(QueueEntry entry, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PlaybackHistory>> GetHistoryAsync(CancellationToken cancellationToken = default);
+    Task<PlaybackHistory> AddHistoryAsync(PlaybackHistory entry, CancellationToken cancellationToken = default);
+    Task UpdateHistoryAsync(PlaybackHistory entry, CancellationToken cancellationToken = default);
+    Task ClearHistoryAsync(CancellationToken cancellationToken = default);
+}
+
 public sealed record PresenterStatus(PresenterState State, string Version, string WebUrl);

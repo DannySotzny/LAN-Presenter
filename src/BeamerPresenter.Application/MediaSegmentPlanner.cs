@@ -20,7 +20,16 @@ public sealed record PlaybackPlanningOptions(
     int ClipLengthMaxSeconds = 10 * 60,
     int VideoCooldownCount = 10,
     int TimeCooldownMinutes = 60,
-    int QueueTargetLength = 10);
+    int QueueTargetLength = 10)
+{
+    public static PlaybackPlanningOptions From(PresenterSettings settings) => new(
+        settings.ShortVideoThresholdSeconds,
+        settings.ClipLengthMinSeconds,
+        settings.ClipLengthMaxSeconds,
+        settings.VideoCooldownCount,
+        settings.TimeCooldownMinutes,
+        settings.QueueTargetLength);
+}
 
 public sealed class MediaSegmentPlanner
 {

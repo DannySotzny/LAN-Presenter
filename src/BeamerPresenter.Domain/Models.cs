@@ -38,9 +38,33 @@ public enum PlaybackReason
     ManualNow
 }
 
+public enum QueueEntryOrigin
+{
+    Automatic,
+    Manual,
+    ManualNext,
+    ManualNow
+}
+
+public enum QueueEntryStatus
+{
+    Pending,
+    Playing,
+    Completed,
+    Interrupted,
+    Failed,
+    Skipped
+}
+
 public sealed class PresenterSettings
 {
     public const int DefaultWebPort = 8765;
+    public const int DefaultShortVideoThresholdSeconds = 10 * 60;
+    public const int DefaultClipLengthMinSeconds = 7 * 60;
+    public const int DefaultClipLengthMaxSeconds = 10 * 60;
+    public const int DefaultVideoCooldownCount = 10;
+    public const int DefaultTimeCooldownMinutes = 60;
+    public const int DefaultQueueTargetLength = 10;
 
     public int Id { get; set; } = 1;
     public int WebPort { get; set; } = DefaultWebPort;
@@ -53,6 +77,12 @@ public sealed class PresenterSettings
     public bool AggressiveTopmost { get; set; }
     public bool PreventDisplaySleep { get; set; } = true;
     public bool PreventSystemSleep { get; set; } = true;
+    public int ShortVideoThresholdSeconds { get; set; } = DefaultShortVideoThresholdSeconds;
+    public int ClipLengthMinSeconds { get; set; } = DefaultClipLengthMinSeconds;
+    public int ClipLengthMaxSeconds { get; set; } = DefaultClipLengthMaxSeconds;
+    public int VideoCooldownCount { get; set; } = DefaultVideoCooldownCount;
+    public int TimeCooldownMinutes { get; set; } = DefaultTimeCooldownMinutes;
+    public int QueueTargetLength { get; set; } = DefaultQueueTargetLength;
     public string? PasswordHash { get; set; }
     public string? PasswordSalt { get; set; }
 }
@@ -103,4 +133,20 @@ public sealed class PlaybackHistory
     public bool Completed { get; set; }
     public bool Interrupted { get; set; }
     public PlaybackReason PlaybackReason { get; set; }
+}
+
+public sealed class QueueEntry
+{
+    public long Id { get; set; }
+    public MediaSourceType SourceType { get; set; }
+    public int? MediaId { get; set; }
+    public string? ExternalSourceKey { get; set; }
+    public TimeSpan StartPosition { get; set; }
+    public TimeSpan EndPosition { get; set; }
+    public QueueEntryOrigin Origin { get; set; }
+    public int SortOrder { get; set; }
+    public QueueEntryStatus Status { get; set; }
+    public DateTimeOffset CreatedUtc { get; set; }
+    public DateTimeOffset? StartedUtc { get; set; }
+    public DateTimeOffset? CompletedUtc { get; set; }
 }

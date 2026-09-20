@@ -21,7 +21,7 @@ public sealed class PresenterDatabaseMigrationTests
 
             await using var connection = new SqliteConnection(PresenterDatabase.CreateConnectionString(dataDirectory));
             await connection.OpenAsync();
-            Assert.EndsWith("_AddPresenterDisplaySettings", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
+            Assert.EndsWith("_AddPlaybackQueue", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
             Assert.Equal("wal", await ReadScalarAsync(connection, "PRAGMA journal_mode;"));
             Assert.Equal("1", await ReadScalarAsync(connection, "PRAGMA foreign_keys;"));
         }
@@ -54,7 +54,7 @@ public sealed class PresenterDatabaseMigrationTests
 
             await using var connection = new SqliteConnection(PresenterDatabase.CreateConnectionString(dataDirectory));
             await connection.OpenAsync();
-            Assert.EndsWith("_AddPresenterDisplaySettings", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
+            Assert.EndsWith("_AddPlaybackQueue", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
             Assert.Equal("D:\\LAN\\Videos", await ReadScalarAsync(connection, "SELECT MediaFolder FROM Settings WHERE Id = 1;"));
             Assert.Equal("D:\\LAN\\Videos", await ReadScalarAsync(connection, "SELECT Path FROM MediaFolders LIMIT 1;"));
             Assert.Equal("1", await ReadScalarAsync(connection, "SELECT AlwaysOnTop FROM Settings WHERE Id = 1;"));
@@ -87,6 +87,12 @@ public sealed class PresenterDatabaseMigrationTests
             settings.AggressiveTopmost = true;
             settings.PreventDisplaySleep = false;
             settings.PreventSystemSleep = true;
+            settings.ShortVideoThresholdSeconds = 540;
+            settings.ClipLengthMinSeconds = 360;
+            settings.ClipLengthMaxSeconds = 720;
+            settings.VideoCooldownCount = 8;
+            settings.TimeCooldownMinutes = 45;
+            settings.QueueTargetLength = 12;
 
             await settingsService.SaveAsync(settings);
             var persisted = await settingsService.GetAsync();
@@ -97,6 +103,12 @@ public sealed class PresenterDatabaseMigrationTests
             Assert.True(persisted.AggressiveTopmost);
             Assert.False(persisted.PreventDisplaySleep);
             Assert.True(persisted.PreventSystemSleep);
+            Assert.Equal(540, persisted.ShortVideoThresholdSeconds);
+            Assert.Equal(360, persisted.ClipLengthMinSeconds);
+            Assert.Equal(720, persisted.ClipLengthMaxSeconds);
+            Assert.Equal(8, persisted.VideoCooldownCount);
+            Assert.Equal(45, persisted.TimeCooldownMinutes);
+            Assert.Equal(12, persisted.QueueTargetLength);
         }
         finally
         {
