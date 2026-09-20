@@ -12,19 +12,24 @@ namespace BeamerPresenter.App;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
+        var startMinimized = args.Contains("--autostart", StringComparer.OrdinalIgnoreCase);
         using var singleInstance = SingleInstanceCoordinator.Acquire();
         if (!singleInstance.IsPrimary)
         {
-            singleInstance.SignalPrimaryAsync().GetAwaiter().GetResult();
+            if (!startMinimized)
+            {
+                singleInstance.SignalPrimaryAsync().GetAwaiter().GetResult();
+            }
+
             return;
         }
 
         ApplicationConfiguration.Initialize();
         using var presenterHost = BuildPresenterHost();
         presenterHost.StartAsync().GetAwaiter().GetResult();
-        using var presenterForm = new PresenterForm(presenterHost);
+        using var presenterForm = new PresenterForm(presenterHost, startMinimized);
         singleInstance.StartListening(() =>
         {
             if (!presenterForm.IsDisposed && presenterForm.IsHandleCreated)
@@ -50,6 +55,7 @@ internal static class Program
         builder.WebHost.UseUrls($"http://0.0.0.0:{webPort}");
         builder.Services.AddPresenterInfrastructure(dataDirectory);
         builder.Services.AddPresenterWebUi();
+        builder.Services.AddSingleton(new StartupRegistrationService(Environment.ProcessPath ?? System.Windows.Forms.Application.ExecutablePath));
         builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options => options.MultipartBodyLengthLimit = 5L * 1024 * 1024 * 1024);
         var application = builder.Build();
         using (var scope = application.Services.CreateScope())
