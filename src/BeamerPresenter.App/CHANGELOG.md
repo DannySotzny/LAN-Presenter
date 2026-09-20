@@ -1,4 +1,15 @@
 Beamerpresenter.App Changelog
+<a name="0.3.0"></a>
+## [0.3.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.3.0) (2026-09-20)
+
+### Features
+
+* add per-user Windows autostart ([227fcbe](https://www.github.com/DannySotzny/LAN-Presenter/commit/227fcbee098d086c81ec00983ab9cc06971ab46b))
+* add structured rolling file logs ([6865ee8](https://www.github.com/DannySotzny/LAN-Presenter/commit/6865ee82e1cdb302e590a020cf70c78287d586f4))
+* complete presenter tray controls ([6c6ff66](https://www.github.com/DannySotzny/LAN-Presenter/commit/6c6ff66259cbdd836b0f208860f2e9b87b964a10))
+* enforce single desktop instance ([a2b38ef](https://www.github.com/DannySotzny/LAN-Presenter/commit/a2b38ef7bf153214b96ce01b1b47b67dff44f442))
+* show build metadata in desktop status ([49d64e7](https://www.github.com/DannySotzny/LAN-Presenter/commit/49d64e73553a88f46fed1c00b46c58f976ac2fd5))
+
 <a name="0.2.1"></a>
 ## [0.2.1](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.2.1) (2026-09-20)
 
