@@ -1,4 +1,5 @@
 using BeamerPresenter.Application;
+using BeamerPresenter.Domain;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,6 +14,8 @@ public interface IPresenterClient
     Task Stop();
     Task Seek(double positionSeconds);
     Task SetVolume(double volume);
+    Task ShowNews(long id, string title, string text, string mode, double? durationSeconds, bool permanent, int priority);
+    Task HideNews();
 }
 
 public sealed class PresenterConnectionState
@@ -113,4 +116,17 @@ internal sealed class SignalRPresenterGateway(IHubContext<PresenterHub, IPresent
 
     public Task SetVolumeAsync(double volume, CancellationToken cancellationToken = default) =>
         hubContext.Clients.All.SetVolume(Math.Clamp(volume, 0, 1)).WaitAsync(cancellationToken);
+
+    public Task ShowNewsAsync(NewsItem item, CancellationToken cancellationToken = default) =>
+        hubContext.Clients.All.ShowNews(
+            item.Id,
+            item.Title,
+            item.Text,
+            item.Mode.ToString(),
+            item.Duration?.TotalSeconds,
+            item.Permanent,
+            item.Priority).WaitAsync(cancellationToken);
+
+    public Task HideNewsAsync(CancellationToken cancellationToken = default) =>
+        hubContext.Clients.All.HideNews().WaitAsync(cancellationToken);
 }

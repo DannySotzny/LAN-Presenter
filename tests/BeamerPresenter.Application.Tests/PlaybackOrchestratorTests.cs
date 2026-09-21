@@ -117,6 +117,90 @@ public sealed class PlaybackOrchestratorTests
             calls);
     }
 
+    [Fact]
+    public async Task Fullscreen_news_pauses_video_and_restores_suspended_ticker()
+    {
+        var calls = new List<string>();
+        var settings = new StubSettingsService();
+        var orchestrator = new PlaybackOrchestrator(
+            new PlaybackController(),
+            new RecordingBrowser(calls),
+            new RecordingPresenter(calls),
+            settings,
+            new RecordingPowerManagement(calls),
+            new PlaybackQueueService(
+                new EmptyPlaybackStore(),
+                new EmptyMediaLibrary(),
+                settings,
+                new MediaSegmentPlanner(new ZeroRandomSource()),
+                TimeProvider.System));
+        var ticker = new NewsItem
+        {
+            Id = 1,
+            Title = "Ticker",
+            Text = "Turnierstart um 20 Uhr",
+            Mode = NewsMode.Ticker,
+            Permanent = true,
+            Priority = 1
+        };
+        var fullscreen = new NewsItem
+        {
+            Id = 2,
+            Title = "Wichtig",
+            Text = "Jetzt zur Turnierleitung",
+            Mode = NewsMode.Fullscreen,
+            Permanent = true,
+            Priority = 10
+        };
+
+        await orchestrator.ShowNewsAsync(ticker);
+        await orchestrator.ShowNewsAsync(fullscreen);
+        await orchestrator.StopNewsAsync(fullscreen.Id);
+
+        Assert.Equal(
+            [
+                "presenter:news:1:Ticker",
+                "presenter:pause",
+                "presenter:news:2:Fullscreen",
+                "presenter:hide-news",
+                "presenter:play",
+                "presenter:news:1:Ticker"
+            ],
+            calls);
+    }
+
+    [Fact]
+    public async Task Timed_news_is_hidden_automatically()
+    {
+        var calls = new List<string>();
+        var settings = new StubSettingsService();
+        var presenter = new RecordingPresenter(calls);
+        var orchestrator = new PlaybackOrchestrator(
+            new PlaybackController(),
+            new RecordingBrowser(calls),
+            presenter,
+            settings,
+            new RecordingPowerManagement(calls),
+            new PlaybackQueueService(
+                new EmptyPlaybackStore(),
+                new EmptyMediaLibrary(),
+                settings,
+                new MediaSegmentPlanner(new ZeroRandomSource()),
+                TimeProvider.System));
+
+        await orchestrator.ShowNewsAsync(new NewsItem
+        {
+            Id = 3,
+            Title = "Kurzmeldung",
+            Text = "Test",
+            Mode = NewsMode.Ticker,
+            Duration = TimeSpan.FromMilliseconds(25)
+        });
+        await presenter.NewsHidden.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(["presenter:news:3:Ticker", "presenter:hide-news"], calls);
+    }
+
     private sealed class StubSettingsService : IPresenterSettingsService
     {
         private readonly PresenterSettings settings = new() { PreventDisplaySleep = true, PreventSystemSleep = true };
@@ -138,6 +222,7 @@ public sealed class PlaybackOrchestratorTests
 
     private sealed class RecordingPresenter(List<string> calls) : IPresenterGateway
     {
+        public TaskCompletionSource NewsHidden { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task LoadLocalVideoAsync(int mediaId, TimeSpan? start, TimeSpan? end, bool autoPlay, CancellationToken cancellationToken = default)
         {
             calls.Add($"presenter:load:{mediaId}:{start}-{end}");
@@ -153,6 +238,17 @@ public sealed class PlaybackOrchestratorTests
         public Task StopAsync(CancellationToken cancellationToken = default) { calls.Add("presenter:stop"); return Task.CompletedTask; }
         public Task SeekAsync(TimeSpan position, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task SetVolumeAsync(double volume, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task ShowNewsAsync(NewsItem item, CancellationToken cancellationToken = default)
+        {
+            calls.Add($"presenter:news:{item.Id}:{item.Mode}");
+            return Task.CompletedTask;
+        }
+        public Task HideNewsAsync(CancellationToken cancellationToken = default)
+        {
+            calls.Add("presenter:hide-news");
+            NewsHidden.TrySetResult();
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class RecordingPowerManagement(List<string> calls) : IPowerManagementService

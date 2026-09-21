@@ -97,6 +97,8 @@ public interface IPresenterGateway
     Task StopAsync(CancellationToken cancellationToken = default);
     Task SeekAsync(TimeSpan position, CancellationToken cancellationToken = default);
     Task SetVolumeAsync(double volume, CancellationToken cancellationToken = default);
+    Task ShowNewsAsync(NewsItem item, CancellationToken cancellationToken = default);
+    Task HideNewsAsync(CancellationToken cancellationToken = default);
 }
 
 public interface IPlaybackStore
@@ -125,6 +127,12 @@ public interface IPlaybackCommandService
     Task<QueueEntry> PlayYouTubeNextAsync(string url, TimeSpan? start = null, TimeSpan? duration = null, TimeSpan? maximumDuration = null, CancellationToken cancellationToken = default);
     Task<QueueEntry> PlayYouTubeNowAsync(string url, TimeSpan? currentPosition, TimeSpan? start = null, TimeSpan? duration = null, TimeSpan? maximumDuration = null, CancellationToken cancellationToken = default);
     Task<QueueEntry?> AdvanceAsync(TimeSpan? actualPosition, bool successful = true, CancellationToken cancellationToken = default);
+}
+
+public interface INewsCommandService
+{
+    Task ShowNewsAsync(NewsItem item, CancellationToken cancellationToken = default);
+    Task StopNewsAsync(long? newsId = null, CancellationToken cancellationToken = default);
 }
 
 public sealed record PresenterStatus(PresenterState State, string Version, string WebUrl);

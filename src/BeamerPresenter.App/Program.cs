@@ -84,6 +84,7 @@ internal static class Program
         builder.Services.AddSingleton<IPowerManagementService, WindowsPowerManagementService>();
         builder.Services.AddSingleton<PlaybackOrchestrator>();
         builder.Services.AddSingleton<IPlaybackCommandService>(provider => provider.GetRequiredService<PlaybackOrchestrator>());
+        builder.Services.AddSingleton<INewsCommandService>(provider => provider.GetRequiredService<PlaybackOrchestrator>());
         builder.Services.AddSingleton(new StartupRegistrationService(Environment.ProcessPath ?? System.Windows.Forms.Application.ExecutablePath));
         builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options => options.MultipartBodyLengthLimit = 5L * 1024 * 1024 * 1024);
         var application = builder.Build();

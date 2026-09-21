@@ -44,6 +44,7 @@
 - Externe Wiedergaben speichern `MediaId = null` und den normalisierten `ExternalSourceKey` in Queue und Historie. YouTube-Einträge benötigen immer eine positive eigene oder maximale Laufzeit; ohne bekannte Player-Dauer beginnt die nächste automatische Einreihung hinter dem höchsten tatsächlich gespielten oder bereits reservierten Ende derselben Quelle.
 - Die YouTube IFrame Player API wird im Presenter erst bei Bedarf geladen und muss nach fünf Sekunden mit einem terminalen `Error` abbrechen. Lokale Wiedergabe darf keine Netzabhängigkeit erhalten; `Ended`, Playerfehler und API-Timeout laufen über denselben deduplizierten Hub-Fortschritt zur nächsten Queue-Position.
 - News-Daten werden über `INewsService` persistiert. Titel/Text sind Pflicht, nicht-permanente Einträge brauchen eine positive Dauer und `ValidUntil` muss nach `ValidFrom` liegen; die drei Modi bleiben exakt `SplitScreen`, `Ticker` und `Fullscreen`.
+- News-Kommandos laufen ausschließlich über `INewsCommandService`/`PlaybackOrchestrator`. Ticker und SplitScreen pausieren Medien nicht; Fullscreen pausiert einmal, verdrängt die aktive Overlay-News und stellt nach Hide zuerst die Wiedergabe an derselben Position und danach das Overlay wieder her. Jeder zeitgesteuerte Hide muss beim Ersetzen abgebrochen werden.
 
 ## Arbeitsweise
 

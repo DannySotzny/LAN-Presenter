@@ -5,9 +5,13 @@
     const youtubeApiTimeoutMs = 5000;
     const video = document.getElementById("presenter-video");
     const youtubeHost = document.getElementById("presenter-youtube-host");
+    const presenterRoot = document.getElementById("presenter-root");
+    const news = document.getElementById("presenter-news");
+    const newsTitle = document.getElementById("presenter-news-title");
+    const newsText = document.getElementById("presenter-news-text");
     const idle = document.getElementById("presenter-idle");
     const statusText = document.getElementById("presenter-status");
-    if (!video || !youtubeHost || !idle || !statusText) return;
+    if (!video || !youtubeHost || !presenterRoot || !news || !newsTitle || !newsText || !idle || !statusText) return;
 
     let socket;
     let reconnectTimer;
@@ -164,6 +168,18 @@
         setStatus("Bereit für die nächste Wiedergabe.");
         report("Stopped");
     };
+    const showNews = (id, title, text, mode) => {
+        news.dataset.newsId = String(id);
+        newsTitle.textContent = title;
+        newsText.textContent = text;
+        news.className = `presenter-news presenter-news-${String(mode).toLowerCase()}`;
+        presenterRoot.classList.toggle("news-split-active", String(mode).toLowerCase() === "splitscreen");
+    };
+    const hideNews = () => {
+        news.className = "presenter-news presenter-media-hidden";
+        news.removeAttribute("data-news-id");
+        presenterRoot.classList.remove("news-split-active");
+    };
     const handleInvocation = async (message) => {
         const target = String(message.target || "").toLowerCase();
         const args = message.arguments || [];
@@ -190,6 +206,8 @@
                     else video.volume = volume;
                 }
                 break;
+            case "shownews": showNews(args[0], args[1], args[2], args[3]); break;
+            case "hidenews": hideNews(); break;
         }
     };
     const handleMessages = async (payload) => {

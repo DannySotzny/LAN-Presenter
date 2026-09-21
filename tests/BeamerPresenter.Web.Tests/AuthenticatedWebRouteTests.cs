@@ -239,6 +239,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, pageResponse.StatusCode);
         Assert.Contains("presenter-video", pageHtml, StringComparison.Ordinal);
         Assert.Contains("presenter-youtube-host", pageHtml, StringComparison.Ordinal);
+        Assert.Contains("presenter-news", pageHtml, StringComparison.Ordinal);
         Assert.Contains("js/presenter.js", pageHtml, StringComparison.Ordinal);
 
         using var negotiateResponse = await client.PostAsync("/hubs/presenter/negotiate?negotiateVersion=1", content: null);
@@ -278,6 +279,21 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         var youtubeInvocation = await ReceiveSignalRMessageAsync(socket, cancellation.Token);
         Assert.Contains("\"target\":\"LoadYouTubeVideo\"", youtubeInvocation, StringComparison.Ordinal);
         Assert.Contains("dQw4w9WgXcQ", youtubeInvocation, StringComparison.Ordinal);
+
+        await gateway.ShowNewsAsync(new NewsItem
+        {
+            Id = 7,
+            Title = "Turnierstart",
+            Text = "CS2 5on5 beginnt jetzt",
+            Mode = NewsMode.Fullscreen,
+            Duration = TimeSpan.FromMinutes(5),
+            Priority = 10
+        }, cancellation.Token);
+        var newsInvocation = await ReceiveSignalRMessageAsync(socket, cancellation.Token);
+        Assert.Contains("\"target\":\"ShowNews\"", newsInvocation, StringComparison.Ordinal);
+        Assert.Contains("Fullscreen", newsInvocation, StringComparison.Ordinal);
+        await gateway.HideNewsAsync(cancellation.Token);
+        Assert.Contains("\"target\":\"HideNews\"", await ReceiveSignalRMessageAsync(socket, cancellation.Token), StringComparison.Ordinal);
 
         await SendSignalRMessageAsync(
             socket,

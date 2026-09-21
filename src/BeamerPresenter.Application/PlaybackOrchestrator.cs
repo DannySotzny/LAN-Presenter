@@ -8,9 +8,12 @@ public sealed class PlaybackOrchestrator(
     IPresenterGateway presenter,
     IPresenterSettingsService settingsService,
     IPowerManagementService powerManagement,
-    PlaybackQueueService queue) : IPlaybackCommandService
+    PlaybackQueueService queue) : IPlaybackCommandService, INewsCommandService
 {
     private readonly SemaphoreSlim commandGate = new(1, 1);
+    private CancellationTokenSource? newsTimeout;
+    private NewsItem? currentNews;
+    private NewsItem? suspendedNews;
 
     public async Task ActivateAsync(CancellationToken cancellationToken = default)
     {
@@ -138,6 +141,73 @@ public sealed class PlaybackOrchestrator(
             return next;
         }, cancellationToken);
 
+    public Task ShowNewsAsync(NewsItem item, CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(async () =>
+        {
+            ArgumentNullException.ThrowIfNull(item);
+            if (item.Mode == NewsMode.Fullscreen)
+            {
+                if (currentNews is not null && currentNews.Mode != NewsMode.Fullscreen)
+                {
+                    suspendedNews = currentNews;
+                }
+
+                CancelNewsTimeout();
+                if (currentNews?.Mode != NewsMode.Fullscreen)
+                {
+                    await presenter.PauseAsync(cancellationToken);
+                }
+
+                currentNews = item;
+                await presenter.ShowNewsAsync(item, cancellationToken);
+                ScheduleNewsTimeout(item);
+                return;
+            }
+
+            if (currentNews?.Mode == NewsMode.Fullscreen)
+            {
+                if (suspendedNews is null || item.Priority >= suspendedNews.Priority)
+                {
+                    suspendedNews = item;
+                }
+
+                return;
+            }
+
+            if (currentNews is null || item.Priority >= currentNews.Priority)
+            {
+                CancelNewsTimeout();
+                currentNews = item;
+                await presenter.ShowNewsAsync(item, cancellationToken);
+                ScheduleNewsTimeout(item);
+            }
+        }, cancellationToken);
+
+    public Task StopNewsAsync(long? newsId = null, CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(async () =>
+        {
+            if (currentNews is null || (newsId.HasValue && currentNews.Id != newsId.Value))
+            {
+                return;
+            }
+
+            var stoppedMode = currentNews.Mode;
+            CancelNewsTimeout();
+            currentNews = null;
+            await presenter.HideNewsAsync(cancellationToken);
+            if (stoppedMode == NewsMode.Fullscreen)
+            {
+                await presenter.PlayAsync(cancellationToken);
+                if (suspendedNews is not null)
+                {
+                    currentNews = suspendedNews;
+                    suspendedNews = null;
+                    await presenter.ShowNewsAsync(currentNews, cancellationToken);
+                    ScheduleNewsTimeout(currentNews);
+                }
+            }
+        }, cancellationToken);
+
     private Task LoadEntryAsync(QueueEntry entry, CancellationToken cancellationToken) => entry.SourceType switch
     {
         MediaSourceType.Local when entry.MediaId is int mediaId =>
@@ -158,6 +228,37 @@ public sealed class PlaybackOrchestrator(
 
         videoId = string.Empty;
         return false;
+    }
+
+    private void ScheduleNewsTimeout(NewsItem item)
+    {
+        if (item.Permanent || item.Duration is null || item.Duration <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        newsTimeout = cancellation;
+        _ = StopNewsAfterDelayAsync(item.Id, item.Duration.Value, cancellation.Token);
+    }
+
+    private async Task StopNewsAfterDelayAsync(long newsId, TimeSpan duration, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(duration, cancellationToken);
+            await StopNewsAsync(newsId, CancellationToken.None);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private void CancelNewsTimeout()
+    {
+        newsTimeout?.Cancel();
+        newsTimeout?.Dispose();
+        newsTimeout = null;
     }
 
     private async Task ExecuteSerializedAsync(Func<Task> command, CancellationToken cancellationToken)
