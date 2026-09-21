@@ -1,4 +1,13 @@
 Beamerpresenter.App Changelog
+<a name="0.8.0"></a>
+## [0.8.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.8.0) (2026-09-21)
+
+### Features
+
+* manage and schedule presenter news ([70c402a](https://www.github.com/DannySotzny/LAN-Presenter/commit/70c402a12fcab6f3b1fef788161a5965573c40cb))
+* persist presenter news items ([392a2b2](https://www.github.com/DannySotzny/LAN-Presenter/commit/392a2b231c33c17491e582f5164903737f66f024))
+* render prioritized presenter news ([e69eac8](https://www.github.com/DannySotzny/LAN-Presenter/commit/e69eac8669b751d3c4bc1dacb24f0eddeebd77ec))
+
 <a name="0.7.0"></a>
 ## [0.7.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.7.0) (2026-09-21)
 
