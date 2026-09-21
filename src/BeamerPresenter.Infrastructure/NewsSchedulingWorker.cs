@@ -15,15 +15,15 @@ public sealed class NewsSchedulingWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await SynchronizeSafelyAsync(stoppingToken);
+        await SynchronizeAsync(stoppingToken);
         using var timer = new PeriodicTimer(PollInterval);
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            await SynchronizeSafelyAsync(stoppingToken);
+            await SynchronizeAsync(stoppingToken);
         }
     }
 
-    private async Task SynchronizeSafelyAsync(CancellationToken cancellationToken)
+    internal async Task SynchronizeAsync(CancellationToken cancellationToken = default)
     {
         try
         {

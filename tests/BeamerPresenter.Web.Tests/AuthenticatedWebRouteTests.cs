@@ -134,18 +134,44 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Authenticated_presenter_control_invokes_requested_command()
+    public async Task Authenticated_presenter_controls_invoke_requested_commands()
     {
         using var client = _application!.GetTestClient();
         var cookie = await LoginAsync(client);
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/presenter/pause");
+        foreach (var (route, result) in new[]
+                 {
+                     ("activate", "active"),
+                     ("pause", "paused"),
+                     ("hide", "hidden"),
+                     ("stop", "stopped")
+                 })
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/presenter/{route}");
+            request.Headers.Add("Cookie", cookie);
+            using var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            Assert.Equal($"/?presenter={result}", response.Headers.Location?.OriginalString);
+        }
+
+        Assert.Equal(1, _presenterControls.ActivateCalls);
+        Assert.Equal(1, _presenterControls.PauseCalls);
+        Assert.Equal(1, _presenterControls.HideCalls);
+        Assert.Equal(1, _presenterControls.StopCalls);
+    }
+
+    [Fact]
+    public async Task Presenter_control_failure_redirects_to_visible_error()
+    {
+        _presenterControls.Failure = new InvalidOperationException("Monitor nicht verfügbar");
+        using var client = _application!.GetTestClient();
+        var cookie = await LoginAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/presenter/activate");
         request.Headers.Add("Cookie", cookie);
 
         using var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal("/?presenter=paused", response.Headers.Location?.OriginalString);
-        Assert.Equal(1, _presenterControls.PauseCalls);
+        Assert.StartsWith("/?presenter=error&message=", response.Headers.Location?.OriginalString, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -563,8 +589,13 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         public int PauseCalls { get; private set; }
         public int HideCalls { get; private set; }
         public int StopCalls { get; private set; }
+        public Exception? Failure { get; set; }
 
-        public Task ActivateAsync(CancellationToken cancellationToken = default) { ActivateCalls++; return Task.CompletedTask; }
+        public Task ActivateAsync(CancellationToken cancellationToken = default)
+        {
+            ActivateCalls++;
+            return Failure is null ? Task.CompletedTask : Task.FromException(Failure);
+        }
         public Task PauseAsync(CancellationToken cancellationToken = default) { PauseCalls++; return Task.CompletedTask; }
         public Task HideAsync(CancellationToken cancellationToken = default) { HideCalls++; return Task.CompletedTask; }
         public Task StopAsync(CancellationToken cancellationToken = default) { StopCalls++; return Task.CompletedTask; }

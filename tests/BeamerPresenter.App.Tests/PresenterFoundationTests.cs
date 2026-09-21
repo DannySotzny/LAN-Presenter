@@ -62,6 +62,50 @@ public sealed class PresenterFoundationTests
         });
     }
 
+    [Fact]
+    public void Build_information_comes_from_the_built_app_assembly()
+    {
+        var information = BuildInformation.FromAssembly(typeof(BuildInformation).Assembly);
+
+        Assert.Matches(@"^\d+\.\d+\.\d+$", information.Version);
+        Assert.False(string.IsNullOrWhiteSpace(information.InformationalVersion));
+        Assert.NotNull(information.BuildTimestampUtc);
+        Assert.False(string.IsNullOrWhiteSpace(information.GitCommitSha));
+        Assert.Contains(".NET", information.RuntimeVersion, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("1234567890abcdef", "12345678")]
+    [InlineData("abc123", "abc123")]
+    public void Build_information_shortens_only_long_commit_identifiers(string commit, string expected)
+    {
+        var information = new BuildInformation("1.0.0", "1.0.0", null, commit, ".NET");
+
+        Assert.Equal(expected, information.ShortGitCommitSha);
+    }
+
+    [Fact]
+    public async Task Power_management_release_and_dispose_are_idempotent_without_active_requests()
+    {
+        var service = new WindowsPowerManagementService();
+
+        await service.ReleaseAsync();
+        await service.ReleaseAsync();
+        service.Dispose();
+        service.Dispose();
+    }
+
+    [Fact]
+    public async Task Power_management_honors_cancellation_before_native_calls()
+    {
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+        using var service = new WindowsPowerManagementService();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => service.ApplyAsync(true, true, cancellation.Token));
+        await Assert.ThrowsAsync<OperationCanceledException>(() => service.ReleaseAsync(cancellation.Token));
+    }
+
     private static string CreateTestRoot() => Path.Combine(Path.GetTempPath(), "BeamerPresenter.Tests", Guid.NewGuid().ToString("N"));
 
     private static void DeleteTestRoot(string testRoot)

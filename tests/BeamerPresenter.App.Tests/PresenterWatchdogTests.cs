@@ -67,16 +67,46 @@ public sealed class PresenterWatchdogTests
         Assert.Equal(1, fixture.Browser.StartCalls);
     }
 
+    [Fact]
+    public async Task Inactive_presenter_does_not_touch_chrome_or_recovery()
+    {
+        var fixture = new WatchdogFixture(browserRunning: false, active: false);
+
+        await fixture.Watchdog.CheckAsync();
+
+        Assert.Equal(0, fixture.Browser.StartCalls);
+        Assert.Equal(0, fixture.Browser.ShowCalls);
+        Assert.Equal(0, fixture.Recovery.ReloadCalls);
+    }
+
+    [Fact]
+    public async Task Advancing_playback_never_triggers_stall_recovery()
+    {
+        var fixture = new WatchdogFixture(browserRunning: true);
+        fixture.Telemetry.Snapshot = Connected("Playing", TimeSpan.FromSeconds(10), fixture.Clock.GetUtcNow());
+        await fixture.Watchdog.CheckAsync();
+
+        fixture.Clock.Advance(TimeSpan.FromSeconds(20));
+        fixture.Telemetry.Snapshot = Connected("Playing", TimeSpan.FromSeconds(11), fixture.Clock.GetUtcNow());
+        await fixture.Watchdog.CheckAsync();
+
+        Assert.Equal(1, fixture.Recovery.ReloadCalls);
+        Assert.Equal(0, fixture.Recovery.FailAndAdvanceCalls);
+    }
+
     private static PresenterTelemetrySnapshot Connected(string status, TimeSpan? position, DateTimeOffset now) =>
         new(true, status, position, TimeSpan.FromMinutes(30), null, now);
 
     private sealed class WatchdogFixture
     {
-        public WatchdogFixture(bool browserRunning, bool aggressiveTopmost = false)
+        public WatchdogFixture(bool browserRunning, bool aggressiveTopmost = false, bool active = true)
         {
             Browser = new RecordingBrowser(browserRunning);
             var playback = new PlaybackController();
-            playback.Activate();
+            if (active)
+            {
+                playback.Activate();
+            }
             Watchdog = new PresenterWatchdog(
                 playback,
                 Browser,
