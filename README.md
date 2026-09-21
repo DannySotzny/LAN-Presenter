@@ -65,6 +65,14 @@ Der authentifizierte Ablauf ist durch einen Integrationstest mit temporärer SQL
 dotnet test tests/BeamerPresenter.Web.Tests -c Release
 ```
 
+Die CI sammelt Coverage über alle Testprojekte, führt Mehrfachmessungen derselben Produktionszeile zusammen und bricht unter 80 Prozent Line Coverage ab. Generierte Migrationen sowie rein visuelle WinForms-/Razor- und Composition-Root-Dateien sind von dieser Metrik ausgenommen:
+
+```powershell
+$results = Join-Path $env:TEMP "beamer-presenter-coverage"
+dotnet test BeamerPresenterForLanParties.slnx -c Release --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory $results
+./scripts/Assert-Coverage.ps1 -ResultsDirectory $results -Threshold 80
+```
+
 ## Versionen und Changelog
 
 `versionize` ist als lokales .NET-Tool in `dotnet-tools.json` festgeschrieben. Commit-Nachrichten nutzen Conventional Commits, beispielsweise `feat: add media scan` oder `fix: reject unsafe upload names`.

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[BeamerPresenter.*]*</Include>
+          <Exclude>[*.Tests]*</Exclude>
+          <ExcludeByFile>**/Migrations/*.cs,**/*.g.cs,**/*.Designer.cs,**/PresenterForm.cs,**/Program.cs,**/*.razor,**/PresenterDbContextDesignFactory.cs</ExcludeByFile>
+          <SkipAutoProps>true</SkipAutoProps>
+          <DoesNotReturnAttribute>DoesNotReturnAttribute</DoesNotReturnAttribute>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

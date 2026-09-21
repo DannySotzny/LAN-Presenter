@@ -17,4 +17,14 @@ jobs:
       - run: dotnet restore BeamerPresenterForLanParties.slnx
       - run: dotnet format BeamerPresenterForLanParties.slnx --verify-no-changes --no-restore
       - run: dotnet build BeamerPresenterForLanParties.slnx -c Release --no-restore
-      - run: dotnet test BeamerPresenterForLanParties.slnx -c Release --no-build
+      - name: Test with coverage
+        run: dotnet test BeamerPresenterForLanParties.slnx -c Release --no-build --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory artifacts/TestResults
+      - name: Enforce 80 percent line coverage
+        shell: pwsh
+        run: ./scripts/Assert-Coverage.ps1 -ResultsDirectory artifacts/TestResults -Threshold 80
+      - name: Publish self-contained application
+        run: dotnet publish src/BeamerPresenter.App/BeamerPresenter.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BeamerPresenter-win-x64-${{ github.sha }}
+          path: artifacts/publish
