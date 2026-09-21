@@ -1,4 +1,14 @@
 Beamerpresenter.App Changelog
+<a name="0.6.0"></a>
+## [0.6.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.6.0) (2026-09-21)
+
+### Features
+
+* control playback queue from web ui ([4b7e61c](https://www.github.com/DannySotzny/LAN-Presenter/commit/4b7e61c21b6438f3aaf75d3f7ec4502c8acd9860))
+* manage persistent playback queue ([8e35f55](https://www.github.com/DannySotzny/LAN-Presenter/commit/8e35f5599f4a4a5a79303ef03843a512055c977c))
+* persist playback queue and history ([d33942d](https://www.github.com/DannySotzny/LAN-Presenter/commit/d33942dadcb19592d579aec6a0519dc9d3560ba4))
+* plan non-repeating media segments ([a57d496](https://www.github.com/DannySotzny/LAN-Presenter/commit/a57d496d1b900ff5558666dc0c5b73eed774888b))
+
 <a name="0.5.0"></a>
 ## [0.5.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.5.0) (2026-09-20)
 
