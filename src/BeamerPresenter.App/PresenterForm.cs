@@ -29,6 +29,7 @@ internal sealed class PresenterForm : Form
     private readonly ListBox _mediaFolders = new() { Dock = DockStyle.Fill, Height = 90 };
     private readonly CheckBox _includeSubdirectories = new() { AutoSize = true, Checked = true, Text = "Unterverzeichnisse durchsuchen" };
     private readonly TextBox _webPort = new() { Dock = DockStyle.Fill };
+    private readonly CheckBox _allowLanAccess = new() { AutoSize = true, Text = "Web UI im LAN freigeben" };
     private readonly TextBox _ffprobePath = new() { Dock = DockStyle.Fill };
     private readonly Label _ffprobeStatus = new() { AutoSize = true };
     private readonly TextBox _password = new() { Dock = DockStyle.Fill, UseSystemPasswordChar = true };
@@ -81,13 +82,13 @@ internal sealed class PresenterForm : Form
     protected override void Dispose(bool disposing) { if (disposing) _notifyIcon.Dispose(); base.Dispose(disposing); }
     private Control CreateContent()
     {
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(18), ColumnCount = 2, RowCount = 20, AutoScroll = true };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(18), ColumnCount = 2, RowCount = 21, AutoScroll = true };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32)); root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 68));
         AddRow(root, 0, "Version:", _version); AddRow(root, 1, "Build:", _build); AddRow(root, 2, "Commit:", _commit); AddRow(root, 3, "Runtime:", _runtime); AddRow(root, 4, "Presenter:", _presenterStatus);
         AddRow(root, 5, "Monitor:", _monitor); AddRow(root, 6, "Monitorstatus:", _monitorStatus); AddRow(root, 7, "Chrome:", CreateChromePathControl()); AddRow(root, 8, "Presenter-Optionen:", CreatePresenterOptionsControl());
-        AddRow(root, 9, "Autostart:", _startWithWindows); AddRow(root, 10, "Web UI:", _webUrl); AddRow(root, 11, "Web UI Port:", _webPort); AddRow(root, 12, "Videoordner:", CreateMediaFolderControl()); AddRow(root, 13, "FFprobe-Pfad:", CreateFfprobePathControl()); AddRow(root, 14, "FFprobe-Status:", CreateFfprobeStatusControl()); AddRow(root, 15, "Web-Passwort:", _password); AddRow(root, 16, "Passwort wiederholen:", _passwordRepeat); AddRow(root, 17, "Schutzstatus:", _passwordStatus);
-        var save = new Button { Text = "Einstellungen speichern", AutoSize = true, Anchor = AnchorStyles.Left }; save.Click += async (_, _) => await SaveSettingsAsync(); root.Controls.Add(save, 1, 18);
-        root.Controls.Add(new Label { AutoSize = true, Text = "Port-Änderungen gelten nach einem Neustart." }, 1, 19); return root;
+        AddRow(root, 9, "Autostart:", _startWithWindows); AddRow(root, 10, "Web UI:", _webUrl); AddRow(root, 11, "Web UI Port:", _webPort); AddRow(root, 12, "Netzwerk:", _allowLanAccess); AddRow(root, 13, "Videoordner:", CreateMediaFolderControl()); AddRow(root, 14, "FFprobe-Pfad:", CreateFfprobePathControl()); AddRow(root, 15, "FFprobe-Status:", CreateFfprobeStatusControl()); AddRow(root, 16, "Web-Passwort:", _password); AddRow(root, 17, "Passwort wiederholen:", _passwordRepeat); AddRow(root, 18, "Schutzstatus:", _passwordStatus);
+        var save = new Button { Text = "Einstellungen speichern", AutoSize = true, Anchor = AnchorStyles.Left }; save.Click += async (_, _) => await SaveSettingsAsync(); root.Controls.Add(save, 1, 19);
+        root.Controls.Add(new Label { AutoSize = true, Text = "Port- und Netzwerkänderungen gelten nach einem Neustart." }, 1, 20); return root;
     }
     private static void AddRow(TableLayoutPanel panel, int row, string label, Control input) { panel.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, row); panel.Controls.Add(input, 1, row); }
     private Control CreateMediaFolderControl()
@@ -197,6 +198,7 @@ internal sealed class PresenterForm : Form
         var settings = await _settingsService.GetAsync();
         _startWithWindows.Checked = _startupRegistration.IsEnabled();
         _webPort.Text = settings.WebPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _allowLanAccess.Checked = settings.AllowLanAccess;
         _ffprobePath.Text = settings.FfprobePath ?? string.Empty;
         _chromePath.Text = settings.ChromePath ?? string.Empty;
         _alwaysOnTop.Checked = settings.AlwaysOnTop;
@@ -305,7 +307,7 @@ internal sealed class PresenterForm : Form
         if (!string.IsNullOrWhiteSpace(_password.Text) && _password.Text != _passwordRepeat.Text) { MessageBox.Show(this, "Die Passwörter stimmen nicht überein.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
         try { _startupRegistration.SetEnabled(_startWithWindows.Checked); } catch (UnauthorizedAccessException) { MessageBox.Show(this, "Der Windows-Autostart konnte nicht geändert werden.", Text, MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
         if (_monitor.SelectedItem is not DisplayMonitorListItem selectedMonitor) { MessageBox.Show(this, "Bitte einen verfügbaren Monitor auswählen.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-        var settings = await _settingsService.GetAsync(); settings.WebPort = webPort; settings.FfprobePath = string.IsNullOrWhiteSpace(_ffprobePath.Text) ? null : Path.GetFullPath(_ffprobePath.Text.Trim()); settings.ChromePath = string.IsNullOrWhiteSpace(_chromePath.Text) ? null : Path.GetFullPath(_chromePath.Text.Trim()); settings.MonitorDeviceName = selectedMonitor.DeviceName; settings.AlwaysOnTop = _alwaysOnTop.Checked; settings.AggressiveTopmost = _aggressiveTopmost.Checked; settings.PreventDisplaySleep = _preventDisplaySleep.Checked; settings.PreventSystemSleep = _preventSystemSleep.Checked; await _settingsService.SaveAsync(settings); if (!string.IsNullOrWhiteSpace(_password.Text)) await _settingsService.SetWebPasswordAsync(_password.Text);
+        var settings = await _settingsService.GetAsync(); settings.WebPort = webPort; settings.AllowLanAccess = _allowLanAccess.Checked; settings.FfprobePath = string.IsNullOrWhiteSpace(_ffprobePath.Text) ? null : Path.GetFullPath(_ffprobePath.Text.Trim()); settings.ChromePath = string.IsNullOrWhiteSpace(_chromePath.Text) ? null : Path.GetFullPath(_chromePath.Text.Trim()); settings.MonitorDeviceName = selectedMonitor.DeviceName; settings.AlwaysOnTop = _alwaysOnTop.Checked; settings.AggressiveTopmost = _aggressiveTopmost.Checked; settings.PreventDisplaySleep = _preventDisplaySleep.Checked; settings.PreventSystemSleep = _preventSystemSleep.Checked; await _settingsService.SaveAsync(settings); if (!string.IsNullOrWhiteSpace(_password.Text)) await _settingsService.SetWebPasswordAsync(_password.Text);
         _password.Clear(); _passwordRepeat.Clear(); await LoadSettingsAsync(); MessageBox.Show(this, "Einstellungen gespeichert.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
     private void OpenWebUi() => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_webUrl.Text) { UseShellExecute = true });

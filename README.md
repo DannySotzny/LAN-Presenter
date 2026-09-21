@@ -14,10 +14,12 @@ Die Fundament-Stufe ist implementiert:
 - strukturiertes JSONL-Logging mit täglicher Rotation und 14 Tagen Aufbewahrung unter `%LOCALAPPDATA%\HouseOfLAN\Presenter\Logs`
 - Kestrel-Weboberfläche auf Port 8765, inklusive Health-Endpunkt und MudBlazor-Management-UI
 - Passwortschutz per Cookie-Login; das Passwort wird ausschließlich in der Desktop-App gesetzt
+- standardmäßig ausschließlich an `127.0.0.1` gebundene Web UI; LAN-Bindung wird bewusst in der Desktop-App aktiviert und bleibt passwortgeschützt
 - PBKDF2-SHA512-Hash mit zufälligem Salt, kein Klartextpasswort
 - Upload unterstützter Videoformate über die geschützte Web UI
 - responsive MudBlazor-Medienbibliothek mit Suche, technischen Metadaten, Kennzahlen und klar erkennbaren Analyse-/Kompatibilitätsfehlern
 - anonyme, ID-basierte lokale Medienauslieferung mit HTTP-Range-Support und erneuter Pfadvalidierung gegen aktive Medienordner
+- zusätzliche Loopback-Sperre für `/presenter`, `/media` und `/hubs/presenter`, sodass LAN-Teilnehmer weder Kiosk noch Mediendateien direkt abrufen können
 - dauerhaft geladene Fullscreen-Presenter-Seite mit dediziertem SignalR-Hub, Reconnect, lokalen Video-/Segmentkommandos und Status-/Heartbeat-Rückmeldungen
 - mehrere persistente Videoordner mit optional rekursiver Erfassung; der bisherige Einzelpfad wird automatisch migriert
 - Full Scan beim Start und Reconciliation alle 30 Minuten für neue, geänderte und fehlende lokale Videos
@@ -57,7 +59,7 @@ dotnet build BeamerPresenterForLanParties.slnx -c Release
 dotnet run --project src/BeamerPresenter.App
 ```
 
-Beim ersten Start in der Desktop-App einen Videoordner und ein Web-Passwort festlegen. Dann ist die Web UI unter `http://localhost:8765` erreichbar. Für LAN-Zugriff muss die Windows-Firewall den gewählten Port erlauben; in Produktion sollte ein starkes Passwort verwendet werden.
+Beim ersten Start in der Desktop-App einen Videoordner und ein Web-Passwort festlegen. Dann ist die Web UI unter `http://localhost:8765` erreichbar. Für LAN-Zugriff zusätzlich „Web UI im LAN freigeben“ aktivieren, die Anwendung neu starten und den gewählten Port in der Windows-Firewall erlauben; dabei ein starkes Passwort verwenden. Die Kiosk- und Medienrouten bleiben unabhängig davon auf lokale Zugriffe beschränkt.
 
 Der authentifizierte Ablauf ist durch einen Integrationstest mit temporärer SQLite-Datenbank abgesichert. Er prüft den gültigen Login, das Auth-Cookie und das anschließende Rendering der Managementseite:
 

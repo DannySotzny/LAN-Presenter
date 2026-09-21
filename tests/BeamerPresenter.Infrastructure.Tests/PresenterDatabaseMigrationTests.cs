@@ -18,6 +18,7 @@ public sealed class PresenterDatabaseMigrationTests
         try
         {
             Assert.Equal(PresenterSettings.DefaultWebPort, PresenterDatabase.GetConfiguredWebPort(dataDirectory));
+            Assert.False(PresenterDatabase.GetConfiguredHostSettings(dataDirectory).AllowLanAccess);
 
             await using var connection = new SqliteConnection(PresenterDatabase.CreateConnectionString(dataDirectory));
             await connection.OpenAsync();
@@ -51,6 +52,7 @@ public sealed class PresenterDatabaseMigrationTests
             }
 
             Assert.Equal(9123, PresenterDatabase.GetConfiguredWebPort(dataDirectory));
+            Assert.True(PresenterDatabase.GetConfiguredHostSettings(dataDirectory).AllowLanAccess);
 
             await using var connection = new SqliteConnection(PresenterDatabase.CreateConnectionString(dataDirectory));
             await connection.OpenAsync();
@@ -82,6 +84,7 @@ public sealed class PresenterDatabaseMigrationTests
             var settingsService = provider.GetRequiredService<IPresenterSettingsService>();
             var settings = await settingsService.GetAsync();
             settings.ChromePath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+            settings.AllowLanAccess = true;
             settings.MonitorDeviceName = "\\\\.\\DISPLAY2";
             settings.AlwaysOnTop = false;
             settings.AggressiveTopmost = true;
@@ -98,6 +101,7 @@ public sealed class PresenterDatabaseMigrationTests
             var persisted = await settingsService.GetAsync();
 
             Assert.Equal(settings.ChromePath, persisted.ChromePath);
+            Assert.True(persisted.AllowLanAccess);
             Assert.Equal(settings.MonitorDeviceName, persisted.MonitorDeviceName);
             Assert.False(persisted.AlwaysOnTop);
             Assert.True(persisted.AggressiveTopmost);

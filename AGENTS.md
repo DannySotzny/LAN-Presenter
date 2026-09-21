@@ -12,7 +12,8 @@
 - Web-Passwörter niemals protokollieren, testen, committen oder in `appsettings` ablegen.
 - Das Passwort wird mit PBKDF2-SHA512 und individuellem Salt gespeichert. Änderungen daran brauchen einen sicheren Migrationspfad.
 - Uploads bleiben authentifizierungspflichtig; Dateinamen immer mit `Path.GetFileName` normalisieren und die erlaubten Endungen zentral prüfen.
-- `/presenter` bleibt absichtlich anonym erreichbar, damit der lokale Kiosk ohne Anmeldung funktioniert. Keine Management-Endpunkte dort hinzufügen.
+- `/presenter` bleibt ohne Cookie-Anmeldung erreichbar, aber wie `/media` und `/hubs/presenter` ausschließlich von Loopback-Adressen. Keine Management-Endpunkte dort hinzufügen und die Loopback-Middleware immer vor Authentication/Authorization registrieren.
+- Die Web UI bindet standardmäßig nur an `127.0.0.1`. `PresenterSettings.AllowLanAccess` darf ausschließlich über die Desktop-Einstellung bewusst aktiviert werden; erst dann bindet Kestrel an `0.0.0.0`, während alle Managementrouten weiterhin Cookie-Authentifizierung verlangen.
 - Razor Components benötigen `UseAntiforgery()` nach `UseAuthentication()` und `UseAuthorization()`; ohne diese Middleware antwortet selbst `/login` mit HTTP 500.
 - Der WinForms-Host erstellt kein zusammengeführtes Static-Asset-Manifest. RCL- und MudBlazor-Assets werden daher per MSBuild als `wwwroot/_content/...` in den App-Output kopiert; `UseStaticFiles()` liefert sie aus.
 - Der Kestrel-Web-Root wird explizit auf `AppContext.BaseDirectory/wwwroot` gesetzt, da das Arbeitsverzeichnis beim Start aus Visual Studio oder per Installer abweichen kann.

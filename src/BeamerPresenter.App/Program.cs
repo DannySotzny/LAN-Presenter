@@ -59,14 +59,15 @@ internal static class Program
 
     private static WebApplication BuildPresenterHost(PresenterPaths paths)
     {
-        var webPort = PresenterDatabase.GetConfiguredWebPort(paths.DataDirectory);
+        var hostSettings = PresenterDatabase.GetConfiguredHostSettings(paths.DataDirectory);
+        var webPort = hostSettings.WebPort;
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             WebRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot")
         });
         builder.Host.UseSerilog(Log.Logger, dispose: false);
         builder.WebHost.UseStaticWebAssets();
-        builder.WebHost.UseUrls($"http://0.0.0.0:{webPort}");
+        builder.WebHost.UseUrls($"http://{(hostSettings.AllowLanAccess ? "0.0.0.0" : "127.0.0.1")}:{webPort}");
         builder.Services.AddPresenterInfrastructure(paths.DataDirectory, paths.ToolsDirectory);
         builder.Services.AddPresenterWebUi();
         builder.Services.AddSingleton<IMonitorService, WindowsMonitorService>();
@@ -92,6 +93,7 @@ internal static class Program
         builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options => options.MultipartBodyLengthLimit = 5L * 1024 * 1024 * 1024);
         var application = builder.Build();
         application.UseStaticFiles();
+        application.UsePresenterLoopbackProtection();
         application.UseAuthentication();
         application.UseAuthorization();
         application.UseAntiforgery();

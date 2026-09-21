@@ -53,7 +53,10 @@ public static class PresenterDatabase
 {
     private const string InitialMigrationId = "20260920165033_InitialSchema";
 
-    public static int GetConfiguredWebPort(string dataDirectory)
+    public static int GetConfiguredWebPort(string dataDirectory) =>
+        GetConfiguredHostSettings(dataDirectory).WebPort;
+
+    public static PresenterHostSettings GetConfiguredHostSettings(string dataDirectory)
     {
         Directory.CreateDirectory(dataDirectory);
         var options = new DbContextOptionsBuilder<PresenterDbContext>().UseSqlite(CreateConnectionString(dataDirectory)).Options;
@@ -66,8 +69,13 @@ public static class PresenterDatabase
 
         context.Database.Migrate();
         context.Database.ExecuteSqlRaw("PRAGMA journal_mode = WAL;");
-        var configuredPort = context.Settings.AsNoTracking().Where(x => x.Id == 1).Select(x => (int?)x.WebPort).SingleOrDefault();
-        return configuredPort is >= 1024 and <= 65535 ? configuredPort.Value : PresenterSettings.DefaultWebPort;
+        var configured = context.Settings.AsNoTracking()
+            .Where(settings => settings.Id == 1)
+            .Select(settings => new { settings.WebPort, settings.AllowLanAccess })
+            .SingleOrDefault();
+        var configuredPort = configured?.WebPort;
+        var webPort = configuredPort is >= 1024 and <= 65535 ? configuredPort.Value : PresenterSettings.DefaultWebPort;
+        return new PresenterHostSettings(webPort, configured?.AllowLanAccess ?? false);
     }
 
     public static string CreateDailyBackup(string dataDirectory) =>
@@ -202,6 +210,8 @@ public static class PresenterDatabase
         return Convert.ToInt64(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0;
     }
 }
+
+public sealed record PresenterHostSettings(int WebPort, bool AllowLanAccess);
 
 internal sealed class PresenterBackupWorker(
     string dataDirectory,

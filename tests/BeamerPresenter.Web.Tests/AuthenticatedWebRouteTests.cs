@@ -45,6 +45,12 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
             await context.Database.MigrateAsync();
         }
 
+        _application.Use(async (context, next) =>
+        {
+            context.Connection.RemoteIpAddress ??= IPAddress.Loopback;
+            await next();
+        });
+        _application.UsePresenterLoopbackProtection();
         _application.UseAuthentication();
         _application.UseAuthorization();
         _application.UseAntiforgery();
