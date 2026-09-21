@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using BeamerPresenter.Application;
+using BeamerPresenter.Domain;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
@@ -31,6 +32,8 @@ public static class WebApplicationExtensions
     {
         app.MapPost("/account/login", (Delegate)LoginAsync).AllowAnonymous(); app.MapPost("/account/logout", (Delegate)LogoutAsync).RequireAuthorization();
         app.MapPost("/api/videos/upload", (Delegate)UploadAsync).RequireAuthorization();
+        app.MapPost("/api/queue/next", (Delegate)PlayNextAsync).RequireAuthorization();
+        app.MapPost("/api/queue/now", (Delegate)PlayNowAsync).RequireAuthorization();
         app.MapGet("/media/{mediaId:int}", (Delegate)StreamMediaAsync).AllowAnonymous();
         app.MapHub<PresenterHub>("/hubs/presenter");
         app.MapRazorComponents<PresenterWebApp>(); return app;
@@ -65,6 +68,64 @@ public static class WebApplicationExtensions
                 ? Results.Redirect($"{returnUrl}?upload=error&message={Uri.EscapeDataString(exception.Message)}")
                 : Results.BadRequest(new { error = exception.Message });
         }
+    }
+
+    private static async Task<IResult> PlayNextAsync(
+        HttpContext context,
+        IPlaybackCommandService playback,
+        CancellationToken cancellationToken) =>
+        await ExecuteQueueCommandAsync(context, (mediaId, start, duration) =>
+            playback.PlayNextAsync(mediaId, start, duration, cancellationToken));
+
+    private static async Task<IResult> PlayNowAsync(
+        HttpContext context,
+        IPlaybackCommandService playback,
+        PresenterConnectionState presenterState,
+        CancellationToken cancellationToken)
+    {
+        TimeSpan? currentPosition = presenterState.LatestReport.PositionSeconds is >= 0
+            ? TimeSpan.FromSeconds(presenterState.LatestReport.PositionSeconds.Value)
+            : null;
+        return await ExecuteQueueCommandAsync(context, (mediaId, start, duration) =>
+            playback.PlayNowAsync(mediaId, currentPosition, start, duration, cancellationToken));
+    }
+
+    private static async Task<IResult> ExecuteQueueCommandAsync(
+        HttpContext context,
+        Func<int, TimeSpan?, TimeSpan?, Task<QueueEntry>> command)
+    {
+        var form = await context.Request.ReadFormAsync(context.RequestAborted);
+        if (!int.TryParse(form["mediaId"], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var mediaId))
+        {
+            return Results.Redirect("/?queue=error&message=Ungültiges%20Video");
+        }
+
+        try
+        {
+            var start = ParseOptionalTime(form["start"].ToString());
+            var duration = ParseOptionalTime(form["duration"].ToString());
+            await command(mediaId, start, duration);
+            return Results.Redirect("/?queue=success");
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FormatException)
+        {
+            return Results.Redirect($"/?queue=error&message={Uri.EscapeDataString(exception.Message)}");
+        }
+    }
+
+    private static TimeSpan? ParseOptionalTime(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (TimeSpan.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out var result))
+        {
+            return result;
+        }
+
+        throw new FormatException("Start und Dauer müssen als HH:MM:SS angegeben werden.");
     }
 
     private static async Task<IResult> StreamMediaAsync(

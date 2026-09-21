@@ -1,5 +1,6 @@
 using BeamerPresenter.Application;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BeamerPresenter.Web;
 
@@ -15,6 +16,7 @@ public interface IPresenterClient
 
 public sealed class PresenterConnectionState
 {
+    private readonly object reportLock = new();
     private int connectionCount;
     private PresenterClientReport latestReport = new("Disconnected", null, null, null, DateTimeOffset.UtcNow);
 
@@ -34,8 +36,19 @@ public sealed class PresenterConnectionState
         Volatile.Write(ref latestReport, new PresenterClientReport("Disconnected", null, null, null, DateTimeOffset.UtcNow));
     }
 
-    internal void Report(string status, double? positionSeconds, double? durationSeconds, string? message) =>
-        Volatile.Write(ref latestReport, new PresenterClientReport(status, positionSeconds, durationSeconds, message, DateTimeOffset.UtcNow));
+    internal bool Report(string status, double? positionSeconds, double? durationSeconds, string? message)
+    {
+        lock (reportLock)
+        {
+            var previousStatus = latestReport.Status;
+            Volatile.Write(ref latestReport, new PresenterClientReport(status, positionSeconds, durationSeconds, message, DateTimeOffset.UtcNow));
+            return IsTerminal(status) && !IsTerminal(previousStatus);
+        }
+    }
+
+    private static bool IsTerminal(string status) =>
+        status.Equals("Ended", StringComparison.OrdinalIgnoreCase) ||
+        status.Equals("Error", StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed record PresenterClientReport(
@@ -45,7 +58,9 @@ public sealed record PresenterClientReport(
     string? Message,
     DateTimeOffset ReceivedUtc);
 
-public sealed class PresenterHub(PresenterConnectionState connectionState) : Hub<IPresenterClient>
+public sealed class PresenterHub(
+    PresenterConnectionState connectionState,
+    IServiceProvider services) : Hub<IPresenterClient>
 {
     public override async Task OnConnectedAsync()
     {
@@ -59,10 +74,19 @@ public sealed class PresenterHub(PresenterConnectionState connectionState) : Hub
         await base.OnDisconnectedAsync(exception);
     }
 
-    public Task ReportStatus(string status, double? positionSeconds, double? durationSeconds, string? message)
+    public async Task ReportStatus(string status, double? positionSeconds, double? durationSeconds, string? message)
     {
-        connectionState.Report(status, positionSeconds, durationSeconds, message);
-        return Task.CompletedTask;
+        if (!connectionState.Report(status, positionSeconds, durationSeconds, message))
+        {
+            return;
+        }
+
+        var playback = services.GetService<IPlaybackCommandService>();
+        if (playback is not null)
+        {
+            TimeSpan? position = positionSeconds is >= 0 ? TimeSpan.FromSeconds(positionSeconds.Value) : null;
+            await playback.AdvanceAsync(position, status.Equals("Ended", StringComparison.OrdinalIgnoreCase), Context.ConnectionAborted);
+        }
     }
 }
 

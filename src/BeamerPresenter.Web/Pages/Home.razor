@@ -3,6 +3,7 @@
 @using MudBlazor
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject BeamerPresenter.Application.IMediaLibraryService MediaLibraryService
+@inject BeamerPresenter.Application.PlaybackQueueService PlaybackQueue
 @inject BeamerPresenter.Application.PlaybackController Playback
 
 <MudStack Spacing="4">
@@ -32,6 +33,14 @@
     else if (UploadResult == "error")
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(UploadMessage) ? UploadMessage : "Das Video konnte nicht hochgeladen werden.")</MudAlert>
+    }
+    @if (QueueResult == "success")
+    {
+        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die Wiedergabe-Queue wurde aktualisiert.</MudAlert>
+    }
+    else if (QueueResult == "error")
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(QueueMessage) ? QueueMessage : "Die Queue-Aktion ist fehlgeschlagen.")</MudAlert>
     }
 
     <MudGrid Spacing="3">
@@ -64,6 +73,41 @@
             </MudPaper>
         </MudItem>
     </MudGrid>
+
+    <MudPaper Elevation="0" Class="content-panel pa-6">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
+            <div>
+                <MudText Typo="Typo.h5">Wiedergabe-Queue</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Aktueller Clip und die nächsten @_queue.Count(entry => entry.Status == QueueEntryStatus.Pending) Einträge</MudText>
+            </div>
+            <MudChip T="string" Variant="Variant.Outlined" Color="Color.Primary" Icon="@Icons.Material.Filled.QueueMusic">@_queue.Count Einträge</MudChip>
+        </MudStack>
+        @if (_queue.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Die Queue wird aufgefüllt, sobald analysierte Videos verfügbar sind.</MudAlert>
+        }
+        else
+        {
+            <MudTable T="QueueEntry" Items="@_queue" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="queue-table">
+                <HeaderContent>
+                    <MudTh>Position</MudTh>
+                    <MudTh>Video</MudTh>
+                    <MudTh>Segment</MudTh>
+                    <MudTh>Herkunft</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Position">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.Status == QueueEntryStatus.Playing ? Color.Success : Color.Default)" Variant="Variant.Outlined">
+                            @(context.Status == QueueEntryStatus.Playing ? "NOW" : context.SortOrder.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Video">@GetQueueVideoName(context)</MudTd>
+                    <MudTd DataLabel="Segment">@FormatSegment(context.StartPosition, context.EndPosition)</MudTd>
+                    <MudTd DataLabel="Herkunft">@FormatOrigin(context.Origin)</MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
 
     <MudGrid Spacing="4">
         <MudItem xs="12" lg="4">
@@ -111,6 +155,7 @@
                             <MudTh>Format</MudTh>
                             <MudTh>Dauer</MudTh>
                             <MudTh>Größe</MudTh>
+                            <MudTh>Aktion</MudTh>
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd DataLabel="Video">
@@ -128,6 +173,36 @@
                             <MudTd DataLabel="Format"><span class="codec-label">@FormatCodec(context)</span></MudTd>
                             <MudTd DataLabel="Dauer">@FormatDuration(context.Duration)</MudTd>
                             <MudTd DataLabel="Größe">@FormatSize(context.FileSize)</MudTd>
+                            <MudTd DataLabel="Aktion">
+                                @if (IsPlayable(context))
+                                {
+                                    <div class="media-actions">
+                                        <form method="post" action="/api/queue/next">
+                                            <input type="hidden" name="mediaId" value="@context.Id" />
+                                            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.SkipNext">Als Nächstes</MudButton>
+                                        </form>
+                                        <form method="post" action="/api/queue/now">
+                                            <input type="hidden" name="mediaId" value="@context.Id" />
+                                            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.PlayArrow">Sofort</MudButton>
+                                        </form>
+                                        @if (context.Duration > TimeSpan.FromMinutes(10))
+                                        {
+                                            <details class="segment-picker">
+                                                <summary>Segment wählen</summary>
+                                                <form method="post" class="segment-form">
+                                                    <input type="hidden" name="mediaId" value="@context.Id" />
+                                                    <label>Start<input name="start" type="text" placeholder="01:20:00" required /></label>
+                                                    <label>Dauer<input name="duration" type="text" placeholder="00:08:00" required /></label>
+                                                    <div>
+                                                        <button type="submit" formaction="/api/queue/next">Als Nächstes</button>
+                                                        <button type="submit" formaction="/api/queue/now">Sofort</button>
+                                                    </div>
+                                                </form>
+                                            </details>
+                                        }
+                                    </div>
+                                }
+                            </MudTd>
                         </RowTemplate>
                     </MudTable>
                 }
@@ -142,6 +217,7 @@
 
 @code {
     private IReadOnlyList<VideoAsset> _videos = [];
+    private IReadOnlyList<QueueEntry> _queue = [];
 
     [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "q")]
     public string? Search { get; set; }
@@ -152,6 +228,12 @@
     [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "message")]
     public string? UploadMessage { get; set; }
 
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "queue")]
+    public string? QueueResult { get; set; }
+
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "message")]
+    public string? QueueMessage { get; set; }
+
     private string PresenterIcon => Playback.State == PresenterState.Active ? Icons.Material.Filled.PlayCircle : Icons.Material.Filled.PauseCircle;
     private int ReadyCount => _videos.Count(video => video.IsAvailable && video.PlaybackStatus == MediaPlaybackStatus.Supported);
     private int PendingCount => _videos.Count(video => video.IsAvailable && video.ProbeStatus == MediaProbeStatus.Unknown);
@@ -160,7 +242,14 @@
         ? _videos
         : _videos.Where(MatchesSearch).ToList();
 
-    protected override async Task OnInitializedAsync() => _videos = await MediaLibraryService.GetAllAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        var videosTask = MediaLibraryService.GetAllAsync();
+        var queueTask = PlaybackQueue.GetQueueAsync();
+        await Task.WhenAll(videosTask, queueTask);
+        _videos = await videosTask;
+        _queue = await queueTask;
+    }
 
     private bool MatchesSearch(VideoAsset video)
     {
@@ -216,4 +305,22 @@
     private static string FormatSize(long bytes) => bytes >= 1024L * 1024 * 1024
         ? $"{bytes / 1024d / 1024d / 1024d:0.0} GB"
         : $"{bytes / 1024d / 1024d:0.0} MB";
+
+    private static bool IsPlayable(VideoAsset video) =>
+        video.IsAvailable && video.Duration > TimeSpan.Zero && video.PlaybackStatus == MediaPlaybackStatus.Supported;
+
+    private string GetQueueVideoName(QueueEntry entry) => entry.MediaId is int mediaId
+        ? _videos.FirstOrDefault(video => video.Id == mediaId)?.FileName ?? $"Video #{mediaId}"
+        : entry.ExternalSourceKey ?? "Externe Quelle";
+
+    private static string FormatSegment(TimeSpan start, TimeSpan end) =>
+        $"{start:hh\\:mm\\:ss} – {end:hh\\:mm\\:ss}";
+
+    private static string FormatOrigin(QueueEntryOrigin origin) => origin switch
+    {
+        QueueEntryOrigin.ManualNext => "Manuell: Als Nächstes",
+        QueueEntryOrigin.ManualNow => "Manuell: Sofort",
+        QueueEntryOrigin.Manual => "Manuell",
+        _ => "Automatisch"
+    };
 }

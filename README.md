@@ -35,6 +35,7 @@ Die Fundament-Stufe ist implementiert:
 - deterministische Segmentplanung mit vollständiger Wiedergabe kurzer Videos, zufälligen 7- bis 10-Minuten-Ausschnitten langer Videos, Cooldowns und Ausschluss bereits tatsächlich gespielter Bereiche
 - persistente Queue- und Wiedergabehistorie mit konfigurierbaren Schwellenwerten, Segmentlängen, Cooldowns und Zielgröße
 - automatische Queue-Auffüllung im Hintergrund sowie priorisierte Aktionen für „Als Nächstes“ und „Sofort abspielen“, ohne manuelle Einträge zu überschreiben
+- geschützte MudBlazor-Queue-Ansicht mit manueller Segmentwahl; Presenter-Ende und Wiedergabefehler schalten automatisch zum nächsten Eintrag weiter
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 
 Noch nicht enthalten sind die persistente Queue-Steuerung, YouTube, Zeitpläne und die erweiterte Fernsteuerung. Diese werden in den folgenden Phasen hinter den vorhandenen Application-Contracts ergänzt.

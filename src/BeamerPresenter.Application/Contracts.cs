@@ -109,4 +109,11 @@ public interface IPlaybackStore
     Task ClearHistoryAsync(CancellationToken cancellationToken = default);
 }
 
+public interface IPlaybackCommandService
+{
+    Task<QueueEntry> PlayNextAsync(int mediaId, TimeSpan? start = null, TimeSpan? duration = null, CancellationToken cancellationToken = default);
+    Task<QueueEntry> PlayNowAsync(int mediaId, TimeSpan? currentPosition, TimeSpan? start = null, TimeSpan? duration = null, CancellationToken cancellationToken = default);
+    Task<QueueEntry?> AdvanceAsync(TimeSpan? actualPosition, bool successful = true, CancellationToken cancellationToken = default);
+}
+
 public sealed record PresenterStatus(PresenterState State, string Version, string WebUrl);

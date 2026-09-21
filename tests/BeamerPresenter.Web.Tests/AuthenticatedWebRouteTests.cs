@@ -20,6 +20,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
 {
     private const string TestPassword = "integration-test-password";
     private readonly string _dataDirectory = Path.Combine(Path.GetTempPath(), "BeamerPresenter.Tests", Guid.NewGuid().ToString("N"));
+    private readonly RecordingPlaybackCommands _playbackCommands = new();
     private WebApplication? _application;
 
     public async Task InitializeAsync()
@@ -31,6 +32,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         builder.WebHost.UseTestServer();
         builder.Services.AddPresenterInfrastructure(_dataDirectory);
         builder.Services.AddPresenterWebUi();
+        builder.Services.AddSingleton<IPlaybackCommandService>(_playbackCommands);
 
         _application = builder.Build();
         await using (var scope = _application.Services.CreateAsyncScope())
@@ -62,6 +64,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, pageResponse.StatusCode);
         Assert.Contains("Videobibliothek", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("Wiedergabe-Queue", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -88,6 +91,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("arena-final.mp4", html, StringComparison.Ordinal);
         Assert.Contains("Bereit", html, StringComparison.Ordinal);
+        Assert.Contains("Als Nächstes", html, StringComparison.Ordinal);
         Assert.DoesNotContain("retro-demo.mkv", html, StringComparison.Ordinal);
     }
 
@@ -112,6 +116,46 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Redirect, uploadResponse.StatusCode);
         Assert.Equal("/?upload=success", uploadResponse.Headers.Location?.OriginalString);
         Assert.True(File.Exists(Path.Combine(uploadDirectory, "uploaded-clip.mp4")));
+    }
+
+    [Fact]
+    public async Task Authenticated_queue_action_accepts_manual_segment()
+    {
+        using var client = _application!.GetTestClient();
+        var cookie = await LoginAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/queue/next")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["mediaId"] = "42",
+                ["start"] = "01:20:00",
+                ["duration"] = "00:08:00"
+            })
+        };
+        request.Headers.Add("Cookie", cookie);
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/?queue=success", response.Headers.Location?.OriginalString);
+        var command = Assert.Single(_playbackCommands.NextCalls);
+        Assert.Equal(42, command.MediaId);
+        Assert.Equal(TimeSpan.FromHours(1) + TimeSpan.FromMinutes(20), command.Start);
+        Assert.Equal(TimeSpan.FromMinutes(8), command.Duration);
+    }
+
+    [Fact]
+    public async Task Queue_actions_reject_unauthenticated_requests()
+    {
+        using var client = _application!.GetTestClient();
+        using var response = await client.PostAsync(
+            "/api/queue/now",
+            new FormUrlEncodedContent(new Dictionary<string, string> { ["mediaId"] = "42" }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/login", response.Headers.Location?.AbsolutePath);
+        Assert.Empty(_playbackCommands.NextCalls);
+        Assert.Empty(_playbackCommands.NowCalls);
     }
 
     [Fact]
@@ -198,6 +242,21 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.True(connectionState.IsConnected);
         Assert.Equal(12.5, connectionState.LatestReport.PositionSeconds);
 
+        await SendSignalRMessageAsync(
+            socket,
+            "{\"type\":1,\"invocationId\":\"ended-1\",\"target\":\"ReportStatus\",\"arguments\":[\"Ended\",89.5,90.0,null]}",
+            cancellation.Token);
+        Assert.Contains("\"invocationId\":\"ended-1\"", await ReceiveSignalRMessageAsync(socket, cancellation.Token), StringComparison.Ordinal);
+        await SendSignalRMessageAsync(
+            socket,
+            "{\"type\":1,\"invocationId\":\"ended-2\",\"target\":\"ReportStatus\",\"arguments\":[\"Ended\",89.5,90.0,null]}",
+            cancellation.Token);
+        Assert.Contains("\"invocationId\":\"ended-2\"", await ReceiveSignalRMessageAsync(socket, cancellation.Token), StringComparison.Ordinal);
+        await _playbackCommands.Advanced.Task.WaitAsync(cancellation.Token);
+        var advance = Assert.Single(_playbackCommands.AdvanceCalls);
+        Assert.Equal(TimeSpan.FromSeconds(89.5), advance.Position);
+        Assert.True(advance.Successful);
+
         await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Test completed", cancellation.Token);
     }
 
@@ -257,6 +316,36 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
             await Task.Delay(TimeSpan.FromMilliseconds(20), cancellationToken);
         }
     }
+
+    private sealed class RecordingPlaybackCommands : IPlaybackCommandService
+    {
+        public List<QueueCommand> NextCalls { get; } = [];
+        public List<QueueCommand> NowCalls { get; } = [];
+        public List<AdvanceCommand> AdvanceCalls { get; } = [];
+        public TaskCompletionSource Advanced { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<QueueEntry> PlayNextAsync(int mediaId, TimeSpan? start = null, TimeSpan? duration = null, CancellationToken cancellationToken = default)
+        {
+            NextCalls.Add(new QueueCommand(mediaId, start, duration));
+            return Task.FromResult(new QueueEntry { MediaId = mediaId, SourceType = MediaSourceType.Local });
+        }
+
+        public Task<QueueEntry> PlayNowAsync(int mediaId, TimeSpan? currentPosition, TimeSpan? start = null, TimeSpan? duration = null, CancellationToken cancellationToken = default)
+        {
+            NowCalls.Add(new QueueCommand(mediaId, start, duration));
+            return Task.FromResult(new QueueEntry { MediaId = mediaId, SourceType = MediaSourceType.Local });
+        }
+
+        public Task<QueueEntry?> AdvanceAsync(TimeSpan? actualPosition, bool successful = true, CancellationToken cancellationToken = default)
+        {
+            AdvanceCalls.Add(new AdvanceCommand(actualPosition, successful));
+            Advanced.TrySetResult();
+            return Task.FromResult<QueueEntry?>(null);
+        }
+    }
+
+    private sealed record QueueCommand(int MediaId, TimeSpan? Start, TimeSpan? Duration);
+    private sealed record AdvanceCommand(TimeSpan? Position, bool Successful);
 
     public async Task DisposeAsync()
     {

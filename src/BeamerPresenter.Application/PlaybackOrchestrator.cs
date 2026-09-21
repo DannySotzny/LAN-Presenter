@@ -8,7 +8,7 @@ public sealed class PlaybackOrchestrator(
     IPresenterGateway presenter,
     IPresenterSettingsService settingsService,
     IPowerManagementService powerManagement,
-    PlaybackQueueService queue)
+    PlaybackQueueService queue) : IPlaybackCommandService
 {
     private readonly SemaphoreSlim commandGate = new(1, 1);
 
