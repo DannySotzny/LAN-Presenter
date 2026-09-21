@@ -186,8 +186,18 @@ public sealed class PlaybackOrchestrator(
     public Task StopNewsAsync(long? newsId = null, CancellationToken cancellationToken = default) =>
         ExecuteSerializedAsync(async () =>
         {
-            if (currentNews is null || (newsId.HasValue && currentNews.Id != newsId.Value))
+            if (currentNews is null)
             {
+                return;
+            }
+
+            if (newsId.HasValue && currentNews.Id != newsId.Value)
+            {
+                if (suspendedNews?.Id == newsId.Value)
+                {
+                    suspendedNews = null;
+                }
+
                 return;
             }
 

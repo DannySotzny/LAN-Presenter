@@ -36,6 +36,10 @@ public static class WebApplicationExtensions
         app.MapPost("/api/queue/now", (Delegate)PlayNowAsync).RequireAuthorization();
         app.MapPost("/api/youtube/next", (Delegate)PlayYouTubeNextAsync).RequireAuthorization();
         app.MapPost("/api/youtube/now", (Delegate)PlayYouTubeNowAsync).RequireAuthorization();
+        app.MapPost("/api/news/create", (Delegate)CreateNewsAsync).RequireAuthorization();
+        app.MapPost("/api/news/show", (Delegate)ShowNewsAsync).RequireAuthorization();
+        app.MapPost("/api/news/stop", (Delegate)StopNewsAsync).RequireAuthorization();
+        app.MapPost("/api/news/delete", (Delegate)DeleteNewsAsync).RequireAuthorization();
         app.MapGet("/media/{mediaId:int}", (Delegate)StreamMediaAsync).AllowAnonymous();
         app.MapHub<PresenterHub>("/hubs/presenter");
         app.MapRazorComponents<PresenterWebApp>(); return app;
@@ -154,6 +158,86 @@ public static class WebApplicationExtensions
         }
     }
 
+    private static async Task<IResult> CreateNewsAsync(
+        HttpContext context,
+        INewsService newsService,
+        CancellationToken cancellationToken)
+    {
+        var form = await context.Request.ReadFormAsync(cancellationToken);
+        try
+        {
+            if (!Enum.TryParse<NewsMode>(form["mode"].ToString(), ignoreCase: true, out var mode))
+            {
+                throw new FormatException("Der News-Modus ist ungültig.");
+            }
+
+            _ = int.TryParse(form["priority"], out var priority);
+            await newsService.AddAsync(new NewsItem
+            {
+                Title = form["title"].ToString().Trim(),
+                Text = form["text"].ToString().Trim(),
+                Mode = mode,
+                Duration = ParseOptionalTime(form["duration"].ToString()),
+                Permanent = form.ContainsKey("permanent"),
+                ValidFrom = ParseOptionalDateTime(form["validFrom"].ToString()),
+                ValidUntil = ParseOptionalDateTime(form["validUntil"].ToString()),
+                Priority = priority
+            }, cancellationToken);
+            return Results.Redirect("/?news=created");
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FormatException)
+        {
+            return Results.Redirect($"/?news=error&message={Uri.EscapeDataString(exception.Message)}");
+        }
+    }
+
+    private static async Task<IResult> ShowNewsAsync(
+        HttpContext context,
+        INewsService newsService,
+        INewsCommandService commands,
+        CancellationToken cancellationToken)
+    {
+        var id = await ReadNewsIdAsync(context, cancellationToken);
+        var item = (await newsService.GetAllAsync(cancellationToken)).SingleOrDefault(news => news.Id == id);
+        if (item is null)
+        {
+            return Results.Redirect("/?news=error&message=News%20nicht%20gefunden");
+        }
+
+        await commands.ShowNewsAsync(item, cancellationToken);
+        return Results.Redirect("/?news=shown");
+    }
+
+    private static async Task<IResult> StopNewsAsync(
+        INewsCommandService commands,
+        CancellationToken cancellationToken)
+    {
+        await commands.StopNewsAsync(cancellationToken: cancellationToken);
+        return Results.Redirect("/?news=stopped");
+    }
+
+    private static async Task<IResult> DeleteNewsAsync(
+        HttpContext context,
+        INewsService newsService,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await newsService.DeleteAsync(await ReadNewsIdAsync(context, cancellationToken), cancellationToken);
+            return Results.Redirect("/?news=deleted");
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Results.Redirect($"/?news=error&message={Uri.EscapeDataString(exception.Message)}");
+        }
+    }
+
+    private static async Task<long> ReadNewsIdAsync(HttpContext context, CancellationToken cancellationToken)
+    {
+        var form = await context.Request.ReadFormAsync(cancellationToken);
+        return long.TryParse(form["id"], out var id) ? id : 0;
+    }
+
     private static TimeSpan? ParseOptionalTime(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -167,6 +251,21 @@ public static class WebApplicationExtensions
         }
 
         throw new FormatException("Start und Dauer müssen als HH:MM:SS angegeben werden.");
+    }
+
+    private static DateTimeOffset? ParseOptionalDateTime(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (DateTimeOffset.TryParse(value, System.Globalization.CultureInfo.CurrentCulture, out var result))
+        {
+            return result;
+        }
+
+        throw new FormatException("Das News-Gültigkeitsfenster ist ungültig.");
     }
 
     private static async Task<IResult> StreamMediaAsync(

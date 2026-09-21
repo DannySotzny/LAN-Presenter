@@ -201,6 +201,35 @@ public sealed class PlaybackOrchestratorTests
         Assert.Equal(["presenter:news:3:Ticker", "presenter:hide-news"], calls);
     }
 
+    [Fact]
+    public async Task Expired_suspended_news_is_not_restored_after_fullscreen()
+    {
+        var calls = new List<string>();
+        var settings = new StubSettingsService();
+        var orchestrator = new PlaybackOrchestrator(
+            new PlaybackController(),
+            new RecordingBrowser(calls),
+            new RecordingPresenter(calls),
+            settings,
+            new RecordingPowerManagement(calls),
+            new PlaybackQueueService(
+                new EmptyPlaybackStore(),
+                new EmptyMediaLibrary(),
+                settings,
+                new MediaSegmentPlanner(new ZeroRandomSource()),
+                TimeProvider.System));
+        var ticker = new NewsItem { Id = 10, Title = "Ticker", Text = "Text", Mode = NewsMode.Ticker, Permanent = true };
+        var fullscreen = new NewsItem { Id = 11, Title = "Fullscreen", Text = "Text", Mode = NewsMode.Fullscreen, Permanent = true };
+
+        await orchestrator.ShowNewsAsync(ticker);
+        await orchestrator.ShowNewsAsync(fullscreen);
+        await orchestrator.StopNewsAsync(ticker.Id);
+        await orchestrator.StopNewsAsync(fullscreen.Id);
+
+        Assert.Equal(1, calls.Count(call => call == "presenter:news:10:Ticker"));
+        Assert.Equal("presenter:play", calls[^1]);
+    }
+
     private sealed class StubSettingsService : IPresenterSettingsService
     {
         private readonly PresenterSettings settings = new() { PreventDisplaySleep = true, PreventSystemSleep = true };

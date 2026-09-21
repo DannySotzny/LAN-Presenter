@@ -4,6 +4,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject BeamerPresenter.Application.IMediaLibraryService MediaLibraryService
 @inject BeamerPresenter.Application.PlaybackQueueService PlaybackQueue
+@inject BeamerPresenter.Application.INewsService NewsService
 @inject BeamerPresenter.Application.PlaybackController Playback
 
 <MudStack Spacing="4">
@@ -49,6 +50,14 @@
     else if (YouTubeResult == "error")
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(YouTubeMessage) ? YouTubeMessage : "Der YouTube-Link konnte nicht eingereiht werden.")</MudAlert>
+    }
+    @if (NewsResult is "created" or "shown" or "stopped" or "deleted")
+    {
+        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die News-Aktion wurde ausgeführt.</MudAlert>
+    }
+    else if (NewsResult == "error")
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(NewsMessage) ? NewsMessage : "Die News-Aktion ist fehlgeschlagen.")</MudAlert>
     }
 
     <MudGrid Spacing="3">
@@ -139,6 +148,74 @@
                 </RowTemplate>
             </MudTable>
         }
+    </MudPaper>
+
+    <MudPaper Elevation="0" Class="content-panel pa-6 news-panel">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
+            <div>
+                <MudText Typo="Typo.h5">News &amp; Einblendungen</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Ticker, 50:50-Split-Screen oder priorisierte Fullscreen-Meldung</MudText>
+            </div>
+            <form method="post" action="/api/news/stop">
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.StopCircle">Aktuelle News beenden</MudButton>
+            </form>
+        </MudStack>
+        <MudGrid Spacing="4">
+            <MudItem xs="12" lg="5">
+                <form method="post" action="/api/news/create" class="news-form">
+                    <label>Titel<input name="title" maxlength="200" required /></label>
+                    <label>Text<textarea name="text" rows="4" maxlength="4000" required></textarea></label>
+                    <div class="news-form-grid">
+                        <label>Modus
+                            <select name="mode">
+                                <option value="Ticker">Ticker</option>
+                                <option value="SplitScreen">Split-Screen 50:50</option>
+                                <option value="Fullscreen">Fullscreen</option>
+                            </select>
+                        </label>
+                        <label>Dauer<input name="duration" type="text" value="00:05:00" /></label>
+                        <label>Priorität<input name="priority" type="number" value="0" min="-1000" max="1000" /></label>
+                    </div>
+                    <label class="news-checkbox"><input name="permanent" type="checkbox" value="true" /> Permanent anzeigen</label>
+                    <div class="news-form-grid news-schedule-grid">
+                        <label>Gültig ab <span>(optional)</span><input name="validFrom" type="datetime-local" /></label>
+                        <label>Gültig bis <span>(optional)</span><input name="validUntil" type="datetime-local" /></label>
+                    </div>
+                    <button type="submit" class="news-create-button">News speichern</button>
+                </form>
+            </MudItem>
+            <MudItem xs="12" lg="7">
+                @if (_news.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Noch keine News gespeichert.</MudAlert>
+                }
+                else
+                {
+                    <MudTable T="NewsItem" Items="@_news" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="news-table">
+                        <HeaderContent>
+                            <MudTh>News</MudTh>
+                            <MudTh>Modus</MudTh>
+                            <MudTh>Laufzeit</MudTh>
+                            <MudTh>Aktion</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="News">
+                                <MudText Typo="Typo.body2">@context.Title</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@context.Text</MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Modus"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@FormatNewsMode(context.Mode)</MudChip></MudTd>
+                            <MudTd DataLabel="Laufzeit">@(context.Permanent ? "Permanent" : FormatDuration(context.Duration))</MudTd>
+                            <MudTd DataLabel="Aktion">
+                                <div class="news-row-actions">
+                                    <form method="post" action="/api/news/show"><input type="hidden" name="id" value="@context.Id" /><button type="submit">Jetzt anzeigen</button></form>
+                                    <form method="post" action="/api/news/delete"><input type="hidden" name="id" value="@context.Id" /><button type="submit" class="danger">Löschen</button></form>
+                                </div>
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudItem>
+        </MudGrid>
     </MudPaper>
 
     <MudGrid Spacing="4">
@@ -250,6 +327,7 @@
 @code {
     private IReadOnlyList<VideoAsset> _videos = [];
     private IReadOnlyList<QueueEntry> _queue = [];
+    private IReadOnlyList<NewsItem> _news = [];
 
     [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "q")]
     public string? Search { get; set; }
@@ -272,6 +350,12 @@
     [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "message")]
     public string? YouTubeMessage { get; set; }
 
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "news")]
+    public string? NewsResult { get; set; }
+
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "message")]
+    public string? NewsMessage { get; set; }
+
     private string PresenterIcon => Playback.State == PresenterState.Active ? Icons.Material.Filled.PlayCircle : Icons.Material.Filled.PauseCircle;
     private int ReadyCount => _videos.Count(video => video.IsAvailable && video.PlaybackStatus == MediaPlaybackStatus.Supported);
     private int PendingCount => _videos.Count(video => video.IsAvailable && video.ProbeStatus == MediaProbeStatus.Unknown);
@@ -284,9 +368,11 @@
     {
         var videosTask = MediaLibraryService.GetAllAsync();
         var queueTask = PlaybackQueue.GetQueueAsync();
-        await Task.WhenAll(videosTask, queueTask);
+        var newsTask = NewsService.GetAllAsync();
+        await Task.WhenAll(videosTask, queueTask, newsTask);
         _videos = await videosTask;
         _queue = await queueTask;
+        _news = await newsTask;
     }
 
     private bool MatchesSearch(VideoAsset video)
@@ -365,5 +451,12 @@
         QueueEntryOrigin.ManualNow => "Manuell: Sofort",
         QueueEntryOrigin.Manual => "Manuell",
         _ => "Automatisch"
+    };
+
+    private static string FormatNewsMode(NewsMode mode) => mode switch
+    {
+        NewsMode.SplitScreen => "Split-Screen",
+        NewsMode.Fullscreen => "Fullscreen",
+        _ => "Ticker"
     };
 }

@@ -33,6 +33,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         builder.Services.AddPresenterInfrastructure(_dataDirectory);
         builder.Services.AddPresenterWebUi();
         builder.Services.AddSingleton<IPlaybackCommandService>(_playbackCommands);
+        builder.Services.AddSingleton<INewsCommandService>(_playbackCommands);
 
         _application = builder.Build();
         await using (var scope = _application.Services.CreateAsyncScope())
@@ -66,6 +67,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Contains("Videobibliothek", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Contains("Wiedergabe-Queue", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Contains("YouTube einreihen", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("News &amp; Einblendungen", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -145,18 +147,25 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Equal(TimeSpan.FromMinutes(8), command.Duration);
     }
 
-    [Fact]
-    public async Task Queue_actions_reject_unauthenticated_requests()
+    [Theory]
+    [InlineData("/api/queue/now")]
+    [InlineData("/api/youtube/now")]
+    [InlineData("/api/news/show")]
+    [InlineData("/api/news/delete")]
+    public async Task Management_actions_reject_unauthenticated_requests(string endpoint)
     {
         using var client = _application!.GetTestClient();
         using var response = await client.PostAsync(
-            "/api/queue/now",
+            endpoint,
             new FormUrlEncodedContent(new Dictionary<string, string> { ["mediaId"] = "42" }));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal("/login", response.Headers.Location?.AbsolutePath);
         Assert.Empty(_playbackCommands.NextCalls);
         Assert.Empty(_playbackCommands.NowCalls);
+        Assert.Empty(_playbackCommands.YouTubeNowCalls);
+        Assert.Empty(_playbackCommands.ShownNews);
+        Assert.Equal(0, _playbackCommands.StopNewsCalls);
     }
 
     [Fact]
@@ -181,6 +190,38 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         var command = Assert.Single(_playbackCommands.YouTubeNextCalls);
         Assert.Equal("https://youtu.be/dQw4w9WgXcQ", command.Url);
         Assert.Equal(TimeSpan.FromMinutes(10), command.MaximumDuration);
+    }
+
+    [Fact]
+    public async Task Authenticated_news_can_be_created_and_shown()
+    {
+        using var client = _application!.GetTestClient();
+        var cookie = await LoginAsync(client);
+        using var createRequest = new HttpRequestMessage(HttpMethod.Post, "/api/news/create")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["title"] = "CS2 5on5",
+                ["text"] = "Start um 20 Uhr",
+                ["mode"] = "Ticker",
+                ["duration"] = "00:05:00",
+                ["priority"] = "3"
+            })
+        };
+        createRequest.Headers.Add("Cookie", cookie);
+        using var createResponse = await client.SendAsync(createRequest);
+        Assert.Equal("/?news=created", createResponse.Headers.Location?.OriginalString);
+        var item = Assert.Single(await _application!.Services.GetRequiredService<INewsService>().GetAllAsync());
+
+        using var showRequest = new HttpRequestMessage(HttpMethod.Post, "/api/news/show")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["id"] = item.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) })
+        };
+        showRequest.Headers.Add("Cookie", cookie);
+        using var showResponse = await client.SendAsync(showRequest);
+
+        Assert.Equal("/?news=shown", showResponse.Headers.Location?.OriginalString);
+        Assert.Equal(item.Id, Assert.Single(_playbackCommands.ShownNews).Id);
     }
 
     [Fact]
@@ -383,7 +424,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         }
     }
 
-    private sealed class RecordingPlaybackCommands : IPlaybackCommandService
+    private sealed class RecordingPlaybackCommands : IPlaybackCommandService, INewsCommandService
     {
         public List<QueueCommand> NextCalls { get; } = [];
         public List<QueueCommand> NowCalls { get; } = [];
@@ -391,6 +432,8 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         public List<YouTubeCommand> YouTubeNowCalls { get; } = [];
         public List<AdvanceCommand> AdvanceCalls { get; } = [];
         public TaskCompletionSource Advanced { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<NewsItem> ShownNews { get; } = [];
+        public int StopNewsCalls { get; private set; }
 
         public Task<QueueEntry> PlayNextAsync(int mediaId, TimeSpan? start = null, TimeSpan? duration = null, CancellationToken cancellationToken = default)
         {
@@ -421,6 +464,18 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
             AdvanceCalls.Add(new AdvanceCommand(actualPosition, successful));
             Advanced.TrySetResult();
             return Task.FromResult<QueueEntry?>(null);
+        }
+
+        public Task ShowNewsAsync(NewsItem item, CancellationToken cancellationToken = default)
+        {
+            ShownNews.Add(item);
+            return Task.CompletedTask;
+        }
+
+        public Task StopNewsAsync(long? newsId = null, CancellationToken cancellationToken = default)
+        {
+            StopNewsCalls++;
+            return Task.CompletedTask;
         }
     }
 
