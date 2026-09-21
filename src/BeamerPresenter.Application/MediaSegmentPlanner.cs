@@ -153,14 +153,17 @@ public sealed class MediaSegmentPlanner
         PlaybackPlanningOptions settings,
         DateTimeOffset now)
     {
-        var recentByCount = history
-            .OrderByDescending(entry => entry.StartedUtc)
-            .Take(settings.VideoCooldownCount)
-            .Select(entry => entry.MediaId);
-        var cutoff = now.AddMinutes(-settings.TimeCooldownMinutes);
-        var recentByTime = history
-            .Where(entry => entry.StartedUtc >= cutoff)
-            .Select(entry => entry.MediaId);
+        var recentByCount = settings.VideoCooldownCount == 0
+            ? []
+            : history
+                .OrderByDescending(entry => entry.StartedUtc)
+                .Take(settings.VideoCooldownCount)
+                .Select(entry => entry.MediaId);
+        var recentByTime = settings.TimeCooldownMinutes == 0
+            ? []
+            : history
+                .Where(entry => entry.StartedUtc >= now.AddMinutes(-settings.TimeCooldownMinutes))
+                .Select(entry => entry.MediaId);
 
         return recentByCount.Concat(recentByTime).ToHashSet();
     }

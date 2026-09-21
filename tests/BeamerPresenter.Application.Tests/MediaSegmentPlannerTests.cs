@@ -94,6 +94,19 @@ public sealed class MediaSegmentPlannerTests
     }
 
     [Fact]
+    public void Zero_cooldowns_disable_both_cooldown_filters()
+    {
+        var result = Planner().Plan(
+            [Video(1, TimeSpan.FromMinutes(20))],
+            [Played(1, TimeSpan.Zero, TimeSpan.FromMinutes(7), Now)],
+            Settings(videoCooldownCount: 0, timeCooldownMinutes: 0),
+            Now);
+
+        Assert.Equal(1, result?.MediaId);
+        Assert.True(result?.Start >= TimeSpan.FromMinutes(7));
+    }
+
+    [Fact]
     public void Long_video_is_exhausted_when_no_minimum_segment_remains()
     {
         var history = new[]

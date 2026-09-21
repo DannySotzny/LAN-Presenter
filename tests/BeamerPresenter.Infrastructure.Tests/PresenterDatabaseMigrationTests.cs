@@ -116,6 +116,32 @@ public sealed class PresenterDatabaseMigrationTests
         }
     }
 
+    [Fact]
+    public async Task Concurrent_initial_settings_reads_create_only_one_row()
+    {
+        var dataDirectory = CreateTestDirectory();
+        try
+        {
+            PresenterDatabase.GetConfiguredWebPort(dataDirectory);
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddPresenterInfrastructure(dataDirectory);
+            await using var provider = services.BuildServiceProvider();
+            var settingsService = provider.GetRequiredService<IPresenterSettingsService>();
+
+            var results = await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => settingsService.GetAsync()));
+
+            Assert.All(results, settings => Assert.Equal(1, settings.Id));
+            var factory = provider.GetRequiredService<IDbContextFactory<PresenterDbContext>>();
+            await using var context = await factory.CreateDbContextAsync();
+            Assert.Equal(1, await context.Settings.CountAsync());
+        }
+        finally
+        {
+            DeleteTestDirectory(dataDirectory);
+        }
+    }
+
     private static async Task<string> ReadAppliedMigrationAsync(SqliteConnection connection) =>
         await ReadScalarAsync(connection, "SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId DESC LIMIT 1;");
 

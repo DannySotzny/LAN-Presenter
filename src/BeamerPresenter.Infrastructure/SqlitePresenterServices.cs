@@ -31,6 +31,11 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<MediaFolderWatcher>();
         services.AddHostedService<MediaReconciliationWorker>();
         services.AddSingleton<PlaybackController>();
+        services.AddSingleton<IRandomSource, SystemRandomSource>();
+        services.AddSingleton<MediaSegmentPlanner>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<PlaybackQueueService>();
+        services.AddHostedService<QueuePlanningWorker>();
         return services;
     }
 }
@@ -132,62 +137,79 @@ public static class PresenterDatabase
 internal sealed class SqlitePresenterSettingsService(IDbContextFactory<PresenterDbContext> contextFactory) : IPresenterSettingsService
 {
     private const int PasswordIterations = 600_000;
+    private readonly SemaphoreSlim commandGate = new(1, 1);
 
     public async Task<PresenterSettings> GetAsync(CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var settings = await context.Settings.SingleOrDefaultAsync(x => x.Id == 1, cancellationToken);
-        if (settings is not null)
+        await commandGate.WaitAsync(cancellationToken);
+        try
         {
-            return settings;
+            await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+            return await GetOrCreateAsync(context, cancellationToken);
         }
-
-        settings = new PresenterSettings { MediaFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Beamer Presenter") };
-        context.Settings.Add(settings);
-        await context.SaveChangesAsync(cancellationToken);
-        return settings;
+        finally
+        {
+            commandGate.Release();
+        }
     }
 
     public async Task SaveAsync(PresenterSettings settings, CancellationToken cancellationToken = default)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var existing = await context.Settings.SingleOrDefaultAsync(x => x.Id == 1, cancellationToken);
-        if (existing is null)
+        await commandGate.WaitAsync(cancellationToken);
+        try
         {
-            context.Settings.Add(settings);
-        }
-        else
-        {
-            existing.WebPort = settings.WebPort;
-            existing.AllowLanAccess = settings.AllowLanAccess;
-            existing.MediaFolder = settings.MediaFolder;
-            existing.FfprobePath = settings.FfprobePath;
-            existing.ChromePath = settings.ChromePath;
-            existing.MonitorDeviceName = settings.MonitorDeviceName;
-            existing.AlwaysOnTop = settings.AlwaysOnTop;
-            existing.AggressiveTopmost = settings.AggressiveTopmost;
-            existing.PreventDisplaySleep = settings.PreventDisplaySleep;
-            existing.PreventSystemSleep = settings.PreventSystemSleep;
-            existing.ShortVideoThresholdSeconds = settings.ShortVideoThresholdSeconds;
-            existing.ClipLengthMinSeconds = settings.ClipLengthMinSeconds;
-            existing.ClipLengthMaxSeconds = settings.ClipLengthMaxSeconds;
-            existing.VideoCooldownCount = settings.VideoCooldownCount;
-            existing.TimeCooldownMinutes = settings.TimeCooldownMinutes;
-            existing.QueueTargetLength = settings.QueueTargetLength;
-        }
+            await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+            var existing = await context.Settings.SingleOrDefaultAsync(x => x.Id == 1, cancellationToken);
+            if (existing is null)
+            {
+                context.Settings.Add(settings);
+            }
+            else
+            {
+                existing.WebPort = settings.WebPort;
+                existing.AllowLanAccess = settings.AllowLanAccess;
+                existing.MediaFolder = settings.MediaFolder;
+                existing.FfprobePath = settings.FfprobePath;
+                existing.ChromePath = settings.ChromePath;
+                existing.MonitorDeviceName = settings.MonitorDeviceName;
+                existing.AlwaysOnTop = settings.AlwaysOnTop;
+                existing.AggressiveTopmost = settings.AggressiveTopmost;
+                existing.PreventDisplaySleep = settings.PreventDisplaySleep;
+                existing.PreventSystemSleep = settings.PreventSystemSleep;
+                existing.ShortVideoThresholdSeconds = settings.ShortVideoThresholdSeconds;
+                existing.ClipLengthMinSeconds = settings.ClipLengthMinSeconds;
+                existing.ClipLengthMaxSeconds = settings.ClipLengthMaxSeconds;
+                existing.VideoCooldownCount = settings.VideoCooldownCount;
+                existing.TimeCooldownMinutes = settings.TimeCooldownMinutes;
+                existing.QueueTargetLength = settings.QueueTargetLength;
+            }
 
-        await context.SaveChangesAsync(cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        finally
+        {
+            commandGate.Release();
+        }
     }
 
     public async Task SetWebPasswordAsync(string password, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(password);
-        var settings = await GetAsync(cancellationToken);
-        var salt = RandomNumberGenerator.GetBytes(16);
-        var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, PasswordIterations, HashAlgorithmName.SHA512, 32);
-        settings.PasswordSalt = Convert.ToBase64String(salt);
-        settings.PasswordHash = Convert.ToBase64String(hash);
-        await SavePasswordAsync(settings, cancellationToken);
+        await commandGate.WaitAsync(cancellationToken);
+        try
+        {
+            await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+            var settings = await GetOrCreateAsync(context, cancellationToken);
+            var salt = RandomNumberGenerator.GetBytes(16);
+            var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, PasswordIterations, HashAlgorithmName.SHA512, 32);
+            settings.PasswordSalt = Convert.ToBase64String(salt);
+            settings.PasswordHash = Convert.ToBase64String(hash);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        finally
+        {
+            commandGate.Release();
+        }
     }
 
     public async Task<bool> VerifyWebPasswordAsync(string password, CancellationToken cancellationToken = default)
@@ -206,13 +228,20 @@ internal sealed class SqlitePresenterSettingsService(IDbContextFactory<Presenter
     public async Task<bool> HasWebPasswordAsync(CancellationToken cancellationToken = default) =>
         !string.IsNullOrWhiteSpace((await GetAsync(cancellationToken)).PasswordHash);
 
-    private async Task SavePasswordAsync(PresenterSettings settings, CancellationToken cancellationToken)
+    private static async Task<PresenterSettings> GetOrCreateAsync(
+        PresenterDbContext context,
+        CancellationToken cancellationToken)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var existing = await context.Settings.SingleAsync(x => x.Id == 1, cancellationToken);
-        existing.PasswordHash = settings.PasswordHash;
-        existing.PasswordSalt = settings.PasswordSalt;
+        var settings = await context.Settings.SingleOrDefaultAsync(x => x.Id == 1, cancellationToken);
+        if (settings is not null)
+        {
+            return settings;
+        }
+
+        settings = new PresenterSettings { MediaFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Beamer Presenter") };
+        context.Settings.Add(settings);
         await context.SaveChangesAsync(cancellationToken);
+        return settings;
     }
 }
 

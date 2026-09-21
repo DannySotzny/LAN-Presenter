@@ -38,6 +38,7 @@
 - `/presenter` verwendet einen eigenen layoutfreien Fullscreen-View und verbindet sich über das lokal ausgelieferte `presenter.js` direkt mit `/hubs/presenter`. Der Client implementiert den SignalR-JSON-Handshake ohne CDN-Abhängigkeit, reconnectet automatisch und meldet Ready/Playing/Paused/Buffering/Ended/Error/Heartbeat zurück.
 - `MediaSegmentPlanner` wählt zuerst gleichverteilt ein geeignetes Video und erst danach dessen Segment. Nur tatsächlich gespielte `ActualStart`-/`ActualEnd`-Bereiche sperren Material; zweisekündige Grenztoleranz darf keine inhaltlichen Überschneidungen erzeugen. Zufall bleibt über `IRandomSource` in Tests deterministisch.
 - Queue und Wiedergabehistorie werden über `IPlaybackStore` in SQLite persistiert. `GetQueueAsync` liefert nur Pending/Playing nach `SortOrder`; die Historie wird wegen der SQLite-`DateTimeOffset`-Grenze erst geladen und im Speicher sortiert. Planungsparameter gehören zum migrierten `PresenterSettings`-Datensatz.
+- `PlaybackQueueService` serialisiert Queue-Mutationen, reserviert auch geplante Segmente gegen Doppelbelegung und hält manuelle Einträge beim automatischen Auffüllen unverändert. Nur `PlaybackOrchestrator` darf daraus SignalR-Wiedergabekommandos auslösen; `Play Now` speichert vor dem Stoppen ausschließlich die tatsächliche Position.
 
 ## Arbeitsweise
 
