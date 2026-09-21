@@ -1,4 +1,13 @@
 Beamerpresenter.App Changelog
+<a name="0.7.0"></a>
+## [0.7.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.7.0) (2026-09-21)
+
+### Features
+
+* normalize youtube video urls ([e8f167e](https://www.github.com/DannySotzny/LAN-Presenter/commit/e8f167e1101c821247248bf93beccc23433175e7))
+* persist youtube playback history ([a084880](https://www.github.com/DannySotzny/LAN-Presenter/commit/a084880591ec6a8273b9e523652b7330902d4e16))
+* play youtube queue entries ([822691c](https://www.github.com/DannySotzny/LAN-Presenter/commit/822691caa0c0bc79562f19d6ca3ccba2a3e8ed05))
+
 <a name="0.6.0"></a>
 ## [0.6.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.6.0) (2026-09-21)
 
