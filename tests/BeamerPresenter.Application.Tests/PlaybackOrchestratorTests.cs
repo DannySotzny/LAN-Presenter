@@ -83,6 +83,30 @@ public sealed class PlaybackOrchestratorTests
     }
 
     [Fact]
+    public async Task Reload_current_can_restore_paused_entry_without_autoplay()
+    {
+        var calls = new List<string>();
+        var settings = new StubSettingsService();
+        var presenter = new RecordingPresenter(calls);
+        var orchestrator = new PlaybackOrchestrator(
+            new PlaybackController(),
+            new RecordingBrowser(calls),
+            presenter,
+            settings,
+            new RecordingPowerManagement(calls),
+            new PlaybackQueueService(
+                new RecordingPlaybackStore(calls),
+                new EmptyMediaLibrary(),
+                settings,
+                new MediaSegmentPlanner(new ZeroRandomSource()),
+                TimeProvider.System));
+
+        await orchestrator.ReloadCurrentAsync(autoPlay: false);
+
+        Assert.Equal([false], presenter.AutoPlayFlags);
+    }
+
+    [Fact]
     public async Task YouTube_play_now_stops_current_and_loads_normalized_iframe_source()
     {
         var calls = new List<string>();
@@ -247,18 +271,22 @@ public sealed class PlaybackOrchestratorTests
         public Task ShowAsync(CancellationToken cancellationToken = default) { calls.Add("browser:show"); return Task.CompletedTask; }
         public Task HideAsync(CancellationToken cancellationToken = default) { calls.Add("browser:hide"); return Task.CompletedTask; }
         public Task<bool> IsRunningAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+        public Task<bool> IsTopmostAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
     }
 
     private sealed class RecordingPresenter(List<string> calls) : IPresenterGateway
     {
         public TaskCompletionSource NewsHidden { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<bool> AutoPlayFlags { get; } = [];
         public Task LoadLocalVideoAsync(int mediaId, TimeSpan? start, TimeSpan? end, bool autoPlay, CancellationToken cancellationToken = default)
         {
+            AutoPlayFlags.Add(autoPlay);
             calls.Add($"presenter:load:{mediaId}:{start}-{end}");
             return Task.CompletedTask;
         }
         public Task LoadYouTubeVideoAsync(string videoId, TimeSpan? start, TimeSpan? end, bool autoPlay, CancellationToken cancellationToken = default)
         {
+            AutoPlayFlags.Add(autoPlay);
             calls.Add($"presenter:youtube:{videoId}:{start}-{end}");
             return Task.CompletedTask;
         }

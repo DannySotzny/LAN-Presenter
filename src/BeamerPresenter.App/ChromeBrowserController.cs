@@ -26,6 +26,7 @@ internal interface IChromeWindowController
     void Place(nint windowHandle, DisplayMonitor monitor, bool topmost);
     void Restore(nint windowHandle);
     void Minimize(nint windowHandle);
+    bool IsTopmost(nint windowHandle);
 }
 
 internal sealed class ChromeBrowserController(
@@ -133,6 +134,25 @@ internal sealed class ChromeBrowserController(
         try
         {
             return process is { HasExited: false };
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public async Task<bool> IsTopmostAsync(CancellationToken cancellationToken = default)
+    {
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (process is not { HasExited: false })
+            {
+                return false;
+            }
+
+            var windowHandle = await WaitForWindowAsync(process, cancellationToken);
+            return windowController.IsTopmost(windowHandle);
         }
         finally
         {
@@ -274,6 +294,8 @@ internal sealed class ChromeProcessLauncher : IChromeProcessLauncher
 
 internal sealed class ChromeWindowController : IChromeWindowController
 {
+    private const int ExtendedWindowStyle = -20;
+    private const long TopmostWindowStyle = 0x00000008L;
     private const uint ShowWindow = 0x0040;
     private static readonly nint Topmost = new(-1);
     private static readonly nint NotTopmost = new(-2);
@@ -295,6 +317,8 @@ internal sealed class ChromeWindowController : IChromeWindowController
 
     public void Restore(nint windowHandle) => ShowWindowAsync(windowHandle, 9);
     public void Minimize(nint windowHandle) => ShowWindowAsync(windowHandle, 6);
+    public bool IsTopmost(nint windowHandle) =>
+        (GetWindowLongPtr(windowHandle, ExtendedWindowStyle).ToInt64() & TopmostWindowStyle) != 0;
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -303,4 +327,7 @@ internal sealed class ChromeWindowController : IChromeWindowController
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ShowWindowAsync(nint windowHandle, int command);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+    private static extern nint GetWindowLongPtr(nint windowHandle, int index);
 }

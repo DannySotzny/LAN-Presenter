@@ -72,6 +72,7 @@ public interface IBrowserController
     Task ShowAsync(CancellationToken cancellationToken = default);
     Task HideAsync(CancellationToken cancellationToken = default);
     Task<bool> IsRunningAsync(CancellationToken cancellationToken = default);
+    Task<bool> IsTopmostAsync(CancellationToken cancellationToken = default);
 }
 
 public interface IPresenterTelemetry
@@ -89,7 +90,7 @@ public sealed record PresenterTelemetrySnapshot(
 
 public interface IPresenterRecoveryService
 {
-    Task ReloadCurrentAsync(CancellationToken cancellationToken = default);
+    Task ReloadCurrentAsync(bool autoPlay, CancellationToken cancellationToken = default);
     Task FailCurrentAndAdvanceAsync(TimeSpan? actualPosition, CancellationToken cancellationToken = default);
 }
 

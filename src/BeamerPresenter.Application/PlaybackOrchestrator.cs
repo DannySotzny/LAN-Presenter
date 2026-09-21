@@ -42,14 +42,14 @@ public sealed class PlaybackOrchestrator(
         }, cancellationToken);
     }
 
-    public Task ReloadCurrentAsync(CancellationToken cancellationToken = default) =>
+    public Task ReloadCurrentAsync(bool autoPlay, CancellationToken cancellationToken = default) =>
         ExecuteSerializedAsync(async () =>
         {
             var current = (await queue.GetQueueAsync(cancellationToken))
                 .SingleOrDefault(entry => entry.Status == QueueEntryStatus.Playing);
             if (current is not null)
             {
-                await LoadEntryAsync(current, cancellationToken);
+                await LoadEntryAsync(current, autoPlay, cancellationToken);
             }
         }, cancellationToken);
 
@@ -139,7 +139,7 @@ public sealed class PlaybackOrchestrator(
             await presenter.StopAsync(cancellationToken);
             try
             {
-                await LoadEntryAsync(entry, cancellationToken);
+                await LoadEntryAsync(entry, autoPlay: true, cancellationToken);
                 playback.Activate();
                 return entry;
             }
@@ -159,7 +159,7 @@ public sealed class PlaybackOrchestrator(
             var next = await queue.CompleteCurrentAsync(actualPosition, successful, cancellationToken);
             if (next is not null)
             {
-                await LoadEntryAsync(next, cancellationToken);
+                await LoadEntryAsync(next, autoPlay: true, cancellationToken);
             }
 
             await queue.EnsureMinimumAsync(cancellationToken);
@@ -243,12 +243,12 @@ public sealed class PlaybackOrchestrator(
             }
         }, cancellationToken);
 
-    private Task LoadEntryAsync(QueueEntry entry, CancellationToken cancellationToken) => entry.SourceType switch
+    private Task LoadEntryAsync(QueueEntry entry, bool autoPlay, CancellationToken cancellationToken) => entry.SourceType switch
     {
         MediaSourceType.Local when entry.MediaId is int mediaId =>
-            presenter.LoadLocalVideoAsync(mediaId, entry.StartPosition, entry.EndPosition, autoPlay: true, cancellationToken),
+            presenter.LoadLocalVideoAsync(mediaId, entry.StartPosition, entry.EndPosition, autoPlay, cancellationToken),
         MediaSourceType.YouTube when TryGetYouTubeId(entry.ExternalSourceKey, out var videoId) =>
-            presenter.LoadYouTubeVideoAsync(videoId, entry.StartPosition, entry.EndPosition, autoPlay: true, cancellationToken),
+            presenter.LoadYouTubeVideoAsync(videoId, entry.StartPosition, entry.EndPosition, autoPlay, cancellationToken),
         _ => throw new InvalidOperationException("Der Queue-Eintrag besitzt keine gültige Wiedergabequelle.")
     };
 

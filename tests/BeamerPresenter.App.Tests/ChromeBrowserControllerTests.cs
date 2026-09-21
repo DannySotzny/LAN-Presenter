@@ -44,9 +44,12 @@ public sealed class ChromeBrowserControllerTests
             Assert.Equal("http://127.0.0.1:8765/presenter", launcher.Arguments[^1]);
             Assert.Equal((new IntPtr(42), "\\\\.\\DISPLAY2", true), Assert.Single(windows.Placements));
             Assert.True(await controller.IsRunningAsync());
+            Assert.True(await controller.IsTopmostAsync());
 
             await controller.HideAsync();
+            Assert.False(await controller.IsTopmostAsync());
             await controller.ShowAsync();
+            Assert.True(await controller.IsTopmostAsync());
 
             Assert.Equal(new IntPtr(42), Assert.Single(windows.Minimized));
             Assert.Equal(new IntPtr(42), Assert.Single(windows.Restored));
@@ -116,11 +119,16 @@ public sealed class ChromeBrowserControllerTests
         public List<(nint Handle, string DeviceName, bool Topmost)> Placements { get; } = [];
         public List<nint> Restored { get; } = [];
         public List<nint> Minimized { get; } = [];
+        public bool Topmost { get; private set; }
 
-        public void Place(nint windowHandle, DisplayMonitor monitor, bool topmost) =>
+        public void Place(nint windowHandle, DisplayMonitor monitor, bool topmost)
+        {
+            Topmost = topmost;
             Placements.Add((windowHandle, monitor.DeviceName, topmost));
+        }
 
         public void Restore(nint windowHandle) => Restored.Add(windowHandle);
         public void Minimize(nint windowHandle) => Minimized.Add(windowHandle);
+        public bool IsTopmost(nint windowHandle) => Topmost;
     }
 }

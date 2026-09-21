@@ -48,7 +48,7 @@ Die Fundament-Stufe ist implementiert:
 - persistente, validierte News-Einträge für Ticker, 50:50-Split-Screen und Fullscreen mit Dauer/Permanent, Gültigkeitsfenster und Priorität
 - Presenter-News mit animiertem Ticker, 50:50-Split und Fullscreen-Priorität; Fullscreen pausiert das Video und stellt danach Wiedergabe und verdrängte Overlay-News wieder her
 - geschützte MudBlazor-Newsverwaltung für Erstellen, Planen, sofortiges Anzeigen, Beenden und Löschen sowie ein Fünf-Sekunden-Scheduler für Gültigkeitsfenster
-- Presenter-Watchdog für Chrome-, SignalR- und Heartbeat-Ausfälle, regelmäßige Topmost-Wiederherstellung sowie einmaliges Reload und anschließendes Überspringen dauerhaft festhängender Wiedergaben
+- Presenter-Watchdog für Chrome-, SignalR- und Heartbeat-Ausfälle im aktiven und pausierten Zustand, echte Topmost-Prüfung sowie einmaliges Reload und anschließendes Überspringen dauerhaft festhängender aktiver Wiedergaben
 - live aktualisiertes Management-Dashboard mit Presenter-/Browserstatus, aktuellem Titel und Position, FFprobe-/Scannerzustand sowie direkten Pause-, Resume-, Hide- und Stop-Befehlen
 - anonymer datensparsamer `/health`-Endpunkt und authentifizierte Detailzustände unter `/health/details` beziehungsweise `/api/status`
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags

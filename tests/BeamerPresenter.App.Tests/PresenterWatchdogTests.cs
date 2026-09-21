@@ -80,6 +80,50 @@ public sealed class PresenterWatchdogTests
     }
 
     [Fact]
+    public async Task Paused_presenter_restarts_missing_chrome_and_restores_without_autoplay()
+    {
+        var fixture = new WatchdogFixture(browserRunning: false, paused: true);
+
+        await fixture.Watchdog.CheckAsync();
+        fixture.Telemetry.Snapshot = Connected("Ready", null, fixture.Clock.GetUtcNow());
+        await fixture.Watchdog.CheckAsync();
+
+        Assert.Equal(1, fixture.Browser.StartCalls);
+        Assert.Equal([false], fixture.Recovery.AutoPlayValues);
+    }
+
+    [Fact]
+    public async Task Paused_presenter_does_not_treat_static_position_as_stall()
+    {
+        var fixture = new WatchdogFixture(browserRunning: true, paused: true);
+        fixture.Telemetry.Snapshot = Connected("Playing", TimeSpan.FromSeconds(10), fixture.Clock.GetUtcNow());
+        await fixture.Watchdog.CheckAsync();
+
+        fixture.Clock.Advance(TimeSpan.FromSeconds(40));
+        fixture.Telemetry.Snapshot = Connected("Playing", TimeSpan.FromSeconds(10), fixture.Clock.GetUtcNow());
+        await fixture.Watchdog.CheckAsync();
+
+        Assert.Equal([false], fixture.Recovery.AutoPlayValues);
+        Assert.Equal(0, fixture.Recovery.FailAndAdvanceCalls);
+    }
+
+    [Fact]
+    public async Task Lost_topmost_is_restored_before_periodic_interval()
+    {
+        var fixture = new WatchdogFixture(browserRunning: true);
+        fixture.Telemetry.Snapshot = Connected("Ready", null, fixture.Clock.GetUtcNow());
+        await fixture.Watchdog.CheckAsync();
+        fixture.Browser.Topmost = false;
+        fixture.Clock.Advance(TimeSpan.FromSeconds(5));
+        fixture.Telemetry.Snapshot = Connected("Ready", null, fixture.Clock.GetUtcNow());
+
+        await fixture.Watchdog.CheckAsync();
+
+        Assert.Equal(2, fixture.Browser.ShowCalls);
+        Assert.True(fixture.Browser.Topmost);
+    }
+
+    [Fact]
     public async Task Advancing_playback_never_triggers_stall_recovery()
     {
         var fixture = new WatchdogFixture(browserRunning: true);
@@ -99,13 +143,17 @@ public sealed class PresenterWatchdogTests
 
     private sealed class WatchdogFixture
     {
-        public WatchdogFixture(bool browserRunning, bool aggressiveTopmost = false, bool active = true)
+        public WatchdogFixture(bool browserRunning, bool aggressiveTopmost = false, bool active = true, bool paused = false)
         {
             Browser = new RecordingBrowser(browserRunning);
             var playback = new PlaybackController();
             if (active)
             {
                 playback.Activate();
+            }
+            if (paused)
+            {
+                playback.Pause();
             }
             Watchdog = new PresenterWatchdog(
                 playback,
@@ -129,12 +177,14 @@ public sealed class PresenterWatchdogTests
         public int StartCalls { get; private set; }
         public int StopCalls { get; private set; }
         public int ShowCalls { get; private set; }
+        public bool Topmost { get; set; } = true;
 
-        public Task StartAsync(CancellationToken cancellationToken = default) { running = true; StartCalls++; return Task.CompletedTask; }
+        public Task StartAsync(CancellationToken cancellationToken = default) { running = true; Topmost = true; StartCalls++; return Task.CompletedTask; }
         public Task StopAsync(CancellationToken cancellationToken = default) { running = false; StopCalls++; return Task.CompletedTask; }
-        public Task ShowAsync(CancellationToken cancellationToken = default) { ShowCalls++; return Task.CompletedTask; }
+        public Task ShowAsync(CancellationToken cancellationToken = default) { Topmost = true; ShowCalls++; return Task.CompletedTask; }
         public Task HideAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<bool> IsRunningAsync(CancellationToken cancellationToken = default) => Task.FromResult(running);
+        public Task<bool> IsTopmostAsync(CancellationToken cancellationToken = default) => Task.FromResult(Topmost);
     }
 
     private sealed class StubTelemetry : IPresenterTelemetry
@@ -148,8 +198,14 @@ public sealed class PresenterWatchdogTests
         public int ReloadCalls { get; private set; }
         public int FailAndAdvanceCalls { get; private set; }
         public TimeSpan? LastFailedPosition { get; private set; }
+        public List<bool> AutoPlayValues { get; } = [];
 
-        public Task ReloadCurrentAsync(CancellationToken cancellationToken = default) { ReloadCalls++; return Task.CompletedTask; }
+        public Task ReloadCurrentAsync(bool autoPlay, CancellationToken cancellationToken = default)
+        {
+            ReloadCalls++;
+            AutoPlayValues.Add(autoPlay);
+            return Task.CompletedTask;
+        }
         public Task FailCurrentAndAdvanceAsync(TimeSpan? actualPosition, CancellationToken cancellationToken = default)
         {
             FailAndAdvanceCalls++;

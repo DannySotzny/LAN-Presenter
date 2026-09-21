@@ -37,7 +37,8 @@ internal sealed class PresenterWatchdog(
     internal async Task CheckAsync(CancellationToken cancellationToken = default)
     {
         var now = timeProvider.GetUtcNow();
-        if (playback.State != PresenterState.Active)
+        var presenterState = playback.State;
+        if (presenterState is not (PresenterState.Active or PresenterState.Paused))
         {
             ResetInactiveState();
             return;
@@ -75,7 +76,7 @@ internal sealed class PresenterWatchdog(
         if (awaitingConnectionRecovery || !wasConnected)
         {
             await browser.ShowAsync(cancellationToken);
-            await recovery.ReloadCurrentAsync(cancellationToken);
+            await recovery.ReloadCurrentAsync(autoPlay: presenterState == PresenterState.Active, cancellationToken);
             awaitingConnectionRecovery = false;
             lastWindowVerificationUtc = now;
         }
@@ -84,13 +85,22 @@ internal sealed class PresenterWatchdog(
         var settings = await settingsService.GetAsync(cancellationToken);
         var verificationInterval = settings.AggressiveTopmost ? PollInterval : TimeSpan.FromSeconds(30);
         if (settings.AlwaysOnTop &&
-            (!lastWindowVerificationUtc.HasValue || now - lastWindowVerificationUtc.Value >= verificationInterval))
+            (!await browser.IsTopmostAsync(cancellationToken) ||
+             !lastWindowVerificationUtc.HasValue ||
+             now - lastWindowVerificationUtc.Value >= verificationInterval))
         {
             await browser.ShowAsync(cancellationToken);
             lastWindowVerificationUtc = now;
         }
 
-        await CheckPlaybackProgressAsync(snapshot, now, cancellationToken);
+        if (presenterState == PresenterState.Active)
+        {
+            await CheckPlaybackProgressAsync(snapshot, now, cancellationToken);
+        }
+        else
+        {
+            ResetPlaybackProgress(now);
+        }
     }
 
     private async Task CheckPlaybackProgressAsync(
@@ -122,7 +132,7 @@ internal sealed class PresenterWatchdog(
         if (!reloadAttempted)
         {
             logger.LogWarning("Presenter playback position is stalled; reloading current queue entry");
-            await recovery.ReloadCurrentAsync(cancellationToken);
+            await recovery.ReloadCurrentAsync(autoPlay: true, cancellationToken);
             reloadAttempted = true;
             lastProgressUtc = now;
             return;
@@ -159,5 +169,12 @@ internal sealed class PresenterWatchdog(
         reloadAttempted = false;
         awaitingConnectionRecovery = false;
         wasConnected = false;
+    }
+
+    private void ResetPlaybackProgress(DateTimeOffset now)
+    {
+        lastPosition = null;
+        lastProgressUtc = now;
+        reloadAttempted = false;
     }
 }
