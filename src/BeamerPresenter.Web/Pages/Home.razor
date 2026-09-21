@@ -6,6 +6,7 @@
 @inject BeamerPresenter.Application.PlaybackQueueService PlaybackQueue
 @inject BeamerPresenter.Application.INewsService NewsService
 @inject BeamerPresenter.Application.PlaybackController Playback
+@inject BeamerPresenter.Web.PresenterDashboardService Dashboard
 
 <MudStack Spacing="4">
     <MudPaper Elevation="0" Class="hero-panel pa-7 pa-sm-9">
@@ -20,8 +21,35 @@
                     <MudIcon Icon="@PresenterIcon" Size="Size.Large" />
                     <div>
                         <MudText Typo="Typo.caption" Class="state-label">PRESENTER</MudText>
-                        <MudText Typo="Typo.h5">@Playback.State</MudText>
+                        <MudText Typo="Typo.h5" id="dashboard-presenter-state">@(_status?.PresenterState ?? Playback.State.ToString())</MudText>
+                        <MudText Typo="Typo.caption" id="dashboard-browser-state">Browser: @(_status?.BrowserConnected == true ? "Verbunden" : "Getrennt")</MudText>
                     </div>
+                </div>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudPaper Elevation="0" Class="content-panel pa-6 live-status-panel">
+        <MudGrid Spacing="3" Class="live-status-grid">
+            <MudItem xs="12" md="5">
+                <MudText Typo="Typo.overline" Class="live-status-label">AKTUELLE WIEDERGABE</MudText>
+                <MudText Typo="Typo.h5" id="dashboard-current-title">@(_status?.CurrentTitle ?? "–")</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" id="dashboard-position">@FormatPlaybackPosition(_status?.Position, _status?.Duration)</MudText>
+            </MudItem>
+            <MudItem xs="6" md="2">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">FFPROBE</MudText>
+                <div class="health-value" id="dashboard-ffprobe">@(_status?.FfprobeAvailable == true ? "OK" : "Nicht verfügbar")</div>
+            </MudItem>
+            <MudItem xs="6" md="2">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">MEDIA SCANNER</MudText>
+                <div class="health-value" id="dashboard-scanner">@(_status?.MediaScannerRunning == true ? "Läuft" : "Bereit")</div>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <div class="presenter-controls" aria-label="Presenter steuern">
+                    <form method="post" action="/api/presenter/pause"><button type="submit">Pause</button></form>
+                    <form method="post" action="/api/presenter/activate"><button type="submit" class="primary">Resume</button></form>
+                    <form method="post" action="/api/presenter/hide"><button type="submit">Hide</button></form>
+                    <form method="post" action="/api/presenter/stop"><button type="submit" class="danger">Stop</button></form>
                 </div>
             </MudItem>
         </MudGrid>
@@ -34,6 +62,10 @@
     else if (UploadResult == "error")
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(UploadMessage) ? UploadMessage : "Das Video konnte nicht hochgeladen werden.")</MudAlert>
+    }
+    @if (PresenterResult == "error")
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(PresenterMessage) ? PresenterMessage : "Der Presenter-Befehl ist fehlgeschlagen.")</MudAlert>
     }
     @if (QueueResult == "success")
     {
@@ -324,10 +356,13 @@
     </form>
 </MudStack>
 
+<script src="_content/BeamerPresenter.Web/js/dashboard.js"></script>
+
 @code {
     private IReadOnlyList<VideoAsset> _videos = [];
     private IReadOnlyList<QueueEntry> _queue = [];
     private IReadOnlyList<NewsItem> _news = [];
+    private PresenterDashboardSnapshot? _status;
 
     [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "q")]
     public string? Search { get; set; }
@@ -356,6 +391,12 @@
     [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "message")]
     public string? NewsMessage { get; set; }
 
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "presenter")]
+    public string? PresenterResult { get; set; }
+
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "message")]
+    public string? PresenterMessage { get; set; }
+
     private string PresenterIcon => Playback.State == PresenterState.Active ? Icons.Material.Filled.PlayCircle : Icons.Material.Filled.PauseCircle;
     private int ReadyCount => _videos.Count(video => video.IsAvailable && video.PlaybackStatus == MediaPlaybackStatus.Supported);
     private int PendingCount => _videos.Count(video => video.IsAvailable && video.ProbeStatus == MediaProbeStatus.Unknown);
@@ -369,10 +410,12 @@
         var videosTask = MediaLibraryService.GetAllAsync();
         var queueTask = PlaybackQueue.GetQueueAsync();
         var newsTask = NewsService.GetAllAsync();
-        await Task.WhenAll(videosTask, queueTask, newsTask);
+        var statusTask = Dashboard.GetAsync();
+        await Task.WhenAll(videosTask, queueTask, newsTask, statusTask);
         _videos = await videosTask;
         _queue = await queueTask;
         _news = await newsTask;
+        _status = await statusTask;
     }
 
     private bool MatchesSearch(VideoAsset video)
@@ -425,6 +468,11 @@
     private static string FormatDuration(TimeSpan? duration) => duration is null
         ? "–"
         : duration.Value.TotalHours >= 1 ? duration.Value.ToString(@"h\:mm\:ss") : duration.Value.ToString(@"m\:ss");
+
+    private static string FormatPlaybackPosition(TimeSpan? position, TimeSpan? duration) =>
+        $"{FormatClock(position)} / {FormatClock(duration)}";
+
+    private static string FormatClock(TimeSpan? value) => value?.ToString(@"hh\:mm\:ss") ?? "--:--:--";
 
     private static string FormatSize(long bytes) => bytes >= 1024L * 1024 * 1024
         ? $"{bytes / 1024d / 1024d / 1024d:0.0} GB"

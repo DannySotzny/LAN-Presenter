@@ -8,7 +8,7 @@ public sealed class PlaybackOrchestrator(
     IPresenterGateway presenter,
     IPresenterSettingsService settingsService,
     IPowerManagementService powerManagement,
-    PlaybackQueueService queue) : IPlaybackCommandService, INewsCommandService, IPresenterRecoveryService
+    PlaybackQueueService queue) : IPlaybackCommandService, INewsCommandService, IPresenterRecoveryService, IPresenterControlService
 {
     private readonly SemaphoreSlim commandGate = new(1, 1);
     private CancellationTokenSource? newsTimeout;

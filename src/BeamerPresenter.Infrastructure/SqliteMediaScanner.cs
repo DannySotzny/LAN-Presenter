@@ -10,16 +10,32 @@ internal sealed class SqliteMediaScanner(
     IDbContextFactory<PresenterDbContext> contextFactory,
     IMediaFolderService mediaFolderService,
     IMediaProbeQueue mediaProbeQueue,
-    ILogger<SqliteMediaScanner> logger) : IMediaScanner
+    ILogger<SqliteMediaScanner> logger) : IMediaScanner, IMediaScannerStatus
 {
     private readonly SemaphoreSlim scanGate = new(1, 1);
+    private MediaScannerSnapshot current = new(false, null, null, null);
+
+    public MediaScannerSnapshot Current => Volatile.Read(ref current);
 
     public async Task<MediaScanResult> ScanAllAsync(CancellationToken cancellationToken = default)
     {
         await scanGate.WaitAsync(cancellationToken);
+        Volatile.Write(ref current, Current with { IsRunning = true, LastError = null });
         try
         {
-            return await ScanAllCoreAsync(cancellationToken);
+            var result = await ScanAllCoreAsync(cancellationToken);
+            Volatile.Write(ref current, new MediaScannerSnapshot(false, DateTimeOffset.UtcNow, result, null));
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            Volatile.Write(ref current, Current with { IsRunning = false });
+            throw;
+        }
+        catch (Exception exception)
+        {
+            Volatile.Write(ref current, new MediaScannerSnapshot(false, DateTimeOffset.UtcNow, Current.LastResult, exception.Message));
+            throw;
         }
         finally
         {

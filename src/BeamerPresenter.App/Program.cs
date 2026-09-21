@@ -3,7 +3,6 @@ using BeamerPresenter.Infrastructure;
 using BeamerPresenter.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
@@ -84,6 +83,7 @@ internal static class Program
         builder.Services.AddSingleton<IPowerManagementService, WindowsPowerManagementService>();
         builder.Services.AddSingleton<PlaybackOrchestrator>();
         builder.Services.AddSingleton<IPlaybackCommandService>(provider => provider.GetRequiredService<PlaybackOrchestrator>());
+        builder.Services.AddSingleton<IPresenterControlService>(provider => provider.GetRequiredService<PlaybackOrchestrator>());
         builder.Services.AddSingleton<INewsCommandService>(provider => provider.GetRequiredService<PlaybackOrchestrator>());
         builder.Services.AddSingleton<IPresenterRecoveryService>(provider => provider.GetRequiredService<PlaybackOrchestrator>());
         builder.Services.AddHostedService<NewsSchedulingWorker>();
@@ -96,7 +96,6 @@ internal static class Program
         application.UseAuthorization();
         application.UseAntiforgery();
         application.UseSerilogRequestLogging();
-        application.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
         application.MapPresenterWebUi();
         return application;
     }

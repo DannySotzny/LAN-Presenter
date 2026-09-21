@@ -49,6 +49,8 @@
 - `NewsSchedulingWorker` berücksichtigt nur News mit mindestens einer Gültigkeitsgrenze und pollt alle fünf Sekunden. Er beendet ausschließlich die von ihm verfolgte News-ID; läuft diese gerade nur suspendiert unter Fullscreen, muss sie aus dem Wiederherstellungs-Slot entfernt werden. Manuelle News ohne Gültigkeitsfenster bleiben Scheduler-unabhängig.
 - `PresenterWatchdog` überwacht im aktiven Zustand Chrome und einen höchstens 15 Sekunden alten SignalR-Heartbeat. Erst nach einer frischen Verbindung darf der aktuelle Queue-Eintrag erneut geladen werden; inaktive Zustände setzen alle Recovery-Zähler zurück.
 - Bleibt die gemeldete Playing-Position 15 Sekunden unverändert, lädt der Watchdog genau einmal neu. Weitere 15 Sekunden ohne Fortschritt markieren den aktuellen Queue-Eintrag als fehlgeschlagen und schalten weiter. `AlwaysOnTop` wird über `IBrowserController.ShowAsync` alle 30 Sekunden beziehungsweise im aggressiven Modus alle fünf Sekunden erneut durchgesetzt.
+- Das Management-Dashboard bezieht seinen Livezustand ausschließlich authentifiziert aus `/api/status` und pollt alle zwei Sekunden. Titel werden serverseitig aus dem aktuell Playing markierten Queue-Eintrag aufgelöst; FFprobe-Prüfungen werden eine Minute gecacht und Scannerzustände vom echten `SqliteMediaScanner` gemeldet.
+- `/health` bleibt anonym, liefert nur groben Anwendungs-/Datenbankzustand und darf weder Titel, Dateizahlen noch interne Fehlertexte offenlegen. `/health/details` ist wie alle Presenter-Steuerbefehle authentifizierungspflichtig.
 
 ## Arbeitsweise
 

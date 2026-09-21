@@ -21,6 +21,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
     private const string TestPassword = "integration-test-password";
     private readonly string _dataDirectory = Path.Combine(Path.GetTempPath(), "BeamerPresenter.Tests", Guid.NewGuid().ToString("N"));
     private readonly RecordingPlaybackCommands _playbackCommands = new();
+    private readonly RecordingPresenterControls _presenterControls = new();
     private WebApplication? _application;
 
     public async Task InitializeAsync()
@@ -34,6 +35,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         builder.Services.AddPresenterWebUi();
         builder.Services.AddSingleton<IPlaybackCommandService>(_playbackCommands);
         builder.Services.AddSingleton<INewsCommandService>(_playbackCommands);
+        builder.Services.AddSingleton<IPresenterControlService>(_presenterControls);
 
         _application = builder.Build();
         await using (var scope = _application.Services.CreateAsyncScope())
@@ -68,6 +70,82 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Contains("Wiedergabe-Queue", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Contains("YouTube einreihen", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Contains("News &amp; Einblendungen", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("AKTUELLE WIEDERGABE", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("dashboard.js", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Anonymous_health_is_available_without_exposing_dashboard_details()
+    {
+        using var client = _application!.GetTestClient();
+
+        using var response = await client.GetAsync("/health");
+        var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("ok", json.GetProperty("status").GetString());
+        Assert.Equal("ok", json.GetProperty("database").GetString());
+        Assert.False(json.TryGetProperty("currentTitle", out _));
+        Assert.False(json.TryGetProperty("fileCount", out _));
+    }
+
+    [Fact]
+    public async Task Authenticated_status_reports_current_title_and_requires_login()
+    {
+        int mediaId;
+        await using (var scope = _application!.Services.CreateAsyncScope())
+        {
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PresenterDbContext>>();
+            await using var context = await factory.CreateDbContextAsync();
+            var video = CreateVideo("live-status.mp4", "h264", MediaPlaybackStatus.Supported);
+            context.Videos.Add(video);
+            await context.SaveChangesAsync();
+            mediaId = video.Id;
+            context.QueueEntries.Add(new QueueEntry
+            {
+                MediaId = mediaId,
+                SourceType = MediaSourceType.Local,
+                StartPosition = TimeSpan.Zero,
+                EndPosition = TimeSpan.FromMinutes(5),
+                Origin = QueueEntryOrigin.Automatic,
+                SortOrder = 0,
+                Status = QueueEntryStatus.Playing,
+                CreatedUtc = DateTimeOffset.UtcNow
+            });
+            await context.SaveChangesAsync();
+        }
+
+        _application.Services.GetRequiredService<PlaybackController>().Activate();
+        using var client = _application.GetTestClient();
+        using var anonymousResponse = await client.GetAsync("/api/status");
+        Assert.Equal(HttpStatusCode.Redirect, anonymousResponse.StatusCode);
+
+        var cookie = await LoginAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/status");
+        request.Headers.Add("Cookie", cookie);
+        using var response = await client.SendAsync(request);
+        var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Active", json.GetProperty("presenterState").GetString());
+        Assert.Equal("live-status.mp4", json.GetProperty("currentTitle").GetString());
+        Assert.Equal(1, json.GetProperty("queueCount").GetInt32());
+        Assert.True(json.TryGetProperty("position", out _));
+    }
+
+    [Fact]
+    public async Task Authenticated_presenter_control_invokes_requested_command()
+    {
+        using var client = _application!.GetTestClient();
+        var cookie = await LoginAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/presenter/pause");
+        request.Headers.Add("Cookie", cookie);
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/?presenter=paused", response.Headers.Location?.OriginalString);
+        Assert.Equal(1, _presenterControls.PauseCalls);
     }
 
     [Fact]
@@ -477,6 +555,19 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
             StopNewsCalls++;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class RecordingPresenterControls : IPresenterControlService
+    {
+        public int ActivateCalls { get; private set; }
+        public int PauseCalls { get; private set; }
+        public int HideCalls { get; private set; }
+        public int StopCalls { get; private set; }
+
+        public Task ActivateAsync(CancellationToken cancellationToken = default) { ActivateCalls++; return Task.CompletedTask; }
+        public Task PauseAsync(CancellationToken cancellationToken = default) { PauseCalls++; return Task.CompletedTask; }
+        public Task HideAsync(CancellationToken cancellationToken = default) { HideCalls++; return Task.CompletedTask; }
+        public Task StopAsync(CancellationToken cancellationToken = default) { StopCalls++; return Task.CompletedTask; }
     }
 
     private sealed record QueueCommand(int MediaId, TimeSpan? Start, TimeSpan? Duration);

@@ -32,6 +32,17 @@ public interface IMediaScanner
 
 public sealed record MediaScanResult(int Added, int Updated, int Missing, int Unchanged);
 
+public interface IMediaScannerStatus
+{
+    MediaScannerSnapshot Current { get; }
+}
+
+public sealed record MediaScannerSnapshot(
+    bool IsRunning,
+    DateTimeOffset? LastCompletedUtc,
+    MediaScanResult? LastResult,
+    string? LastError);
+
 public interface IMediaProbeQueue
 {
     ValueTask QueueAsync(int mediaId, string fullPath, CancellationToken cancellationToken = default);
@@ -146,6 +157,14 @@ public interface IPlaybackCommandService
     Task<QueueEntry> PlayYouTubeNextAsync(string url, TimeSpan? start = null, TimeSpan? duration = null, TimeSpan? maximumDuration = null, CancellationToken cancellationToken = default);
     Task<QueueEntry> PlayYouTubeNowAsync(string url, TimeSpan? currentPosition, TimeSpan? start = null, TimeSpan? duration = null, TimeSpan? maximumDuration = null, CancellationToken cancellationToken = default);
     Task<QueueEntry?> AdvanceAsync(TimeSpan? actualPosition, bool successful = true, CancellationToken cancellationToken = default);
+}
+
+public interface IPresenterControlService
+{
+    Task ActivateAsync(CancellationToken cancellationToken = default);
+    Task PauseAsync(CancellationToken cancellationToken = default);
+    Task HideAsync(CancellationToken cancellationToken = default);
+    Task StopAsync(CancellationToken cancellationToken = default);
 }
 
 public interface INewsCommandService

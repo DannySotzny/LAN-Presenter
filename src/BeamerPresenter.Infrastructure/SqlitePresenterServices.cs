@@ -20,7 +20,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMediaLibraryService, SqliteMediaLibraryService>();
         services.AddSingleton<IPlaybackStore, SqlitePlaybackStore>();
         services.AddSingleton<INewsService, SqliteNewsService>();
-        services.AddSingleton<IMediaScanner, SqliteMediaScanner>();
+        services.AddSingleton<SqliteMediaScanner>();
+        services.AddSingleton<IMediaScanner>(provider => provider.GetRequiredService<SqliteMediaScanner>());
+        services.AddSingleton<IMediaScannerStatus>(provider => provider.GetRequiredService<SqliteMediaScanner>());
         services.AddSingleton<IFileStabilityChecker, FileStabilityChecker>();
         services.AddSingleton<MediaProbeQueue>();
         services.AddSingleton<IMediaProbeQueue>(provider => provider.GetRequiredService<MediaProbeQueue>());

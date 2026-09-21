@@ -138,6 +138,55 @@ body .mud-button-text-secondary {
     letter-spacing: .14em !important;
 }
 
+.live-status-panel {
+    border-color: rgba(51, 220, 255, .3);
+}
+
+.live-status-grid {
+    align-items: center;
+}
+
+.live-status-label {
+    color: #5637d8 !important;
+    font-weight: 800 !important;
+    letter-spacing: .12em !important;
+}
+
+.health-value {
+    margin-top: .2rem;
+    color: #20263a;
+    font-weight: 800;
+}
+
+.presenter-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .5rem;
+}
+
+.presenter-controls button {
+    width: 100%;
+    padding: .6rem .7rem;
+    cursor: pointer;
+    color: #5637d8;
+    border: 1px solid #765ee0;
+    border-radius: .6rem;
+    background: #fff;
+    font: inherit;
+    font-size: .78rem;
+    font-weight: 800;
+}
+
+.presenter-controls button.primary {
+    color: #fff;
+    background: #5637d8;
+}
+
+.presenter-controls button.danger {
+    color: #b42318;
+    border-color: #f2b8b5;
+}
+
 .metric-card,
 .content-panel {
     border: 1px solid var(--lan-line);

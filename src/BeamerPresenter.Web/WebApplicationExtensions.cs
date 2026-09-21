@@ -21,6 +21,7 @@ public static class WebApplicationExtensions
         services.AddSingleton<PresenterConnectionState>();
         services.AddSingleton<IPresenterTelemetry>(provider => provider.GetRequiredService<PresenterConnectionState>());
         services.AddSingleton<IPresenterGateway, SignalRPresenterGateway>();
+        services.AddSingleton<PresenterDashboardService>();
         services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
         {
             options.LoginPath = "/login"; options.Cookie.Name = "BeamerPresenter.Auth"; options.Cookie.HttpOnly = true;
@@ -41,9 +42,82 @@ public static class WebApplicationExtensions
         app.MapPost("/api/news/show", (Delegate)ShowNewsAsync).RequireAuthorization();
         app.MapPost("/api/news/stop", (Delegate)StopNewsAsync).RequireAuthorization();
         app.MapPost("/api/news/delete", (Delegate)DeleteNewsAsync).RequireAuthorization();
+        app.MapPost("/api/presenter/activate", (Delegate)ActivatePresenterAsync).RequireAuthorization();
+        app.MapPost("/api/presenter/pause", (Delegate)PausePresenterAsync).RequireAuthorization();
+        app.MapPost("/api/presenter/hide", (Delegate)HidePresenterAsync).RequireAuthorization();
+        app.MapPost("/api/presenter/stop", (Delegate)StopPresenterAsync).RequireAuthorization();
+        app.MapGet("/api/status", (Delegate)GetStatusAsync).RequireAuthorization();
+        app.MapGet("/health/details", (Delegate)GetStatusAsync).RequireAuthorization();
+        app.MapGet("/health", (Delegate)GetHealthAsync).AllowAnonymous();
         app.MapGet("/media/{mediaId:int}", (Delegate)StreamMediaAsync).AllowAnonymous();
         app.MapHub<PresenterHub>("/hubs/presenter");
         app.MapRazorComponents<PresenterWebApp>(); return app;
+    }
+
+    private static async Task<IResult> GetStatusAsync(
+        PresenterDashboardService dashboard,
+        CancellationToken cancellationToken) =>
+        Results.Ok(await dashboard.GetAsync(cancellationToken));
+
+    private static async Task<IResult> GetHealthAsync(
+        PresenterDashboardService dashboard,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var status = await dashboard.GetAsync(cancellationToken);
+            return Results.Ok(new
+            {
+                status = "ok",
+                database = "ok",
+                presenter = status.PresenterState,
+                generatedUtc = status.GeneratedUtc
+            });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return Results.Json(new { status = "unhealthy", database = "unavailable" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+    }
+
+    private static Task<IResult> ActivatePresenterAsync(
+        IPresenterControlService presenter,
+        CancellationToken cancellationToken) =>
+        ExecutePresenterCommandAsync(presenter.ActivateAsync, "active", cancellationToken);
+
+    private static Task<IResult> PausePresenterAsync(
+        IPresenterControlService presenter,
+        CancellationToken cancellationToken) =>
+        ExecutePresenterCommandAsync(presenter.PauseAsync, "paused", cancellationToken);
+
+    private static Task<IResult> HidePresenterAsync(
+        IPresenterControlService presenter,
+        CancellationToken cancellationToken) =>
+        ExecutePresenterCommandAsync(presenter.HideAsync, "hidden", cancellationToken);
+
+    private static Task<IResult> StopPresenterAsync(
+        IPresenterControlService presenter,
+        CancellationToken cancellationToken) =>
+        ExecutePresenterCommandAsync(presenter.StopAsync, "stopped", cancellationToken);
+
+    private static async Task<IResult> ExecutePresenterCommandAsync(
+        Func<CancellationToken, Task> command,
+        string result,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await command(cancellationToken);
+            return Results.Redirect($"/?presenter={result}");
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or IOException)
+        {
+            return Results.Redirect($"/?presenter=error&message={Uri.EscapeDataString(exception.Message)}");
+        }
     }
 
     private static async Task<IResult> LoginAsync(HttpContext context, IPresenterSettingsService settingsService, CancellationToken cancellationToken)
