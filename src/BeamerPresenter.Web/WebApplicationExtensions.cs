@@ -34,6 +34,8 @@ public static class WebApplicationExtensions
         app.MapPost("/api/videos/upload", (Delegate)UploadAsync).RequireAuthorization();
         app.MapPost("/api/queue/next", (Delegate)PlayNextAsync).RequireAuthorization();
         app.MapPost("/api/queue/now", (Delegate)PlayNowAsync).RequireAuthorization();
+        app.MapPost("/api/youtube/next", (Delegate)PlayYouTubeNextAsync).RequireAuthorization();
+        app.MapPost("/api/youtube/now", (Delegate)PlayYouTubeNowAsync).RequireAuthorization();
         app.MapGet("/media/{mediaId:int}", (Delegate)StreamMediaAsync).AllowAnonymous();
         app.MapHub<PresenterHub>("/hubs/presenter");
         app.MapRazorComponents<PresenterWebApp>(); return app;
@@ -90,6 +92,26 @@ public static class WebApplicationExtensions
             playback.PlayNowAsync(mediaId, currentPosition, start, duration, cancellationToken));
     }
 
+    private static async Task<IResult> PlayYouTubeNextAsync(
+        HttpContext context,
+        IPlaybackCommandService playback,
+        CancellationToken cancellationToken) =>
+        await ExecuteYouTubeCommandAsync(context, (url, start, duration, maximumDuration) =>
+            playback.PlayYouTubeNextAsync(url, start, duration, maximumDuration, cancellationToken));
+
+    private static async Task<IResult> PlayYouTubeNowAsync(
+        HttpContext context,
+        IPlaybackCommandService playback,
+        PresenterConnectionState presenterState,
+        CancellationToken cancellationToken)
+    {
+        TimeSpan? currentPosition = presenterState.LatestReport.PositionSeconds is >= 0
+            ? TimeSpan.FromSeconds(presenterState.LatestReport.PositionSeconds.Value)
+            : null;
+        return await ExecuteYouTubeCommandAsync(context, (url, start, duration, maximumDuration) =>
+            playback.PlayYouTubeNowAsync(url, currentPosition, start, duration, maximumDuration, cancellationToken));
+    }
+
     private static async Task<IResult> ExecuteQueueCommandAsync(
         HttpContext context,
         Func<int, TimeSpan?, TimeSpan?, Task<QueueEntry>> command)
@@ -110,6 +132,25 @@ public static class WebApplicationExtensions
         catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FormatException)
         {
             return Results.Redirect($"/?queue=error&message={Uri.EscapeDataString(exception.Message)}");
+        }
+    }
+
+    private static async Task<IResult> ExecuteYouTubeCommandAsync(
+        HttpContext context,
+        Func<string, TimeSpan?, TimeSpan?, TimeSpan?, Task<QueueEntry>> command)
+    {
+        var form = await context.Request.ReadFormAsync(context.RequestAborted);
+        try
+        {
+            var start = ParseOptionalTime(form["start"].ToString());
+            var duration = ParseOptionalTime(form["duration"].ToString());
+            var maximumDuration = ParseOptionalTime(form["maximumDuration"].ToString());
+            await command(form["url"].ToString(), start, duration, maximumDuration);
+            return Results.Redirect("/?youtube=success");
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FormatException)
+        {
+            return Results.Redirect($"/?youtube=error&message={Uri.EscapeDataString(exception.Message)}");
         }
     }
 

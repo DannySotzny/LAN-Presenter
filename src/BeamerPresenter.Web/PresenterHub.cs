@@ -7,6 +7,7 @@ namespace BeamerPresenter.Web;
 public interface IPresenterClient
 {
     Task LoadLocalVideo(int mediaId, double? startSeconds, double? endSeconds, bool autoPlay);
+    Task LoadYouTubeVideo(string videoId, double? startSeconds, double? endSeconds, bool autoPlay);
     Task Play();
     Task Pause();
     Task Stop();
@@ -94,6 +95,9 @@ internal sealed class SignalRPresenterGateway(IHubContext<PresenterHub, IPresent
 {
     public Task LoadLocalVideoAsync(int mediaId, TimeSpan? start, TimeSpan? end, bool autoPlay, CancellationToken cancellationToken = default) =>
         hubContext.Clients.All.LoadLocalVideo(mediaId, start?.TotalSeconds, end?.TotalSeconds, autoPlay).WaitAsync(cancellationToken);
+
+    public Task LoadYouTubeVideoAsync(string videoId, TimeSpan? start, TimeSpan? end, bool autoPlay, CancellationToken cancellationToken = default) =>
+        hubContext.Clients.All.LoadYouTubeVideo(videoId, start?.TotalSeconds, end?.TotalSeconds, autoPlay).WaitAsync(cancellationToken);
 
     public Task PlayAsync(CancellationToken cancellationToken = default) =>
         hubContext.Clients.All.Play().WaitAsync(cancellationToken);

@@ -357,6 +357,75 @@ body .mud-button-text-secondary {
     font-weight: 700;
 }
 
+.youtube-panel {
+    overflow: hidden;
+    background: linear-gradient(135deg, #fff 0%, #fff 64%, #f7f4ff 100%);
+}
+
+.youtube-icon {
+    color: #fff;
+    background: #e62117;
+}
+
+.youtube-form,
+.youtube-form label {
+    display: grid;
+    gap: .4rem;
+    color: #384056;
+    font-size: .82rem;
+    font-weight: 700;
+}
+
+.youtube-form input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: .7rem .8rem;
+    border: 1px solid #dbe1ed;
+    border-radius: .6rem;
+    outline: 0;
+    background: #fff;
+    font: inherit;
+    font-weight: 500;
+}
+
+.youtube-form input:focus {
+    border-color: #765ee0;
+    box-shadow: 0 0 0 3px rgba(86, 55, 216, .1);
+}
+
+.youtube-form label span {
+    color: #7a8399;
+    font-weight: 500;
+}
+
+.youtube-time-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .75rem;
+}
+
+.youtube-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: .6rem;
+}
+
+.youtube-actions button {
+    padding: .65rem 1rem;
+    cursor: pointer;
+    color: #5637d8;
+    border: 1px solid #765ee0;
+    border-radius: .6rem;
+    background: #fff;
+    font: inherit;
+    font-weight: 700;
+}
+
+.youtube-actions button.primary {
+    color: #fff;
+    background: #5637d8;
+}
+
 .logout-form {
     display: flex;
     justify-content: flex-end;
@@ -394,6 +463,18 @@ body .mud-button-text-secondary {
         width: 100%;
         margin-top: .75rem;
     }
+
+    .youtube-time-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .youtube-actions {
+        justify-content: stretch;
+    }
+
+    .youtube-actions button {
+        flex: 1;
+    }
 }
 
 .presenter-screen {
@@ -412,6 +493,18 @@ body .mud-button-text-secondary {
     height: 100%;
     object-fit: contain;
     background: #000;
+}
+
+.presenter-youtube,
+.presenter-youtube iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #000;
+}
+
+.presenter-media-hidden {
+    display: none !important;
 }
 
 .presenter-idle {

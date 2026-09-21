@@ -82,6 +82,41 @@ public sealed class PlaybackOrchestratorTests
             calls);
     }
 
+    [Fact]
+    public async Task YouTube_play_now_stops_current_and_loads_normalized_iframe_source()
+    {
+        var calls = new List<string>();
+        var settings = new StubSettingsService();
+        var queue = new PlaybackQueueService(
+            new RecordingPlaybackStore(calls),
+            new EmptyMediaLibrary(),
+            settings,
+            new MediaSegmentPlanner(new ZeroRandomSource()),
+            TimeProvider.System);
+        var orchestrator = new PlaybackOrchestrator(
+            new PlaybackController(),
+            new RecordingBrowser(calls),
+            new RecordingPresenter(calls),
+            settings,
+            new RecordingPowerManagement(calls),
+            queue);
+
+        await orchestrator.PlayYouTubeNowAsync(
+            "https://youtu.be/dQw4w9WgXcQ",
+            TimeSpan.FromMinutes(3),
+            maximumDuration: TimeSpan.FromMinutes(8));
+
+        Assert.Equal(
+            [
+                "store:update:Interrupted",
+                "store:history:00:03:00",
+                "store:add:ManualNow",
+                "presenter:stop",
+                "presenter:youtube:dQw4w9WgXcQ:00:00:00-00:08:00"
+            ],
+            calls);
+    }
+
     private sealed class StubSettingsService : IPresenterSettingsService
     {
         private readonly PresenterSettings settings = new() { PreventDisplaySleep = true, PreventSystemSleep = true };
@@ -106,6 +141,11 @@ public sealed class PlaybackOrchestratorTests
         public Task LoadLocalVideoAsync(int mediaId, TimeSpan? start, TimeSpan? end, bool autoPlay, CancellationToken cancellationToken = default)
         {
             calls.Add($"presenter:load:{mediaId}:{start}-{end}");
+            return Task.CompletedTask;
+        }
+        public Task LoadYouTubeVideoAsync(string videoId, TimeSpan? start, TimeSpan? end, bool autoPlay, CancellationToken cancellationToken = default)
+        {
+            calls.Add($"presenter:youtube:{videoId}:{start}-{end}");
             return Task.CompletedTask;
         }
         public Task PlayAsync(CancellationToken cancellationToken = default) { calls.Add("presenter:play"); return Task.CompletedTask; }

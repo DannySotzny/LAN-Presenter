@@ -65,6 +65,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, pageResponse.StatusCode);
         Assert.Contains("Videobibliothek", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Contains("Wiedergabe-Queue", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("YouTube einreihen", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -159,6 +160,30 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Authenticated_youtube_action_passes_bounded_playback_request()
+    {
+        using var client = _application!.GetTestClient();
+        var cookie = await LoginAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/youtube/next")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["url"] = "https://youtu.be/dQw4w9WgXcQ",
+                ["maximumDuration"] = "00:10:00"
+            })
+        };
+        request.Headers.Add("Cookie", cookie);
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/?youtube=success", response.Headers.Location?.OriginalString);
+        var command = Assert.Single(_playbackCommands.YouTubeNextCalls);
+        Assert.Equal("https://youtu.be/dQw4w9WgXcQ", command.Url);
+        Assert.Equal(TimeSpan.FromMinutes(10), command.MaximumDuration);
+    }
+
+    [Fact]
     public async Task Media_endpoint_supports_ranges_and_rejects_paths_outside_configured_folders()
     {
         var mediaDirectory = Path.Combine(_dataDirectory, "Media");
@@ -213,6 +238,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         var pageHtml = await pageResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, pageResponse.StatusCode);
         Assert.Contains("presenter-video", pageHtml, StringComparison.Ordinal);
+        Assert.Contains("presenter-youtube-host", pageHtml, StringComparison.Ordinal);
         Assert.Contains("js/presenter.js", pageHtml, StringComparison.Ordinal);
 
         using var negotiateResponse = await client.PostAsync("/hubs/presenter/negotiate?negotiateVersion=1", content: null);
@@ -242,6 +268,17 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.True(connectionState.IsConnected);
         Assert.Equal(12.5, connectionState.LatestReport.PositionSeconds);
 
+        var gateway = application.Services.GetRequiredService<IPresenterGateway>();
+        await gateway.LoadYouTubeVideoAsync(
+            "dQw4w9WgXcQ",
+            TimeSpan.FromMinutes(5),
+            TimeSpan.FromMinutes(15),
+            autoPlay: true,
+            cancellation.Token);
+        var youtubeInvocation = await ReceiveSignalRMessageAsync(socket, cancellation.Token);
+        Assert.Contains("\"target\":\"LoadYouTubeVideo\"", youtubeInvocation, StringComparison.Ordinal);
+        Assert.Contains("dQw4w9WgXcQ", youtubeInvocation, StringComparison.Ordinal);
+
         await SendSignalRMessageAsync(
             socket,
             "{\"type\":1,\"invocationId\":\"ended-1\",\"target\":\"ReportStatus\",\"arguments\":[\"Ended\",89.5,90.0,null]}",
@@ -256,6 +293,19 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         var advance = Assert.Single(_playbackCommands.AdvanceCalls);
         Assert.Equal(TimeSpan.FromSeconds(89.5), advance.Position);
         Assert.True(advance.Successful);
+
+        await SendSignalRMessageAsync(
+            socket,
+            "{\"type\":1,\"target\":\"ReportStatus\",\"arguments\":[\"Ready\",0.0,600.0,null]}",
+            cancellation.Token);
+        await WaitForPresenterStatusAsync(connectionState, "Ready", cancellation.Token);
+        await SendSignalRMessageAsync(
+            socket,
+            "{\"type\":1,\"invocationId\":\"error-1\",\"target\":\"ReportStatus\",\"arguments\":[\"Error\",4.0,600.0,\"offline\"]}",
+            cancellation.Token);
+        Assert.Contains("\"invocationId\":\"error-1\"", await ReceiveSignalRMessageAsync(socket, cancellation.Token), StringComparison.Ordinal);
+        Assert.Equal(2, _playbackCommands.AdvanceCalls.Count);
+        Assert.False(_playbackCommands.AdvanceCalls[1].Successful);
 
         await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Test completed", cancellation.Token);
     }
@@ -321,6 +371,8 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
     {
         public List<QueueCommand> NextCalls { get; } = [];
         public List<QueueCommand> NowCalls { get; } = [];
+        public List<YouTubeCommand> YouTubeNextCalls { get; } = [];
+        public List<YouTubeCommand> YouTubeNowCalls { get; } = [];
         public List<AdvanceCommand> AdvanceCalls { get; } = [];
         public TaskCompletionSource Advanced { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -336,6 +388,18 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
             return Task.FromResult(new QueueEntry { MediaId = mediaId, SourceType = MediaSourceType.Local });
         }
 
+        public Task<QueueEntry> PlayYouTubeNextAsync(string url, TimeSpan? start = null, TimeSpan? duration = null, TimeSpan? maximumDuration = null, CancellationToken cancellationToken = default)
+        {
+            YouTubeNextCalls.Add(new YouTubeCommand(url, start, duration, maximumDuration));
+            return Task.FromResult(new QueueEntry { ExternalSourceKey = "youtube:dQw4w9WgXcQ", SourceType = MediaSourceType.YouTube });
+        }
+
+        public Task<QueueEntry> PlayYouTubeNowAsync(string url, TimeSpan? currentPosition, TimeSpan? start = null, TimeSpan? duration = null, TimeSpan? maximumDuration = null, CancellationToken cancellationToken = default)
+        {
+            YouTubeNowCalls.Add(new YouTubeCommand(url, start, duration, maximumDuration));
+            return Task.FromResult(new QueueEntry { ExternalSourceKey = "youtube:dQw4w9WgXcQ", SourceType = MediaSourceType.YouTube });
+        }
+
         public Task<QueueEntry?> AdvanceAsync(TimeSpan? actualPosition, bool successful = true, CancellationToken cancellationToken = default)
         {
             AdvanceCalls.Add(new AdvanceCommand(actualPosition, successful));
@@ -345,6 +409,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
     }
 
     private sealed record QueueCommand(int MediaId, TimeSpan? Start, TimeSpan? Duration);
+    private sealed record YouTubeCommand(string Url, TimeSpan? Start, TimeSpan? Duration, TimeSpan? MaximumDuration);
     private sealed record AdvanceCommand(TimeSpan? Position, bool Successful);
 
     public async Task DisposeAsync()

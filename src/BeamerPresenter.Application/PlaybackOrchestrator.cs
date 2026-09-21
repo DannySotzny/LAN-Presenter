@@ -88,6 +88,40 @@ public sealed class PlaybackOrchestrator(
             }
         }, cancellationToken);
 
+    public Task<QueueEntry> PlayYouTubeNextAsync(
+        string url,
+        TimeSpan? start = null,
+        TimeSpan? duration = null,
+        TimeSpan? maximumDuration = null,
+        CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(
+            () => queue.AddYouTubeNextAsync(url, start, duration, maximumDuration, cancellationToken),
+            cancellationToken);
+
+    public Task<QueueEntry> PlayYouTubeNowAsync(
+        string url,
+        TimeSpan? currentPosition,
+        TimeSpan? start = null,
+        TimeSpan? duration = null,
+        TimeSpan? maximumDuration = null,
+        CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(async () =>
+        {
+            var entry = await queue.StartYouTubeNowAsync(url, currentPosition, start, duration, maximumDuration, cancellationToken);
+            await presenter.StopAsync(cancellationToken);
+            try
+            {
+                await LoadEntryAsync(entry, cancellationToken);
+                playback.Activate();
+                return entry;
+            }
+            catch
+            {
+                await queue.MarkFailedAsync(entry, CancellationToken.None);
+                throw;
+            }
+        }, cancellationToken);
+
     public Task<QueueEntry?> AdvanceAsync(
         TimeSpan? actualPosition,
         bool successful = true,
@@ -95,14 +129,36 @@ public sealed class PlaybackOrchestrator(
         ExecuteSerializedAsync(async () =>
         {
             var next = await queue.CompleteCurrentAsync(actualPosition, successful, cancellationToken);
-            if (next?.MediaId is int mediaId)
+            if (next is not null)
             {
-                await presenter.LoadLocalVideoAsync(mediaId, next.StartPosition, next.EndPosition, autoPlay: true, cancellationToken);
+                await LoadEntryAsync(next, cancellationToken);
             }
 
             await queue.EnsureMinimumAsync(cancellationToken);
             return next;
         }, cancellationToken);
+
+    private Task LoadEntryAsync(QueueEntry entry, CancellationToken cancellationToken) => entry.SourceType switch
+    {
+        MediaSourceType.Local when entry.MediaId is int mediaId =>
+            presenter.LoadLocalVideoAsync(mediaId, entry.StartPosition, entry.EndPosition, autoPlay: true, cancellationToken),
+        MediaSourceType.YouTube when TryGetYouTubeId(entry.ExternalSourceKey, out var videoId) =>
+            presenter.LoadYouTubeVideoAsync(videoId, entry.StartPosition, entry.EndPosition, autoPlay: true, cancellationToken),
+        _ => throw new InvalidOperationException("Der Queue-Eintrag besitzt keine gültige Wiedergabequelle.")
+    };
+
+    private static bool TryGetYouTubeId(string? sourceKey, out string videoId)
+    {
+        const string prefix = "youtube:";
+        if (sourceKey?.StartsWith(prefix, StringComparison.Ordinal) == true && sourceKey.Length == prefix.Length + 11)
+        {
+            videoId = sourceKey[prefix.Length..];
+            return true;
+        }
+
+        videoId = string.Empty;
+        return false;
+    }
 
     private async Task ExecuteSerializedAsync(Func<Task> command, CancellationToken cancellationToken)
     {
