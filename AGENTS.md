@@ -40,6 +40,7 @@
 - Queue und Wiedergabehistorie werden über `IPlaybackStore` in SQLite persistiert. `GetQueueAsync` liefert nur Pending/Playing nach `SortOrder`; die Historie wird wegen der SQLite-`DateTimeOffset`-Grenze erst geladen und im Speicher sortiert. Planungsparameter gehören zum migrierten `PresenterSettings`-Datensatz.
 - `PlaybackQueueService` serialisiert Queue-Mutationen, reserviert auch geplante Segmente gegen Doppelbelegung und hält manuelle Einträge beim automatischen Auffüllen unverändert. Nur `PlaybackOrchestrator` darf daraus SignalR-Wiedergabekommandos auslösen; `Play Now` speichert vor dem Stoppen ausschließlich die tatsächliche Position.
 - Queue-Webaktionen bleiben authentifizierungspflichtige POST-Routen. `PresenterConnectionState` akzeptiert einen Terminalübergang (`Ended`/`Error`) nur einmal, damit doppelte Browser-Events nicht zwei Queue-Einträge überspringen; das Weiterschalten erfolgt über `IPlaybackCommandService`.
+- YouTube-Eingaben werden ausschließlich über `YouTubeUrlParser` akzeptiert und sofort auf eine exakt elfstellige Video-ID sowie den stabilen Schlüssel `youtube:<id>` normalisiert. Fremde Hosts, Lookalike-Domains und Nicht-HTTP(S)-Schemes bleiben ungültig.
 
 ## Arbeitsweise
 

@@ -36,6 +36,7 @@ Die Fundament-Stufe ist implementiert:
 - persistente Queue- und Wiedergabehistorie mit konfigurierbaren Schwellenwerten, Segmentlängen, Cooldowns und Zielgröße
 - automatische Queue-Auffüllung im Hintergrund sowie priorisierte Aktionen für „Als Nächstes“ und „Sofort abspielen“, ohne manuelle Einträge zu überschreiben
 - geschützte MudBlazor-Queue-Ansicht mit manueller Segmentwahl; Presenter-Ende und Wiedergabefehler schalten automatisch zum nächsten Eintrag weiter
+- sichere Normalisierung von YouTube-Watch-, Kurz- und Shorts-Links auf stabile `youtube:<video-id>`-Quellschlüssel
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 
 Noch nicht enthalten sind die persistente Queue-Steuerung, YouTube, Zeitpläne und die erweiterte Fernsteuerung. Diese werden in den folgenden Phasen hinter den vorhandenen Application-Contracts ergänzt.
