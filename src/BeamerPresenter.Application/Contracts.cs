@@ -110,6 +110,14 @@ public interface IPlaybackStore
     Task ClearHistoryAsync(CancellationToken cancellationToken = default);
 }
 
+public interface INewsService
+{
+    Task<IReadOnlyList<NewsItem>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<NewsItem> AddAsync(NewsItem item, CancellationToken cancellationToken = default);
+    Task UpdateAsync(NewsItem item, CancellationToken cancellationToken = default);
+    Task DeleteAsync(long id, CancellationToken cancellationToken = default);
+}
+
 public interface IPlaybackCommandService
 {
     Task<QueueEntry> PlayNextAsync(int mediaId, TimeSpan? start = null, TimeSpan? duration = null, CancellationToken cancellationToken = default);

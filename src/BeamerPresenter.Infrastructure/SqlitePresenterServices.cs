@@ -17,6 +17,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMediaFolderService, SqliteMediaFolderService>();
         services.AddSingleton<IMediaLibraryService, SqliteMediaLibraryService>();
         services.AddSingleton<IPlaybackStore, SqlitePlaybackStore>();
+        services.AddSingleton<INewsService, SqliteNewsService>();
         services.AddSingleton<IMediaScanner, SqliteMediaScanner>();
         services.AddSingleton<IFileStabilityChecker, FileStabilityChecker>();
         services.AddSingleton<MediaProbeQueue>();
@@ -299,6 +300,73 @@ internal sealed class SqlitePlaybackStore(IDbContextFactory<PresenterDbContext> 
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await context.PlaybackHistory.ExecuteDeleteAsync(cancellationToken);
+    }
+}
+
+internal sealed class SqliteNewsService(IDbContextFactory<PresenterDbContext> contextFactory) : INewsService
+{
+    public async Task<IReadOnlyList<NewsItem>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var items = await context.NewsItems.AsNoTracking().ToListAsync(cancellationToken);
+        return items.OrderByDescending(item => item.Priority).ThenByDescending(item => item.CreatedUtc).ToList();
+    }
+
+    public async Task<NewsItem> AddAsync(NewsItem item, CancellationToken cancellationToken = default)
+    {
+        Validate(item);
+        item.CreatedUtc = item.CreatedUtc == default ? DateTimeOffset.UtcNow : item.CreatedUtc;
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        context.NewsItems.Add(item);
+        await context.SaveChangesAsync(cancellationToken);
+        return item;
+    }
+
+    public async Task UpdateAsync(NewsItem item, CancellationToken cancellationToken = default)
+    {
+        Validate(item);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        if (!await context.NewsItems.AnyAsync(existing => existing.Id == item.Id, cancellationToken))
+        {
+            throw new InvalidOperationException("Die News wurde nicht gefunden.");
+        }
+
+        context.NewsItems.Update(item);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(long id, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var deleted = await context.NewsItems.Where(item => item.Id == id).ExecuteDeleteAsync(cancellationToken);
+        if (deleted == 0)
+        {
+            throw new InvalidOperationException("Die News wurde nicht gefunden.");
+        }
+    }
+
+    private static void Validate(NewsItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (string.IsNullOrWhiteSpace(item.Title) || item.Title.Length > 200)
+        {
+            throw new ArgumentException("Der News-Titel muss zwischen 1 und 200 Zeichen lang sein.", nameof(item));
+        }
+
+        if (string.IsNullOrWhiteSpace(item.Text) || item.Text.Length > 4000)
+        {
+            throw new ArgumentException("Der News-Text muss zwischen 1 und 4000 Zeichen lang sein.", nameof(item));
+        }
+
+        if (!item.Permanent && (!item.Duration.HasValue || item.Duration.Value <= TimeSpan.Zero))
+        {
+            throw new ArgumentException("Zeitlich begrenzte News benötigen eine positive Dauer.", nameof(item));
+        }
+
+        if (item.ValidFrom.HasValue && item.ValidUntil.HasValue && item.ValidUntil <= item.ValidFrom)
+        {
+            throw new ArgumentException("Das Gültigkeitsende muss nach dem Beginn liegen.", nameof(item));
+        }
     }
 }
 

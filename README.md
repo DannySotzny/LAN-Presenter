@@ -39,6 +39,7 @@ Die Fundament-Stufe ist implementiert:
 - sichere Normalisierung von YouTube-Watch-, Kurz- und Shorts-Links auf stabile `youtube:<video-id>`-Quellschlüssel
 - persistente YouTube-Queue- und Verlaufseinträge mit begrenzter Wiedergabezeit und fortlaufenden, nicht ständig am Anfang beginnenden Segmenten
 - YouTube-Wiedergabe über die offizielle IFrame Player API mit Dauer-/Positionsmeldungen, Fünf-Sekunden-Timeout und automatischem Fallback zum nächsten Queue-Eintrag
+- persistente, validierte News-Einträge für Ticker, 50:50-Split-Screen und Fullscreen mit Dauer/Permanent, Gültigkeitsfenster und Priorität
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 
 Noch nicht enthalten sind die persistente Queue-Steuerung, YouTube, Zeitpläne und die erweiterte Fernsteuerung. Diese werden in den folgenden Phasen hinter den vorhandenen Application-Contracts ergänzt.

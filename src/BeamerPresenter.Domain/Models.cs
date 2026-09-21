@@ -56,6 +56,13 @@ public enum QueueEntryStatus
     Skipped
 }
 
+public enum NewsMode
+{
+    SplitScreen,
+    Ticker,
+    Fullscreen
+}
+
 public sealed class PresenterSettings
 {
     public const int DefaultWebPort = 8765;
@@ -150,4 +157,18 @@ public sealed class QueueEntry
     public DateTimeOffset CreatedUtc { get; set; }
     public DateTimeOffset? StartedUtc { get; set; }
     public DateTimeOffset? CompletedUtc { get; set; }
+}
+
+public sealed class NewsItem
+{
+    public long Id { get; set; }
+    public required string Title { get; set; }
+    public required string Text { get; set; }
+    public NewsMode Mode { get; set; }
+    public TimeSpan? Duration { get; set; }
+    public bool Permanent { get; set; }
+    public DateTimeOffset? ValidFrom { get; set; }
+    public DateTimeOffset? ValidUntil { get; set; }
+    public int Priority { get; set; }
+    public DateTimeOffset CreatedUtc { get; set; }
 }

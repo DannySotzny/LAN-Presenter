@@ -3,6 +3,7 @@ using System;
 using BeamerPresenter.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BeamerPresenter.Infrastructure.Migrations
 {
     [DbContext(typeof(PresenterDbContext))]
-    partial class PresenterDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260921062528_AddNewsItems")]
+    partial class AddNewsItems
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");

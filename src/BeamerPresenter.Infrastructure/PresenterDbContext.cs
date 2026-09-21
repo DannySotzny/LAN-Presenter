@@ -10,6 +10,7 @@ public sealed class PresenterDbContext(DbContextOptions<PresenterDbContext> opti
     public DbSet<MediaFolder> MediaFolders => Set<MediaFolder>();
     public DbSet<QueueEntry> QueueEntries => Set<QueueEntry>();
     public DbSet<PlaybackHistory> PlaybackHistory => Set<PlaybackHistory>();
+    public DbSet<NewsItem> NewsItems => Set<NewsItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,5 +42,8 @@ public sealed class PresenterDbContext(DbContextOptions<PresenterDbContext> opti
         modelBuilder.Entity<PlaybackHistory>().HasIndex(x => new { x.MediaId, x.StartedUtc });
         modelBuilder.Entity<PlaybackHistory>().HasIndex(x => new { x.ExternalSourceKey, x.StartedUtc });
         modelBuilder.Entity<PlaybackHistory>().Property(x => x.ExternalSourceKey).HasMaxLength(128);
+        modelBuilder.Entity<NewsItem>().Property(x => x.Title).HasMaxLength(200);
+        modelBuilder.Entity<NewsItem>().Property(x => x.Text).HasMaxLength(4000);
+        modelBuilder.Entity<NewsItem>().HasIndex(x => new { x.ValidFrom, x.ValidUntil, x.Priority });
     }
 }
