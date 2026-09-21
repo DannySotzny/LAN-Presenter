@@ -11,6 +11,8 @@ public sealed class PlaybackQueueService(
 {
     private readonly SemaphoreSlim commandGate = new(1, 1);
 
+    public sealed record YouTubeQueueSelection(YouTubeReference Reference, TimeSpan Start, TimeSpan End);
+
     public Task<IReadOnlyList<QueueEntry>> GetQueueAsync(CancellationToken cancellationToken = default) =>
         store.GetQueueAsync(cancellationToken);
 
@@ -89,6 +91,45 @@ public sealed class PlaybackQueueService(
             }
 
             return await store.AddQueueEntryAsync(CreateQueueEntry(segment, QueueEntryOrigin.ManualNow, QueueEntryStatus.Playing, 0), cancellationToken);
+        }, cancellationToken);
+
+    public Task<QueueEntry> AddYouTubeNextAsync(
+        string url,
+        TimeSpan? start = null,
+        TimeSpan? duration = null,
+        TimeSpan? maximumDuration = null,
+        CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(async () =>
+        {
+            var selection = await ResolveYouTubeSegmentAsync(url, start, duration, maximumDuration, cancellationToken);
+            var queue = await store.GetQueueAsync(cancellationToken);
+            foreach (var entry in queue.Where(entry => entry.Status == QueueEntryStatus.Pending))
+            {
+                entry.SortOrder++;
+                await store.UpdateQueueEntryAsync(entry, cancellationToken);
+            }
+
+            return await store.AddQueueEntryAsync(CreateYouTubeQueueEntry(selection, QueueEntryOrigin.ManualNext, QueueEntryStatus.Pending, 1), cancellationToken);
+        }, cancellationToken);
+
+    public Task<QueueEntry> StartYouTubeNowAsync(
+        string url,
+        TimeSpan? currentPosition,
+        TimeSpan? start = null,
+        TimeSpan? duration = null,
+        TimeSpan? maximumDuration = null,
+        CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(async () =>
+        {
+            var selection = await ResolveYouTubeSegmentAsync(url, start, duration, maximumDuration, cancellationToken);
+            var queue = await store.GetQueueAsync(cancellationToken);
+            var current = queue.SingleOrDefault(entry => entry.Status == QueueEntryStatus.Playing);
+            if (current is not null)
+            {
+                await FinishEntryAsync(current, currentPosition, QueueEntryStatus.Interrupted, cancellationToken);
+            }
+
+            return await store.AddQueueEntryAsync(CreateYouTubeQueueEntry(selection, QueueEntryOrigin.ManualNow, QueueEntryStatus.Playing, 0), cancellationToken);
         }, cancellationToken);
 
     public Task<QueueEntry?> CompleteCurrentAsync(
@@ -189,11 +230,12 @@ public sealed class PlaybackQueueService(
         entry.CompletedUtc = finishedUtc;
         await store.UpdateQueueEntryAsync(entry, cancellationToken);
 
-        if (entry.MediaId.HasValue && actualEnd > entry.StartPosition)
+        if ((entry.MediaId.HasValue || !string.IsNullOrWhiteSpace(entry.ExternalSourceKey)) && actualEnd > entry.StartPosition)
         {
             await store.AddHistoryAsync(new PlaybackHistory
             {
-                MediaId = entry.MediaId.Value,
+                MediaId = entry.MediaId,
+                ExternalSourceKey = entry.ExternalSourceKey,
                 SourceType = entry.SourceType,
                 PlannedStart = entry.StartPosition,
                 PlannedEnd = entry.EndPosition,
@@ -229,9 +271,72 @@ public sealed class PlaybackQueueService(
         };
     }
 
+    private QueueEntry CreateYouTubeQueueEntry(
+        YouTubeQueueSelection selection,
+        QueueEntryOrigin origin,
+        QueueEntryStatus status,
+        int sortOrder)
+    {
+        var now = timeProvider.GetUtcNow();
+        return new QueueEntry
+        {
+            SourceType = MediaSourceType.YouTube,
+            ExternalSourceKey = selection.Reference.SourceKey,
+            StartPosition = selection.Start,
+            EndPosition = selection.End,
+            Origin = origin,
+            SortOrder = sortOrder,
+            Status = status,
+            CreatedUtc = now,
+            StartedUtc = status == QueueEntryStatus.Playing ? now : null
+        };
+    }
+
+    private async Task<YouTubeQueueSelection> ResolveYouTubeSegmentAsync(
+        string url,
+        TimeSpan? start,
+        TimeSpan? duration,
+        TimeSpan? maximumDuration,
+        CancellationToken cancellationToken)
+    {
+        var reference = YouTubeUrlParser.Parse(url);
+        var playbackDuration = duration ?? maximumDuration;
+        if (playbackDuration is null || playbackDuration <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(duration), "Für YouTube ist eine positive Dauer oder maximale Wiedergabezeit erforderlich.");
+        }
+
+        if ((start.HasValue && start.Value < TimeSpan.Zero) || (start.HasValue && !duration.HasValue))
+        {
+            throw new ArgumentOutOfRangeException(nameof(start), "Ein eigener YouTube-Start benötigt eine positive Dauer.");
+        }
+
+        var resolvedStart = start ?? await FindNextYouTubeStartAsync(reference.SourceKey, cancellationToken);
+        return new YouTubeQueueSelection(reference, resolvedStart, resolvedStart + playbackDuration.Value);
+    }
+
+    private async Task<TimeSpan> FindNextYouTubeStartAsync(string sourceKey, CancellationToken cancellationToken)
+    {
+        var history = await store.GetHistoryAsync(cancellationToken);
+        var usedEnd = history
+            .Where(entry => entry.SourceType == MediaSourceType.YouTube &&
+                            entry.ExternalSourceKey == sourceKey &&
+                            entry.ActualEnd.HasValue)
+            .Select(entry => entry.ActualEnd!.Value)
+            .DefaultIfEmpty(TimeSpan.Zero)
+            .Max();
+        var reservedEnd = (await store.GetQueueAsync(cancellationToken))
+            .Where(entry => entry.SourceType == MediaSourceType.YouTube && entry.ExternalSourceKey == sourceKey)
+            .Select(entry => entry.EndPosition)
+            .DefaultIfEmpty(TimeSpan.Zero)
+            .Max();
+        return usedEnd > reservedEnd ? usedEnd : reservedEnd;
+    }
+
     private static PlaybackHistory ToReservedHistory(QueueEntry entry) => new()
     {
-        MediaId = entry.MediaId ?? 0,
+        MediaId = entry.MediaId,
+        ExternalSourceKey = entry.ExternalSourceKey,
         SourceType = entry.SourceType,
         PlannedStart = entry.StartPosition,
         PlannedEnd = entry.EndPosition,

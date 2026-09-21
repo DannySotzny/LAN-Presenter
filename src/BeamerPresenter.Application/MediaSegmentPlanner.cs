@@ -158,12 +158,13 @@ public sealed class MediaSegmentPlanner
             : history
                 .OrderByDescending(entry => entry.StartedUtc)
                 .Take(settings.VideoCooldownCount)
-                .Select(entry => entry.MediaId);
+                .Where(entry => entry.MediaId.HasValue)
+                .Select(entry => entry.MediaId!.Value);
         var recentByTime = settings.TimeCooldownMinutes == 0
             ? []
             : history
-                .Where(entry => entry.StartedUtc >= now.AddMinutes(-settings.TimeCooldownMinutes))
-                .Select(entry => entry.MediaId);
+                .Where(entry => entry.MediaId.HasValue && entry.StartedUtc >= now.AddMinutes(-settings.TimeCooldownMinutes))
+                .Select(entry => entry.MediaId!.Value);
 
         return recentByCount.Concat(recentByTime).ToHashSet();
     }

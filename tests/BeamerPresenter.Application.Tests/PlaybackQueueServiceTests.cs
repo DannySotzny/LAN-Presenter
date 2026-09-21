@@ -83,6 +83,68 @@ public sealed class PlaybackQueueServiceTests
         Assert.True(Assert.Single(store.History).Completed);
     }
 
+    [Fact]
+    public async Task YouTube_next_normalizes_source_and_uses_maximum_duration()
+    {
+        var store = new MemoryPlaybackStore();
+        var service = CreateService(store, []);
+
+        var entry = await service.AddYouTubeNextAsync(
+            "https://youtu.be/dQw4w9WgXcQ?t=30",
+            maximumDuration: TimeSpan.FromMinutes(8));
+
+        Assert.Equal(MediaSourceType.YouTube, entry.SourceType);
+        Assert.Null(entry.MediaId);
+        Assert.Equal("youtube:dQw4w9WgXcQ", entry.ExternalSourceKey);
+        Assert.Equal(TimeSpan.Zero, entry.StartPosition);
+        Assert.Equal(TimeSpan.FromMinutes(8), entry.EndPosition);
+        Assert.Equal(QueueEntryOrigin.ManualNext, entry.Origin);
+    }
+
+    [Fact]
+    public async Task YouTube_automatic_start_continues_after_used_and_reserved_ranges()
+    {
+        var store = new MemoryPlaybackStore();
+        store.History.Add(new PlaybackHistory
+        {
+            SourceType = MediaSourceType.YouTube,
+            ExternalSourceKey = "youtube:dQw4w9WgXcQ",
+            ActualStart = TimeSpan.Zero,
+            ActualEnd = TimeSpan.FromMinutes(5),
+            StartedUtc = Now.AddHours(-1)
+        });
+        store.Queue.Add(new QueueEntry
+        {
+            Id = 1,
+            SourceType = MediaSourceType.YouTube,
+            ExternalSourceKey = "youtube:dQw4w9WgXcQ",
+            StartPosition = TimeSpan.FromMinutes(5),
+            EndPosition = TimeSpan.FromMinutes(12),
+            Status = QueueEntryStatus.Pending,
+            SortOrder = 1,
+            CreatedUtc = Now
+        });
+        var service = CreateService(store, []);
+
+        var entry = await service.AddYouTubeNextAsync(
+            "https://youtube.com/watch?v=dQw4w9WgXcQ",
+            maximumDuration: TimeSpan.FromMinutes(7));
+
+        Assert.Equal(TimeSpan.FromMinutes(12), entry.StartPosition);
+        Assert.Equal(TimeSpan.FromMinutes(19), entry.EndPosition);
+    }
+
+    [Fact]
+    public async Task YouTube_requires_a_bounded_playback_duration()
+    {
+        var service = CreateService(new MemoryPlaybackStore(), []);
+
+        var exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            service.AddYouTubeNextAsync("https://youtu.be/dQw4w9WgXcQ"));
+
+        Assert.Contains("maximale Wiedergabezeit", exception.Message, StringComparison.Ordinal);
+    }
+
     private static PlaybackQueueService CreateService(
         MemoryPlaybackStore store,
         IReadOnlyList<VideoAsset> media,

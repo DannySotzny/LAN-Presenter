@@ -122,7 +122,8 @@ public sealed class MediaFolder
 public sealed class PlaybackHistory
 {
     public long Id { get; set; }
-    public int MediaId { get; set; }
+    public int? MediaId { get; set; }
+    public string? ExternalSourceKey { get; set; }
     public MediaSourceType SourceType { get; set; }
     public TimeSpan PlannedStart { get; set; }
     public TimeSpan PlannedEnd { get; set; }

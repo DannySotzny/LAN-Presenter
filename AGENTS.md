@@ -41,6 +41,7 @@
 - `PlaybackQueueService` serialisiert Queue-Mutationen, reserviert auch geplante Segmente gegen Doppelbelegung und hält manuelle Einträge beim automatischen Auffüllen unverändert. Nur `PlaybackOrchestrator` darf daraus SignalR-Wiedergabekommandos auslösen; `Play Now` speichert vor dem Stoppen ausschließlich die tatsächliche Position.
 - Queue-Webaktionen bleiben authentifizierungspflichtige POST-Routen. `PresenterConnectionState` akzeptiert einen Terminalübergang (`Ended`/`Error`) nur einmal, damit doppelte Browser-Events nicht zwei Queue-Einträge überspringen; das Weiterschalten erfolgt über `IPlaybackCommandService`.
 - YouTube-Eingaben werden ausschließlich über `YouTubeUrlParser` akzeptiert und sofort auf eine exakt elfstellige Video-ID sowie den stabilen Schlüssel `youtube:<id>` normalisiert. Fremde Hosts, Lookalike-Domains und Nicht-HTTP(S)-Schemes bleiben ungültig.
+- Externe Wiedergaben speichern `MediaId = null` und den normalisierten `ExternalSourceKey` in Queue und Historie. YouTube-Einträge benötigen immer eine positive eigene oder maximale Laufzeit; ohne bekannte Player-Dauer beginnt die nächste automatische Einreihung hinter dem höchsten tatsächlich gespielten oder bereits reservierten Ende derselben Quelle.
 
 ## Arbeitsweise
 

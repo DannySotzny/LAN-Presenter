@@ -39,5 +39,7 @@ public sealed class PresenterDbContext(DbContextOptions<PresenterDbContext> opti
         modelBuilder.Entity<QueueEntry>().HasIndex(x => new { x.Status, x.SortOrder });
         modelBuilder.Entity<QueueEntry>().Property(x => x.ExternalSourceKey).HasMaxLength(2048);
         modelBuilder.Entity<PlaybackHistory>().HasIndex(x => new { x.MediaId, x.StartedUtc });
+        modelBuilder.Entity<PlaybackHistory>().HasIndex(x => new { x.ExternalSourceKey, x.StartedUtc });
+        modelBuilder.Entity<PlaybackHistory>().Property(x => x.ExternalSourceKey).HasMaxLength(128);
     }
 }

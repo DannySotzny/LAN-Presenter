@@ -66,6 +66,24 @@ public sealed class PlaybackStoreTests
                 Assert.Equal(TimeSpan.FromMinutes(7), persistedHistory.ActualEnd);
                 Assert.True(persistedHistory.Interrupted);
                 Assert.False(persistedHistory.Completed);
+
+                await store.AddHistoryAsync(new PlaybackHistory
+                {
+                    SourceType = MediaSourceType.YouTube,
+                    ExternalSourceKey = "youtube:dQw4w9WgXcQ",
+                    PlannedStart = TimeSpan.Zero,
+                    PlannedEnd = TimeSpan.FromMinutes(8),
+                    ActualStart = TimeSpan.Zero,
+                    ActualEnd = TimeSpan.FromMinutes(5),
+                    StartedUtc = createdUtc,
+                    PlaybackReason = PlaybackReason.ManualNext
+                });
+            }
+
+            await using (var provider = CreateProvider(dataDirectory))
+            {
+                var history = await provider.GetRequiredService<IPlaybackStore>().GetHistoryAsync();
+                Assert.Contains(history, entry => entry.MediaId is null && entry.ExternalSourceKey == "youtube:dQw4w9WgXcQ");
             }
         }
         finally
