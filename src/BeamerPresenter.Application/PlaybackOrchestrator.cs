@@ -8,7 +8,7 @@ public sealed class PlaybackOrchestrator(
     IPresenterGateway presenter,
     IPresenterSettingsService settingsService,
     IPowerManagementService powerManagement,
-    PlaybackQueueService queue) : IPlaybackCommandService, INewsCommandService
+    PlaybackQueueService queue) : IPlaybackCommandService, INewsCommandService, IPresenterRecoveryService
 {
     private readonly SemaphoreSlim commandGate = new(1, 1);
     private CancellationTokenSource? newsTimeout;
@@ -22,6 +22,13 @@ public sealed class PlaybackOrchestrator(
             var settings = await settingsService.GetAsync(cancellationToken);
             try
             {
+                await queue.EnsureMinimumAsync(cancellationToken);
+                var activeQueue = await queue.GetQueueAsync(cancellationToken);
+                if (!activeQueue.Any(entry => entry.Status == QueueEntryStatus.Playing))
+                {
+                    await queue.CompleteCurrentAsync(actualPosition: null, cancellationToken: cancellationToken);
+                }
+
                 await browser.StartAsync(cancellationToken);
                 await powerManagement.ApplyAsync(settings.PreventDisplaySleep, settings.PreventSystemSleep, cancellationToken);
                 playback.Activate();
@@ -33,6 +40,24 @@ public sealed class PlaybackOrchestrator(
                 throw;
             }
         }, cancellationToken);
+    }
+
+    public Task ReloadCurrentAsync(CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(async () =>
+        {
+            var current = (await queue.GetQueueAsync(cancellationToken))
+                .SingleOrDefault(entry => entry.Status == QueueEntryStatus.Playing);
+            if (current is not null)
+            {
+                await LoadEntryAsync(current, cancellationToken);
+            }
+        }, cancellationToken);
+
+    public async Task FailCurrentAndAdvanceAsync(
+        TimeSpan? actualPosition,
+        CancellationToken cancellationToken = default)
+    {
+        await AdvanceAsync(actualPosition, successful: false, cancellationToken);
     }
 
     public Task PauseAsync(CancellationToken cancellationToken = default) =>

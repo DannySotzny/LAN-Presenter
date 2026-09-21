@@ -46,6 +46,8 @@
 - News-Daten werden über `INewsService` persistiert. Titel/Text sind Pflicht, nicht-permanente Einträge brauchen eine positive Dauer und `ValidUntil` muss nach `ValidFrom` liegen; die drei Modi bleiben exakt `SplitScreen`, `Ticker` und `Fullscreen`.
 - News-Kommandos laufen ausschließlich über `INewsCommandService`/`PlaybackOrchestrator`. Ticker und SplitScreen pausieren Medien nicht; Fullscreen pausiert einmal, verdrängt die aktive Overlay-News und stellt nach Hide zuerst die Wiedergabe an derselben Position und danach das Overlay wieder her. Jeder zeitgesteuerte Hide muss beim Ersetzen abgebrochen werden.
 - `NewsSchedulingWorker` berücksichtigt nur News mit mindestens einer Gültigkeitsgrenze und pollt alle fünf Sekunden. Er beendet ausschließlich die von ihm verfolgte News-ID; läuft diese gerade nur suspendiert unter Fullscreen, muss sie aus dem Wiederherstellungs-Slot entfernt werden. Manuelle News ohne Gültigkeitsfenster bleiben Scheduler-unabhängig.
+- `PresenterWatchdog` überwacht im aktiven Zustand Chrome und einen höchstens 15 Sekunden alten SignalR-Heartbeat. Erst nach einer frischen Verbindung darf der aktuelle Queue-Eintrag erneut geladen werden; inaktive Zustände setzen alle Recovery-Zähler zurück.
+- Bleibt die gemeldete Playing-Position 15 Sekunden unverändert, lädt der Watchdog genau einmal neu. Weitere 15 Sekunden ohne Fortschritt markieren den aktuellen Queue-Eintrag als fehlgeschlagen und schalten weiter. `AlwaysOnTop` wird über `IBrowserController.ShowAsync` alle 30 Sekunden beziehungsweise im aggressiven Modus alle fünf Sekunden erneut durchgesetzt.
 
 ## Arbeitsweise
 

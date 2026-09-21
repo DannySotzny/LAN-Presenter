@@ -18,7 +18,7 @@ public interface IPresenterClient
     Task HideNews();
 }
 
-public sealed class PresenterConnectionState
+public sealed class PresenterConnectionState : IPresenterTelemetry
 {
     private readonly object reportLock = new();
     private int connectionCount;
@@ -27,6 +27,20 @@ public sealed class PresenterConnectionState
     public int ConnectionCount => Volatile.Read(ref connectionCount);
     public bool IsConnected => ConnectionCount > 0;
     public PresenterClientReport LatestReport => latestReport;
+    public PresenterTelemetrySnapshot Current
+    {
+        get
+        {
+            var report = latestReport;
+            return new PresenterTelemetrySnapshot(
+                IsConnected,
+                report.Status,
+                report.PositionSeconds.HasValue ? TimeSpan.FromSeconds(report.PositionSeconds.Value) : null,
+                report.DurationSeconds.HasValue ? TimeSpan.FromSeconds(report.DurationSeconds.Value) : null,
+                report.Message,
+                report.ReceivedUtc);
+        }
+    }
 
     internal void Connected()
     {

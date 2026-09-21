@@ -19,6 +19,7 @@ public static class WebApplicationExtensions
         services.AddMudServices();
         services.AddSignalR();
         services.AddSingleton<PresenterConnectionState>();
+        services.AddSingleton<IPresenterTelemetry>(provider => provider.GetRequiredService<PresenterConnectionState>());
         services.AddSingleton<IPresenterGateway, SignalRPresenterGateway>();
         services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
         {

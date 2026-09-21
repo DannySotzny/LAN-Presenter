@@ -60,6 +60,25 @@ public interface IBrowserController
     Task<bool> IsRunningAsync(CancellationToken cancellationToken = default);
 }
 
+public interface IPresenterTelemetry
+{
+    PresenterTelemetrySnapshot Current { get; }
+}
+
+public sealed record PresenterTelemetrySnapshot(
+    bool IsConnected,
+    string Status,
+    TimeSpan? Position,
+    TimeSpan? Duration,
+    string? Message,
+    DateTimeOffset ReceivedUtc);
+
+public interface IPresenterRecoveryService
+{
+    Task ReloadCurrentAsync(CancellationToken cancellationToken = default);
+    Task FailCurrentAndAdvanceAsync(TimeSpan? actualPosition, CancellationToken cancellationToken = default);
+}
+
 public interface IPowerManagementService
 {
     Task ApplyAsync(bool preventDisplaySleep, bool preventSystemSleep, CancellationToken cancellationToken = default);

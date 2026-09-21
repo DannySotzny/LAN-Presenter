@@ -42,9 +42,10 @@ Die Fundament-Stufe ist implementiert:
 - persistente, validierte News-Einträge für Ticker, 50:50-Split-Screen und Fullscreen mit Dauer/Permanent, Gültigkeitsfenster und Priorität
 - Presenter-News mit animiertem Ticker, 50:50-Split und Fullscreen-Priorität; Fullscreen pausiert das Video und stellt danach Wiedergabe und verdrängte Overlay-News wieder her
 - geschützte MudBlazor-Newsverwaltung für Erstellen, Planen, sofortiges Anzeigen, Beenden und Löschen sowie ein Fünf-Sekunden-Scheduler für Gültigkeitsfenster
+- Presenter-Watchdog für Chrome-, SignalR- und Heartbeat-Ausfälle, regelmäßige Topmost-Wiederherstellung sowie einmaliges Reload und anschließendes Überspringen dauerhaft festhängender Wiedergaben
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 
-Noch nicht enthalten sind die persistente Queue-Steuerung, YouTube, Zeitpläne und die erweiterte Fernsteuerung. Diese werden in den folgenden Phasen hinter den vorhandenen Application-Contracts ergänzt.
+Noch offen sind tägliche Datenbank-Backups, die erweiterte Health-/Statusanzeige und die abschließende Release-Härtung.
 
 ## Lokaler Start
 
