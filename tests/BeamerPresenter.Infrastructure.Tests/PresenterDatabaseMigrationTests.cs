@@ -142,6 +142,52 @@ public sealed class PresenterDatabaseMigrationTests
         }
     }
 
+    [Fact]
+    public async Task Daily_backup_is_consistent_idempotent_and_keeps_seven_days()
+    {
+        var dataDirectory = CreateTestDirectory();
+        try
+        {
+            PresenterDatabase.GetConfiguredWebPort(dataDirectory);
+            var options = new DbContextOptionsBuilder<PresenterDbContext>()
+                .UseSqlite(PresenterDatabase.CreateConnectionString(dataDirectory))
+                .Options;
+            await using (var context = new PresenterDbContext(options))
+            {
+                context.Settings.Add(new PresenterSettings { WebPort = 9876, MediaFolder = "D:\\LAN\\BackupTest" });
+                await context.SaveChangesAsync();
+            }
+
+            var firstDay = new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.Zero);
+            var firstPath = PresenterDatabase.CreateDailyBackup(dataDirectory, firstDay);
+            Assert.Equal(firstPath, PresenterDatabase.CreateDailyBackup(dataDirectory, firstDay.AddHours(6)));
+
+            await using (var backupConnection = new SqliteConnection(
+                             new SqliteConnectionStringBuilder { DataSource = firstPath, Pooling = false }.ToString()))
+            {
+                await backupConnection.OpenAsync();
+                Assert.Equal("9876", await ReadScalarAsync(backupConnection, "SELECT WebPort FROM Settings WHERE Id = 1;"));
+                Assert.Equal("ok", await ReadScalarAsync(backupConnection, "PRAGMA integrity_check;"));
+            }
+
+            for (var day = 1; day < 8; day++)
+            {
+                PresenterDatabase.CreateDailyBackup(dataDirectory, firstDay.AddDays(day));
+            }
+
+            var backups = Directory.GetFiles(
+                Path.Combine(Directory.GetParent(dataDirectory)!.FullName, "Backup"),
+                "presenter-daily-*.db");
+            Assert.Equal(7, backups.Length);
+            Assert.DoesNotContain(firstPath, backups);
+            Assert.DoesNotContain(Directory.GetFiles(Path.GetDirectoryName(firstPath)!), path => path.EndsWith(".tmp", StringComparison.Ordinal));
+        }
+        finally
+        {
+            DeleteTestDirectory(dataDirectory);
+        }
+    }
+
     private static async Task<string> ReadAppliedMigrationAsync(SqliteConnection connection) =>
         await ReadScalarAsync(connection, "SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId DESC LIMIT 1;");
 

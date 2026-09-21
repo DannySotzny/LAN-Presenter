@@ -28,6 +28,7 @@ Die Fundament-Stufe ist implementiert:
 - lokale Auslieferung der MudBlazor-Assets für Debug, portable Ausgabe und Inno-Setup-Installation
 - SQLite-Persistenz unter `%LOCALAPPDATA%\HouseOfLAN\Presenter\Data\presenter.db`
 - versionierte EF-Core-Migrationen mit verlustfreier Übernahme vorhandener `EnsureCreated`-Datenbanken
+- konsistente tägliche SQLite-Sicherung über die SQLite-Backup-API mit atomarer Ablage und Aufbewahrung der letzten sieben Tage
 - getrennte lokale Verzeichnisse für Daten, Logs, Backups, Chrome-Profil und Tools
 - persistente Presenter-Optionen für Chrome-Pfad, Zielmonitor, Always-On-Top und Display-/System-Standby-Schutz
 - kontrollierter Chrome-Kiosk-Kindprozess mit separatem Profil, Autoplay-Policy, Zielmonitorpositionierung und Show/Hide/Stop-Steuerung
@@ -45,7 +46,7 @@ Die Fundament-Stufe ist implementiert:
 - Presenter-Watchdog für Chrome-, SignalR- und Heartbeat-Ausfälle, regelmäßige Topmost-Wiederherstellung sowie einmaliges Reload und anschließendes Überspringen dauerhaft festhängender Wiedergaben
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 
-Noch offen sind tägliche Datenbank-Backups, die erweiterte Health-/Statusanzeige und die abschließende Release-Härtung.
+Noch offen sind die erweiterte Health-/Statusanzeige und die abschließende Release-Härtung.
 
 ## Lokaler Start
 

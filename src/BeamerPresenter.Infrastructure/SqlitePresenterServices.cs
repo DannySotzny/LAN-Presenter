@@ -4,6 +4,8 @@ using BeamerPresenter.Domain;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace BeamerPresenter.Infrastructure;
 
@@ -37,6 +39,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<PlaybackQueueService>();
         services.AddHostedService<QueuePlanningWorker>();
+        services.AddHostedService(provider => new PresenterBackupWorker(
+            dataDirectory,
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<PresenterBackupWorker>>()));
         return services;
     }
 }
@@ -60,6 +66,66 @@ public static class PresenterDatabase
         context.Database.ExecuteSqlRaw("PRAGMA journal_mode = WAL;");
         var configuredPort = context.Settings.AsNoTracking().Where(x => x.Id == 1).Select(x => (int?)x.WebPort).SingleOrDefault();
         return configuredPort is >= 1024 and <= 65535 ? configuredPort.Value : PresenterSettings.DefaultWebPort;
+    }
+
+    public static string CreateDailyBackup(string dataDirectory) =>
+        CreateDailyBackup(dataDirectory, DateTimeOffset.UtcNow);
+
+    internal static string CreateDailyBackup(string dataDirectory, DateTimeOffset timestamp)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
+        var databasePath = Path.Combine(Path.GetFullPath(dataDirectory), "presenter.db");
+        if (!File.Exists(databasePath))
+        {
+            throw new FileNotFoundException("Die Presenter-Datenbank wurde noch nicht angelegt.", databasePath);
+        }
+
+        var presenterDirectory = Directory.GetParent(Path.GetFullPath(dataDirectory))?.FullName ?? Path.GetFullPath(dataDirectory);
+        var backupDirectory = Path.Combine(presenterDirectory, "Backup");
+        Directory.CreateDirectory(backupDirectory);
+        var backupPath = Path.Combine(backupDirectory, $"presenter-daily-{timestamp.UtcDateTime:yyyyMMdd}.db");
+        if (File.Exists(backupPath))
+        {
+            return backupPath;
+        }
+
+        var temporaryPath = backupPath + $".{Guid.NewGuid():N}.tmp";
+        try
+        {
+            using var sourceConnection = new SqliteConnection(CreateConnectionString(dataDirectory));
+            sourceConnection.Open();
+            using (var destinationConnection = new SqliteConnection(
+                       new SqliteConnectionStringBuilder { DataSource = temporaryPath, Pooling = false }.ToString()))
+            {
+                destinationConnection.Open();
+                sourceConnection.BackupDatabase(destinationConnection);
+            }
+
+            try
+            {
+                File.Move(temporaryPath, backupPath);
+            }
+            catch (IOException) when (File.Exists(backupPath))
+            {
+                File.Delete(temporaryPath);
+            }
+
+            foreach (var obsoleteBackup in Directory.GetFiles(backupDirectory, "presenter-daily-*.db")
+                         .OrderByDescending(Path.GetFileName, StringComparer.Ordinal)
+                         .Skip(7))
+            {
+                File.Delete(obsoleteBackup);
+            }
+
+            return backupPath;
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
     }
 
     internal static string CreateConnectionString(string dataDirectory)
@@ -132,6 +198,46 @@ public static class PresenterDatabase
         parameter.Value = tableName;
         command.Parameters.Add(parameter);
         return Convert.ToInt64(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0;
+    }
+}
+
+internal sealed class PresenterBackupWorker(
+    string dataDirectory,
+    TimeProvider timeProvider,
+    ILogger<PresenterBackupWorker> logger) : BackgroundService
+{
+    private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(1);
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await CreateBackupSafelyAsync(stoppingToken);
+        using var timer = new PeriodicTimer(CheckInterval);
+        while (await timer.WaitForNextTickAsync(stoppingToken))
+        {
+            await CreateBackupSafelyAsync(stoppingToken);
+        }
+    }
+
+    internal Task CreateBackupAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        PresenterDatabase.CreateDailyBackup(dataDirectory, timeProvider.GetUtcNow());
+        return Task.CompletedTask;
+    }
+
+    private async Task CreateBackupSafelyAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await CreateBackupAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Daily presenter database backup failed");
+        }
     }
 }
 
