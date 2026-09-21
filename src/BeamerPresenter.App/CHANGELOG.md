@@ -1,4 +1,13 @@
 Beamerpresenter.App Changelog
+<a name="0.9.0"></a>
+## [0.9.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.9.0) (2026-09-21)
+
+### Features
+
+* add live presenter health dashboard ([e2a51bc](https://www.github.com/DannySotzny/LAN-Presenter/commit/e2a51bc78041394a59471cb7f4c2f7d9fb52f59e))
+* create daily database backups ([9823de7](https://www.github.com/DannySotzny/LAN-Presenter/commit/9823de7c44c08216d8d3277d3733f182100e7dc9))
+* recover stalled presenter playback ([aa4c283](https://www.github.com/DannySotzny/LAN-Presenter/commit/aa4c2834dc26ce715086a37a320700b67bf6242b))
+
 <a name="0.8.0"></a>
 ## [0.8.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.8.0) (2026-09-21)
 
