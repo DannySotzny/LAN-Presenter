@@ -47,6 +47,33 @@ public sealed class CleanArchitectureTests
         Assert.False(File.Exists(Path.Combine(root, "BeamerPresenterForLanParties.sln")));
     }
 
+    [Fact]
+    public void Package_versions_are_centralized_and_every_project_has_a_lock_file()
+    {
+        var root = FindRepositoryRoot();
+        var centralPackagesPath = Path.Combine(root, "Directory.Packages.props");
+        var centralPackages = System.Xml.Linq.XDocument.Load(centralPackagesPath);
+        Assert.Equal(
+            "true",
+            centralPackages.Descendants("ManagePackageVersionsCentrally").Single().Value,
+            ignoreCase: true);
+
+        var projectFiles = Directory.EnumerateFiles(Path.Combine(root, "src"), "*.csproj", SearchOption.AllDirectories)
+            .Concat(Directory.EnumerateFiles(Path.Combine(root, "tests"), "*.csproj", SearchOption.AllDirectories))
+            .ToArray();
+        Assert.NotEmpty(projectFiles);
+        foreach (var projectFile in projectFiles)
+        {
+            var project = System.Xml.Linq.XDocument.Load(projectFile);
+            Assert.DoesNotContain(
+                project.Descendants("PackageReference"),
+                reference => reference.Attribute("Version") is not null || reference.Element("Version") is not null);
+            Assert.True(
+                File.Exists(Path.Combine(Path.GetDirectoryName(projectFile)!, "packages.lock.json")),
+                $"Lockfile fehlt für {Path.GetRelativePath(root, projectFile)}.");
+        }
+    }
+
     private static void AssertProjectReferences(Assembly assembly, params string[] allowed)
     {
         var actual = assembly.GetReferencedAssemblies()

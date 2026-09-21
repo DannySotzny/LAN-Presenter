@@ -3,6 +3,10 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <RepositoryUrl>https://github.com/HouseOfLAN/BeamerPresenterForLanParties</RepositoryUrl>
     <Copyright>Copyright (c) 2026 House of LAN</Copyright>
   </PropertyGroup>

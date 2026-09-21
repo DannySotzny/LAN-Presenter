@@ -78,6 +78,8 @@ dotnet test BeamerPresenterForLanParties.slnx -c Release --collect:"XPlat Code C
 ./scripts/Assert-Coverage.ps1 -ResultsDirectory $results -Threshold 80
 ```
 
+Paketversionen werden zentral in `Directory.Packages.props` gepflegt. Jedes Projekt besitzt ein eingechecktes `packages.lock.json`; CI und Release stellen ausschließlich im Locked Mode wieder her. Nach einer bewussten Paketänderung werden die Lockfiles lokal mit `dotnet restore BeamerPresenterForLanParties.slnx --force-evaluate` aktualisiert.
+
 ## Versionen und Changelog
 
 `versionize` ist als lokales .NET-Tool in `dotnet-tools.json` festgeschrieben. Commit-Nachrichten nutzen Conventional Commits, beispielsweise `feat: add media scan` oder `fix: reject unsafe upload names`.

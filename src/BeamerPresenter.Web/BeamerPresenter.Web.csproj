@@ -14,7 +14,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="BeamerPresenter.Web.Tests" />
-    <PackageReference Include="MudBlazor" Version="9.10.0" />
+    <PackageReference Include="MudBlazor" />
     <ProjectReference Include="..\BeamerPresenter.Application\BeamerPresenter.Application.csproj" />
   </ItemGroup>
 

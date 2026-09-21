@@ -12,8 +12,8 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <InternalsVisibleTo Include="BeamerPresenter.App.Tests" />
-    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
-    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.File" />
     <ProjectReference Include="..\BeamerPresenter.Infrastructure\BeamerPresenter.Infrastructure.csproj" />
     <ProjectReference Include="..\BeamerPresenter.Web\BeamerPresenter.Web.csproj" />
   </ItemGroup>
@@ -23,7 +23,7 @@
       <Link>wwwroot\_content\BeamerPresenter.Web\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="$(NuGetPackageRoot)mudblazor\9.10.0\staticwebassets\**\*">
+    <Content Include="$(NuGetPackageRoot)mudblazor\$(MudBlazorVersion)\staticwebassets\**\*">
       <Link>wwwroot\_content\MudBlazor\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
