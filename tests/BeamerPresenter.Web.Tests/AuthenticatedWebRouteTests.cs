@@ -208,7 +208,64 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Contains("arena-final.mp4", html, StringComparison.Ordinal);
         Assert.Contains("Bereit", html, StringComparison.Ordinal);
         Assert.Contains("Als Nächstes", html, StringComparison.Ordinal);
+        Assert.Contains("Deaktivieren", html, StringComparison.Ordinal);
+        Assert.Contains("Neu analysieren", html, StringComparison.Ordinal);
         Assert.DoesNotContain("retro-demo.mkv", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Authenticated_media_actions_persist_enabled_state_and_start_reanalysis()
+    {
+        var mediaDirectory = Path.Combine(_dataDirectory, "MediaActions");
+        Directory.CreateDirectory(mediaDirectory);
+        var mediaPath = Path.Combine(mediaDirectory, "managed.mp4");
+        await File.WriteAllBytesAsync(mediaPath, [1, 2, 3, 4]);
+        await _application!.Services.GetRequiredService<IMediaFolderService>().AddAsync(mediaDirectory, includeSubdirectories: false);
+        int mediaId;
+        await using (var scope = _application.Services.CreateAsyncScope())
+        {
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PresenterDbContext>>();
+            await using var context = await factory.CreateDbContextAsync();
+            var video = CreateVideo("managed.mp4", "h264", MediaPlaybackStatus.Failed);
+            video.FullPath = mediaPath;
+            video.ProbeStatus = MediaProbeStatus.Invalid;
+            video.ProbeError = "old failure";
+            context.Videos.Add(video);
+            await context.SaveChangesAsync();
+            mediaId = video.Id;
+        }
+
+        using var client = _application.GetTestClient();
+        var cookie = await LoginAsync(client);
+        using (var disableRequest = CreateAuthenticatedFormRequest(
+                   "/api/videos/set-enabled",
+                   cookie,
+                   ("id", mediaId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                   ("enabled", "false")))
+        using (var disableResponse = await client.SendAsync(disableRequest))
+        {
+            Assert.Equal("/?media=disabled", disableResponse.Headers.Location?.OriginalString);
+        }
+
+        var mediaLibrary = _application.Services.GetRequiredService<IMediaLibraryService>();
+        Assert.False((await mediaLibrary.GetByIdAsync(mediaId))!.Enabled);
+
+        using (var enableRequest = CreateAuthenticatedFormRequest(
+                   "/api/videos/set-enabled",
+                   cookie,
+                   ("id", mediaId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                   ("enabled", "true")))
+        using (var enableResponse = await client.SendAsync(enableRequest))
+        {
+            Assert.Equal("/?media=enabled", enableResponse.Headers.Location?.OriginalString);
+        }
+
+        using var reanalyzeRequest = CreateAuthenticatedFormRequest(
+            "/api/videos/reanalyze",
+            cookie,
+            ("id", mediaId.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        using var reanalyzeResponse = await client.SendAsync(reanalyzeRequest);
+        Assert.Equal("/?media=reanalyzing", reanalyzeResponse.Headers.Location?.OriginalString);
     }
 
     [Fact]
@@ -301,6 +358,41 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Authenticated_management_actions_return_visible_errors_for_invalid_input()
+    {
+        using var client = _application!.GetTestClient();
+        var cookie = await LoginAsync(client);
+
+        using (var mediaRequest = CreateAuthenticatedFormRequest("/api/videos/set-enabled", cookie, ("id", "invalid"), ("enabled", "false")))
+        using (var mediaResponse = await client.SendAsync(mediaRequest))
+        {
+            Assert.StartsWith("/?media=error", mediaResponse.Headers.Location?.OriginalString, StringComparison.Ordinal);
+        }
+
+        using (var reanalyzeRequest = CreateAuthenticatedFormRequest("/api/videos/reanalyze", cookie, ("id", int.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture))))
+        using (var reanalyzeResponse = await client.SendAsync(reanalyzeRequest))
+        {
+            Assert.StartsWith("/?media=error", reanalyzeResponse.Headers.Location?.OriginalString, StringComparison.Ordinal);
+        }
+
+        using (var queueRequest = CreateAuthenticatedFormRequest("/api/queue/move-up", cookie, ("id", "invalid")))
+        using (var queueResponse = await client.SendAsync(queueRequest))
+        {
+            Assert.StartsWith("/?queue=error", queueResponse.Headers.Location?.OriginalString, StringComparison.Ordinal);
+        }
+
+        using (var missingQueueRequest = CreateAuthenticatedFormRequest("/api/queue/remove", cookie, ("id", long.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture))))
+        using (var missingQueueResponse = await client.SendAsync(missingQueueRequest))
+        {
+            Assert.StartsWith("/?queue=error", missingQueueResponse.Headers.Location?.OriginalString, StringComparison.Ordinal);
+        }
+
+        using var regenerateRequest = CreateAuthenticatedFormRequest("/api/queue/regenerate", cookie);
+        using var regenerateResponse = await client.SendAsync(regenerateRequest);
+        Assert.Equal("/?queue=success", regenerateResponse.Headers.Location?.OriginalString);
+    }
+
+    [Fact]
     public async Task Authenticated_history_clear_removes_persisted_entries()
     {
         await using (var scope = _application!.Services.CreateAsyncScope())
@@ -331,6 +423,8 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
 
     [Theory]
     [InlineData("/api/queue/now")]
+    [InlineData("/api/videos/set-enabled")]
+    [InlineData("/api/videos/reanalyze")]
     [InlineData("/api/queue/move-up")]
     [InlineData("/api/queue/move-down")]
     [InlineData("/api/queue/remove")]

@@ -63,6 +63,14 @@
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(UploadMessage) ? UploadMessage : "Das Video konnte nicht hochgeladen werden.")</MudAlert>
     }
+    @if (MediaResult is "enabled" or "disabled" or "reanalyzing")
+    {
+        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die Videoeinstellung wurde aktualisiert.</MudAlert>
+    }
+    else if (MediaResult == "error")
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(MediaMessage) ? MediaMessage : "Die Videoaktion ist fehlgeschlagen.")</MudAlert>
+    }
     @if (PresenterResult == "error")
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(PresenterMessage) ? PresenterMessage : "Der Presenter-Befehl ist fehlgeschlagen.")</MudAlert>
@@ -368,9 +376,9 @@
                             <MudTd DataLabel="Dauer">@FormatDuration(context.Duration)</MudTd>
                             <MudTd DataLabel="Größe">@FormatSize(context.FileSize)</MudTd>
                             <MudTd DataLabel="Aktion">
-                                @if (IsPlayable(context))
-                                {
-                                    <div class="media-actions">
+                                <div class="media-actions">
+                                    @if (IsPlayable(context))
+                                    {
                                         <form method="post" action="/api/queue/next">
                                             <input type="hidden" name="mediaId" value="@context.Id" />
                                             <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.SkipNext">Als Nächstes</MudButton>
@@ -394,8 +402,20 @@
                                                 </form>
                                             </details>
                                         }
-                                    </div>
-                                }
+                                    }
+                                    <form method="post" action="/api/videos/set-enabled">
+                                        <input type="hidden" name="id" value="@context.Id" />
+                                        <input type="hidden" name="enabled" value="@(!context.Enabled)" />
+                                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="@(context.Enabled ? Color.Warning : Color.Success)" Size="Size.Small" StartIcon="@(context.Enabled ? Icons.Material.Filled.Block : Icons.Material.Filled.CheckCircle)">@(context.Enabled ? "Deaktivieren" : "Aktivieren")</MudButton>
+                                    </form>
+                                    @if (context.IsAvailable)
+                                    {
+                                        <form method="post" action="/api/videos/reanalyze">
+                                            <input type="hidden" name="id" value="@context.Id" />
+                                            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="Color.Secondary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Refresh">Neu analysieren</MudButton>
+                                        </form>
+                                    }
+                                </div>
                             </MudTd>
                         </RowTemplate>
                     </MudTable>
@@ -454,10 +474,16 @@
     [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "history")]
     public string? HistoryResult { get; set; }
 
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "media")]
+    public string? MediaResult { get; set; }
+
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "message")]
+    public string? MediaMessage { get; set; }
+
     private string PresenterIcon => Playback.State == PresenterState.Active ? Icons.Material.Filled.PlayCircle : Icons.Material.Filled.PauseCircle;
-    private int ReadyCount => _videos.Count(video => video.IsAvailable && video.PlaybackStatus == MediaPlaybackStatus.Supported);
-    private int PendingCount => _videos.Count(video => video.IsAvailable && video.ProbeStatus == MediaProbeStatus.Unknown);
-    private int ProblemCount => _videos.Count(video => !video.IsAvailable || video.ProbeStatus is MediaProbeStatus.Invalid or MediaProbeStatus.Missing || video.PlaybackStatus == MediaPlaybackStatus.Unsupported);
+    private int ReadyCount => _videos.Count(video => video.Enabled && video.IsAvailable && video.PlaybackStatus == MediaPlaybackStatus.Supported);
+    private int PendingCount => _videos.Count(video => video.Enabled && video.IsAvailable && video.ProbeStatus == MediaProbeStatus.Unknown);
+    private int ProblemCount => _videos.Count(video => video.Enabled && (!video.IsAvailable || video.ProbeStatus is MediaProbeStatus.Invalid or MediaProbeStatus.Missing || video.PlaybackStatus == MediaPlaybackStatus.Unsupported));
     private IReadOnlyList<VideoAsset> FilteredVideos => string.IsNullOrWhiteSpace(Search)
         ? _videos
         : _videos.Where(MatchesSearch).ToList();
@@ -492,6 +518,7 @@
 
     private static Color GetStatusColor(VideoAsset video) => video switch
     {
+        { Enabled: false } => Color.Secondary,
         { IsAvailable: false } => Color.Error,
         { ProbeStatus: MediaProbeStatus.Invalid or MediaProbeStatus.Missing } => Color.Error,
         { PlaybackStatus: MediaPlaybackStatus.Unsupported } => Color.Warning,
@@ -501,6 +528,7 @@
 
     private static string GetStatusIcon(VideoAsset video) => video switch
     {
+        { Enabled: false } => Icons.Material.Filled.Block,
         { IsAvailable: false } => Icons.Material.Filled.LinkOff,
         { ProbeStatus: MediaProbeStatus.Invalid or MediaProbeStatus.Missing } => Icons.Material.Filled.Error,
         { PlaybackStatus: MediaPlaybackStatus.Unsupported } => Icons.Material.Filled.Warning,
@@ -510,6 +538,7 @@
 
     private static string GetStatusText(VideoAsset video) => video switch
     {
+        { Enabled: false } => "Deaktiviert",
         { IsAvailable: false } => "Fehlt",
         { ProbeStatus: MediaProbeStatus.Invalid } => "Fehlerhaft",
         { PlaybackStatus: MediaPlaybackStatus.Unsupported } => "Inkompatibel",
@@ -542,7 +571,7 @@
         : $"{bytes / 1024d / 1024d:0.0} MB";
 
     private static bool IsPlayable(VideoAsset video) =>
-        video.IsAvailable && video.Duration > TimeSpan.Zero && video.PlaybackStatus == MediaPlaybackStatus.Supported;
+        video.Enabled && video.IsAvailable && video.Duration > TimeSpan.Zero && video.PlaybackStatus == MediaPlaybackStatus.Supported;
 
     private string GetQueueVideoName(QueueEntry entry) => entry.SourceType switch
     {

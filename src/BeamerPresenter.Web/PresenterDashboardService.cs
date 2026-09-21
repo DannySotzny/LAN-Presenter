@@ -115,10 +115,11 @@ public sealed class PresenterDashboardService(
     };
 
     private static bool IsPlayable(VideoAsset video) =>
-        video.IsAvailable && video.PlaybackStatus == MediaPlaybackStatus.Supported;
+        video.Enabled && video.IsAvailable && video.PlaybackStatus == MediaPlaybackStatus.Supported;
 
     private static bool IsProblem(VideoAsset video) =>
-        !video.IsAvailable ||
-        video.ProbeStatus is MediaProbeStatus.Invalid or MediaProbeStatus.Missing or MediaProbeStatus.Unsupported ||
-        video.PlaybackStatus is MediaPlaybackStatus.Unsupported or MediaPlaybackStatus.Failed;
+        video.Enabled &&
+        (!video.IsAvailable ||
+         video.ProbeStatus is MediaProbeStatus.Invalid or MediaProbeStatus.Missing or MediaProbeStatus.Unsupported ||
+         video.PlaybackStatus is MediaPlaybackStatus.Unsupported or MediaPlaybackStatus.Failed);
 }

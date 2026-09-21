@@ -18,6 +18,7 @@ Die Fundament-Stufe ist implementiert:
 - PBKDF2-SHA512-Hash mit zufälligem Salt, kein Klartextpasswort
 - Upload unterstützter Videoformate über die geschützte Web UI
 - responsive MudBlazor-Medienbibliothek mit Suche, technischen Metadaten, Kennzahlen und klar erkennbaren Analyse-/Kompatibilitätsfehlern
+- persistentes Aktivieren/Deaktivieren einzelner Videos und erneute FFprobe-Analyse direkt aus der geschützten Medienbibliothek; deaktivierte oder zur Laufzeit fehlgeschlagene Medien werden nicht erneut eingeplant
 - anonyme, ID-basierte lokale Medienauslieferung mit HTTP-Range-Support und erneuter Pfadvalidierung gegen aktive Medienordner
 - zusätzliche Loopback-Sperre für `/presenter`, `/media` und `/hubs/presenter`, sodass LAN-Teilnehmer weder Kiosk noch Mediendateien direkt abrufen können
 - dauerhaft geladene Fullscreen-Presenter-Seite mit dediziertem SignalR-Hub, Reconnect, lokalen Video-/Segmentkommandos und Status-/Heartbeat-Rückmeldungen

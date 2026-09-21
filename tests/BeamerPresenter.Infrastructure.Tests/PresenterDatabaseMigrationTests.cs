@@ -22,7 +22,7 @@ public sealed class PresenterDatabaseMigrationTests
 
             await using var connection = new SqliteConnection(PresenterDatabase.CreateConnectionString(dataDirectory));
             await connection.OpenAsync();
-            Assert.EndsWith("_AddNewsItems", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
+            Assert.EndsWith("_AddVideoEnabled", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
             Assert.Equal("wal", await ReadScalarAsync(connection, "PRAGMA journal_mode;"));
             Assert.Equal("1", await ReadScalarAsync(connection, "PRAGMA foreign_keys;"));
         }
@@ -48,6 +48,10 @@ public sealed class PresenterDatabaseMigrationTests
                     INSERT INTO Settings (Id, WebPort, AllowLanAccess, MediaFolder, PasswordHash, PasswordSalt)
                     VALUES (1, 9123, 1, 'D:\LAN\Videos', NULL, NULL);
                     """);
+                await context.Database.ExecuteSqlRawAsync("""
+                    INSERT INTO Videos (Id, FileName, FullPath, FileSize, AddedAtUtc)
+                    VALUES (1, 'legacy.mp4', 'D:\LAN\Videos\legacy.mp4', 42, '2026-09-20 18:00:00+00:00');
+                    """);
                 await context.Database.ExecuteSqlRawAsync("DROP TABLE __EFMigrationsHistory;");
             }
 
@@ -56,12 +60,13 @@ public sealed class PresenterDatabaseMigrationTests
 
             await using var connection = new SqliteConnection(PresenterDatabase.CreateConnectionString(dataDirectory));
             await connection.OpenAsync();
-            Assert.EndsWith("_AddNewsItems", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
+            Assert.EndsWith("_AddVideoEnabled", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
             Assert.Equal("D:\\LAN\\Videos", await ReadScalarAsync(connection, "SELECT MediaFolder FROM Settings WHERE Id = 1;"));
             Assert.Equal("D:\\LAN\\Videos", await ReadScalarAsync(connection, "SELECT Path FROM MediaFolders LIMIT 1;"));
             Assert.Equal("1", await ReadScalarAsync(connection, "SELECT AlwaysOnTop FROM Settings WHERE Id = 1;"));
             Assert.Equal("1", await ReadScalarAsync(connection, "SELECT PreventDisplaySleep FROM Settings WHERE Id = 1;"));
             Assert.Equal("1", await ReadScalarAsync(connection, "SELECT PreventSystemSleep FROM Settings WHERE Id = 1;"));
+            Assert.Equal("1", await ReadScalarAsync(connection, "SELECT Enabled FROM Videos WHERE Id = 1;"));
             Assert.Single(Directory.GetFiles(Path.Combine(Directory.GetParent(dataDirectory)!.FullName, "Backup"), "presenter-before-migration-*.db"));
         }
         finally

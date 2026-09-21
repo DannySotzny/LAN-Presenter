@@ -34,6 +34,8 @@ public static class WebApplicationExtensions
     {
         app.MapPost("/account/login", (Delegate)LoginAsync).AllowAnonymous(); app.MapPost("/account/logout", (Delegate)LogoutAsync).RequireAuthorization();
         app.MapPost("/api/videos/upload", (Delegate)UploadAsync).RequireAuthorization();
+        app.MapPost("/api/videos/set-enabled", (Delegate)SetVideoEnabledAsync).RequireAuthorization();
+        app.MapPost("/api/videos/reanalyze", (Delegate)ReanalyzeVideoAsync).RequireAuthorization();
         app.MapPost("/api/queue/next", (Delegate)PlayNextAsync).RequireAuthorization();
         app.MapPost("/api/queue/now", (Delegate)PlayNowAsync).RequireAuthorization();
         app.MapPost("/api/queue/move-up", (Delegate)MoveQueueUpAsync).RequireAuthorization();
@@ -153,6 +155,52 @@ public static class WebApplicationExtensions
             return IsLocalUrl(returnUrl)
                 ? Results.Redirect($"{returnUrl}?upload=error&message={Uri.EscapeDataString(exception.Message)}")
                 : Results.BadRequest(new { error = exception.Message });
+        }
+    }
+
+    private static async Task<IResult> SetVideoEnabledAsync(
+        HttpContext context,
+        IMediaLibraryService mediaLibrary,
+        CancellationToken cancellationToken)
+    {
+        var form = await context.Request.ReadFormAsync(cancellationToken);
+        if (!int.TryParse(form["id"], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) ||
+            !bool.TryParse(form["enabled"], out var enabled))
+        {
+            return Results.Redirect("/?media=error&message=Ungültige%20Videoaktion");
+        }
+
+        return await ExecuteMediaCommandAsync(
+            () => mediaLibrary.SetEnabledAsync(id, enabled, cancellationToken),
+            enabled ? "enabled" : "disabled");
+    }
+
+    private static async Task<IResult> ReanalyzeVideoAsync(
+        HttpContext context,
+        IMediaLibraryService mediaLibrary,
+        CancellationToken cancellationToken)
+    {
+        var form = await context.Request.ReadFormAsync(cancellationToken);
+        if (!int.TryParse(form["id"], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id))
+        {
+            return Results.Redirect("/?media=error&message=Ungültiges%20Video");
+        }
+
+        return await ExecuteMediaCommandAsync(
+            () => mediaLibrary.ReanalyzeAsync(id, cancellationToken),
+            "reanalyzing");
+    }
+
+    private static async Task<IResult> ExecuteMediaCommandAsync(Func<Task> command, string result)
+    {
+        try
+        {
+            await command();
+            return Results.Redirect($"/?media={result}");
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Results.Redirect($"/?media=error&message={Uri.EscapeDataString(exception.Message)}");
         }
     }
 
@@ -410,7 +458,7 @@ public static class WebApplicationExtensions
         CancellationToken cancellationToken)
     {
         var asset = await mediaLibraryService.GetByIdAsync(mediaId, cancellationToken);
-        if (asset is null || !asset.IsAvailable || !File.Exists(asset.FullPath))
+        if (asset is null || !asset.Enabled || !asset.IsAvailable || !File.Exists(asset.FullPath))
         {
             return Results.NotFound();
         }

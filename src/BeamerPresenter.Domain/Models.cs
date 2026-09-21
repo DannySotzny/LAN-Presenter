@@ -104,6 +104,7 @@ public sealed class VideoAsset
     public DateTimeOffset LastWriteUtc { get; set; }
     public DateTimeOffset? LastScannedUtc { get; set; }
     public bool IsAvailable { get; set; } = true;
+    public bool Enabled { get; set; } = true;
     public TimeSpan? Duration { get; set; }
     public string? Container { get; set; }
     public string? VideoCodec { get; set; }

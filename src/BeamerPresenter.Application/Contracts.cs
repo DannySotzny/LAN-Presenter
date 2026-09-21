@@ -16,6 +16,9 @@ public interface IMediaLibraryService
     Task<IReadOnlyList<VideoAsset>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<VideoAsset?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
     Task<VideoAsset> AddUploadAsync(string originalFileName, Stream content, long length, CancellationToken cancellationToken = default);
+    Task SetEnabledAsync(int id, bool enabled, CancellationToken cancellationToken = default);
+    Task ReanalyzeAsync(int id, CancellationToken cancellationToken = default);
+    Task MarkPlaybackFailedAsync(int id, CancellationToken cancellationToken = default);
 }
 
 public interface IMediaFolderService

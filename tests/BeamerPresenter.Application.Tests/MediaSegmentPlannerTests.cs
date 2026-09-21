@@ -140,6 +140,17 @@ public sealed class MediaSegmentPlannerTests
         Assert.True(random.Calls.Count >= 3);
     }
 
+    [Fact]
+    public void Disabled_video_is_excluded_from_automatic_planning()
+    {
+        var disabled = Video(1, TimeSpan.FromMinutes(9));
+        disabled.Enabled = false;
+
+        var result = Planner().Plan([disabled, Video(2, TimeSpan.FromMinutes(9))], [], Settings(), Now);
+
+        Assert.Equal(2, result?.MediaId);
+    }
+
     private static MediaSegmentPlanner Planner(params int[] values) =>
         new(new SequenceRandomSource(values));
 

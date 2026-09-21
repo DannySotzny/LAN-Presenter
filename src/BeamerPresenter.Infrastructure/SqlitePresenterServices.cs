@@ -546,6 +546,45 @@ internal sealed class SqliteMediaLibraryService(
         return asset;
     }
 
+    public async Task SetEnabledAsync(int id, bool enabled, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var asset = await context.Videos.SingleOrDefaultAsync(video => video.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException("Das Video wurde nicht gefunden.");
+        asset.Enabled = enabled;
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ReanalyzeAsync(int id, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var asset = await context.Videos.SingleOrDefaultAsync(video => video.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException("Das Video wurde nicht gefunden.");
+        if (!asset.IsAvailable || !File.Exists(asset.FullPath))
+        {
+            throw new InvalidOperationException("Die Videodatei ist nicht verfügbar.");
+        }
+
+        asset.ProbeStatus = MediaProbeStatus.Unknown;
+        asset.PlaybackStatus = MediaPlaybackStatus.Unknown;
+        asset.ProbeError = null;
+        await context.SaveChangesAsync(cancellationToken);
+        await mediaProbeQueue.QueueAsync(asset.Id, asset.FullPath, cancellationToken);
+    }
+
+    public async Task MarkPlaybackFailedAsync(int id, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var asset = await context.Videos.SingleOrDefaultAsync(video => video.Id == id, cancellationToken);
+        if (asset is null)
+        {
+            return;
+        }
+
+        asset.PlaybackStatus = MediaPlaybackStatus.Failed;
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
     private static string MakeUniquePath(string folder, string fileName)
     {
         var candidate = Path.Combine(folder, fileName);

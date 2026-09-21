@@ -311,6 +311,9 @@ public sealed class PlaybackOrchestratorTests
         public Task<IReadOnlyList<VideoAsset>> GetAllAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<VideoAsset>>([]);
         public Task<VideoAsset?> GetByIdAsync(int id, CancellationToken cancellationToken = default) => Task.FromResult<VideoAsset?>(null);
         public Task<VideoAsset> AddUploadAsync(string originalFileName, Stream content, long length, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task SetEnabledAsync(int id, bool enabled, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task ReanalyzeAsync(int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task MarkPlaybackFailedAsync(int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class ZeroRandomSource : IRandomSource
@@ -375,5 +378,8 @@ public sealed class PlaybackOrchestratorTests
         public Task<IReadOnlyList<VideoAsset>> GetAllAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<VideoAsset>>([video]);
         public Task<VideoAsset?> GetByIdAsync(int id, CancellationToken cancellationToken = default) => Task.FromResult(id == video.Id ? video : null);
         public Task<VideoAsset> AddUploadAsync(string originalFileName, Stream content, long length, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task SetEnabledAsync(int id, bool enabled, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task ReanalyzeAsync(int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task MarkPlaybackFailedAsync(int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

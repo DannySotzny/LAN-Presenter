@@ -170,6 +170,7 @@ public sealed class MediaSegmentPlanner
     }
 
     private static bool IsPlayable(VideoAsset asset) =>
+        asset.Enabled &&
         asset.IsAvailable &&
         asset.Duration > TimeSpan.Zero &&
         asset.PlaybackStatus is not MediaPlaybackStatus.Unsupported and not MediaPlaybackStatus.Failed;

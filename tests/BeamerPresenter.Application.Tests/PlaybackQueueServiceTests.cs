@@ -139,6 +139,18 @@ public sealed class PlaybackQueueServiceTests
     }
 
     [Fact]
+    public async Task Disabled_video_cannot_be_added_manually()
+    {
+        var video = Video(1, TimeSpan.FromMinutes(9));
+        video.Enabled = false;
+        var service = CreateService(new MemoryPlaybackStore(), [video]);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.AddNextAsync(video.Id));
+
+        Assert.Contains("nicht abspielbar", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Completing_current_starts_first_pending_entry_and_normalizes_order()
     {
         var store = new MemoryPlaybackStore();
@@ -154,6 +166,25 @@ public sealed class PlaybackQueueServiceTests
         Assert.Equal(0, next?.SortOrder);
         Assert.Equal(1, store.Queue.Single(entry => entry.MediaId == 3).SortOrder);
         Assert.True(Assert.Single(store.History).Completed);
+    }
+
+    [Fact]
+    public async Task Failed_local_playback_marks_media_and_history_as_error()
+    {
+        var store = new MemoryPlaybackStore();
+        var current = Entry(1, QueueEntryOrigin.Automatic, QueueEntryStatus.Playing, 0);
+        current.EndPosition = TimeSpan.FromMinutes(9);
+        store.Queue.Add(current);
+        var video = Video(1, TimeSpan.FromMinutes(9));
+        var service = CreateService(store, [video]);
+
+        await service.CompleteCurrentAsync(TimeSpan.FromMinutes(2), successful: false);
+
+        Assert.Equal(QueueEntryStatus.Failed, current.Status);
+        Assert.Equal(MediaPlaybackStatus.Failed, video.PlaybackStatus);
+        var history = Assert.Single(store.History);
+        Assert.False(history.Completed);
+        Assert.False(history.Interrupted);
     }
 
     [Fact]
@@ -306,6 +337,18 @@ public sealed class PlaybackQueueServiceTests
         public Task<IReadOnlyList<VideoAsset>> GetAllAsync(CancellationToken cancellationToken = default) => Task.FromResult(media);
         public Task<VideoAsset?> GetByIdAsync(int id, CancellationToken cancellationToken = default) => Task.FromResult(media.SingleOrDefault(asset => asset.Id == id));
         public Task<VideoAsset> AddUploadAsync(string originalFileName, Stream content, long length, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task SetEnabledAsync(int id, bool enabled, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task ReanalyzeAsync(int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task MarkPlaybackFailedAsync(int id, CancellationToken cancellationToken = default)
+        {
+            var asset = media.SingleOrDefault(candidate => candidate.Id == id);
+            if (asset is not null)
+            {
+                asset.PlaybackStatus = MediaPlaybackStatus.Failed;
+            }
+
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class StubSettingsService(PresenterSettings settings) : IPresenterSettingsService

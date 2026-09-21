@@ -177,6 +177,11 @@ public sealed class PlaybackQueueService(
             var current = queue.SingleOrDefault(entry => entry.Status == QueueEntryStatus.Playing);
             if (current is not null)
             {
+                if (!successful && current.SourceType == MediaSourceType.Local && current.MediaId is int mediaId)
+                {
+                    await mediaLibrary.MarkPlaybackFailedAsync(mediaId, cancellationToken);
+                }
+
                 await FinishEntryAsync(
                     current,
                     actualPosition,
@@ -282,7 +287,7 @@ public sealed class PlaybackQueueService(
     {
         var asset = await mediaLibrary.GetByIdAsync(mediaId, cancellationToken)
             ?? throw new InvalidOperationException("Das ausgewählte Video wurde nicht gefunden.");
-        if (!asset.IsAvailable || asset.Duration is null || asset.Duration <= TimeSpan.Zero ||
+        if (!asset.Enabled || !asset.IsAvailable || asset.Duration is null || asset.Duration <= TimeSpan.Zero ||
             asset.PlaybackStatus is MediaPlaybackStatus.Unsupported or MediaPlaybackStatus.Failed)
         {
             throw new InvalidOperationException("Das ausgewählte Video ist nicht abspielbar.");
