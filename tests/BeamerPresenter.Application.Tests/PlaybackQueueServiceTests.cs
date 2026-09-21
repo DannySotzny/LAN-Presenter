@@ -66,6 +66,79 @@ public sealed class PlaybackQueueServiceTests
     }
 
     [Fact]
+    public async Task Pending_entries_can_be_reordered_and_removed_without_touching_current()
+    {
+        var store = new MemoryPlaybackStore();
+        store.Queue.Add(Entry(1, QueueEntryOrigin.Automatic, QueueEntryStatus.Playing, 0));
+        store.Queue.Add(Entry(2, QueueEntryOrigin.ManualNext, QueueEntryStatus.Pending, 1));
+        store.Queue.Add(Entry(3, QueueEntryOrigin.Automatic, QueueEntryStatus.Pending, 2));
+        store.Queue.Add(Entry(4, QueueEntryOrigin.Automatic, QueueEntryStatus.Pending, 3));
+        var service = CreateService(store, []);
+
+        await service.MoveAsync(4, -1);
+        await service.RemoveAsync(3);
+
+        Assert.Equal(QueueEntryStatus.Playing, store.Queue.Single(entry => entry.Id == 1).Status);
+        Assert.Equal(QueueEntryStatus.Skipped, store.Queue.Single(entry => entry.Id == 3).Status);
+        Assert.Equal(
+            [(2L, 1), (4L, 2)],
+            store.Queue.Where(entry => entry.Status == QueueEntryStatus.Pending)
+                .OrderBy(entry => entry.SortOrder)
+                .Select(entry => (entry.Id, entry.SortOrder)));
+    }
+
+    [Fact]
+    public async Task Regeneration_replaces_only_automatic_pending_entries()
+    {
+        var store = new MemoryPlaybackStore();
+        store.Queue.Add(Entry(1, QueueEntryOrigin.ManualNext, QueueEntryStatus.Pending, 1));
+        store.Queue.Add(Entry(2, QueueEntryOrigin.Automatic, QueueEntryStatus.Pending, 2));
+        var service = CreateService(
+            store,
+            [Video(1, TimeSpan.FromMinutes(9)), Video(2, TimeSpan.FromMinutes(9)), Video(3, TimeSpan.FromMinutes(9))],
+            queueTargetLength: 2);
+
+        await service.RegenerateAsync();
+
+        Assert.Equal(QueueEntryStatus.Pending, store.Queue.Single(entry => entry.Id == 1).Status);
+        Assert.Equal(QueueEntryStatus.Skipped, store.Queue.Single(entry => entry.Id == 2).Status);
+        var pending = store.Queue.Where(entry => entry.Status == QueueEntryStatus.Pending).OrderBy(entry => entry.SortOrder).ToArray();
+        Assert.Equal(2, pending.Length);
+        Assert.Equal(QueueEntryOrigin.ManualNext, pending[0].Origin);
+        Assert.Equal(QueueEntryOrigin.Automatic, pending[1].Origin);
+    }
+
+    [Fact]
+    public async Task Playback_history_can_be_read_and_cleared()
+    {
+        var store = new MemoryPlaybackStore();
+        store.History.Add(new PlaybackHistory
+        {
+            Id = 1,
+            MediaId = 1,
+            PlannedStart = TimeSpan.Zero,
+            PlannedEnd = TimeSpan.FromMinutes(5),
+            StartedUtc = Now,
+            PlaybackReason = PlaybackReason.Automatic
+        });
+        var service = CreateService(store, []);
+
+        Assert.Single(await service.GetHistoryAsync());
+        await service.ClearHistoryAsync();
+        Assert.Empty(await service.GetHistoryAsync());
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public async Task Queue_move_rejects_invalid_offsets(int offset)
+    {
+        var service = CreateService(new MemoryPlaybackStore(), []);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.MoveAsync(1, offset));
+    }
+
+    [Fact]
     public async Task Completing_current_starts_first_pending_entry_and_normalizes_order()
     {
         var store = new MemoryPlaybackStore();

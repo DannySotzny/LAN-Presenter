@@ -71,6 +71,10 @@
     {
         <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die Wiedergabe-Queue wurde aktualisiert.</MudAlert>
     }
+    @if (HistoryResult == "cleared")
+    {
+        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die Wiedergabehistorie wurde zurückgesetzt.</MudAlert>
+    }
     else if (QueueResult == "error")
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(QueueMessage) ? QueueMessage : "Die Queue-Aktion ist fehlgeschlagen.")</MudAlert>
@@ -154,6 +158,9 @@
                 <MudText Typo="Typo.body2" Color="Color.Secondary">Aktueller Clip und die nächsten @_queue.Count(entry => entry.Status == QueueEntryStatus.Pending) Einträge</MudText>
             </div>
             <MudChip T="string" Variant="Variant.Outlined" Color="Color.Primary" Icon="@Icons.Material.Filled.QueueMusic">@_queue.Count Einträge</MudChip>
+            <form method="post" action="/api/queue/regenerate">
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh">Queue neu generieren</MudButton>
+            </form>
         </MudStack>
         @if (_queue.Count == 0)
         {
@@ -161,12 +168,13 @@
         }
         else
         {
-            <MudTable T="QueueEntry" Items="@_queue" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="queue-table">
+            <MudTable T="QueueEntry" Items="@QueueDisplay" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="queue-table">
                 <HeaderContent>
                     <MudTh>Position</MudTh>
                     <MudTh>Video</MudTh>
                     <MudTh>Segment</MudTh>
                     <MudTh>Herkunft</MudTh>
+                    <MudTh>Aktionen</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Position">
@@ -177,6 +185,51 @@
                     <MudTd DataLabel="Video">@GetQueueVideoName(context)</MudTd>
                     <MudTd DataLabel="Segment">@FormatSegment(context.StartPosition, context.EndPosition)</MudTd>
                     <MudTd DataLabel="Herkunft">@FormatOrigin(context.Origin)</MudTd>
+                    <MudTd DataLabel="Aktionen">
+                        @if (context.Status == QueueEntryStatus.Pending)
+                        {
+                            <div class="queue-row-actions">
+                                <form method="post" action="/api/queue/move-up"><input type="hidden" name="id" value="@context.Id" /><button type="submit" title="Nach oben">↑</button></form>
+                                <form method="post" action="/api/queue/move-down"><input type="hidden" name="id" value="@context.Id" /><button type="submit" title="Nach unten">↓</button></form>
+                                <form method="post" action="/api/queue/remove"><input type="hidden" name="id" value="@context.Id" /><button type="submit" class="danger">Entfernen</button></form>
+                            </div>
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+
+    <MudPaper Elevation="0" Class="content-panel pa-6">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
+            <div>
+                <MudText Typo="Typo.h5">Wiedergabehistorie</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Die letzten tatsächlich gestarteten lokalen und YouTube-Segmente</MudText>
+            </div>
+            <form method="post" action="/api/history/clear">
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.DeleteSweep">Historie zurücksetzen</MudButton>
+            </form>
+        </MudStack>
+        @if (_history.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Noch keine Wiedergaben gespeichert.</MudAlert>
+        }
+        else
+        {
+            <MudTable T="PlaybackHistory" Items="@_history" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="history-table">
+                <HeaderContent>
+                    <MudTh>Zeit</MudTh>
+                    <MudTh>Quelle</MudTh>
+                    <MudTh>Video</MudTh>
+                    <MudTh>Segment</MudTh>
+                    <MudTh>Status</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Zeit">@context.StartedUtc.ToLocalTime().ToString("g")</MudTd>
+                    <MudTd DataLabel="Quelle">@(context.SourceType == MediaSourceType.Local ? "Local" : "YouTube")</MudTd>
+                    <MudTd DataLabel="Video">@GetHistoryVideoName(context)</MudTd>
+                    <MudTd DataLabel="Segment">@FormatSegment(context.ActualStart ?? context.PlannedStart, context.ActualEnd ?? context.PlannedEnd)</MudTd>
+                    <MudTd DataLabel="Status">@FormatHistoryStatus(context)</MudTd>
                 </RowTemplate>
             </MudTable>
         }
@@ -362,6 +415,7 @@
     private IReadOnlyList<VideoAsset> _videos = [];
     private IReadOnlyList<QueueEntry> _queue = [];
     private IReadOnlyList<NewsItem> _news = [];
+    private IReadOnlyList<PlaybackHistory> _history = [];
     private PresenterDashboardSnapshot? _status;
 
     [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "q")]
@@ -397,6 +451,9 @@
     [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "message")]
     public string? PresenterMessage { get; set; }
 
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "history")]
+    public string? HistoryResult { get; set; }
+
     private string PresenterIcon => Playback.State == PresenterState.Active ? Icons.Material.Filled.PlayCircle : Icons.Material.Filled.PauseCircle;
     private int ReadyCount => _videos.Count(video => video.IsAvailable && video.PlaybackStatus == MediaPlaybackStatus.Supported);
     private int PendingCount => _videos.Count(video => video.IsAvailable && video.ProbeStatus == MediaProbeStatus.Unknown);
@@ -404,17 +461,23 @@
     private IReadOnlyList<VideoAsset> FilteredVideos => string.IsNullOrWhiteSpace(Search)
         ? _videos
         : _videos.Where(MatchesSearch).ToList();
+    private IReadOnlyList<QueueEntry> QueueDisplay =>
+        _queue.Where(entry => entry.Status == QueueEntryStatus.Playing)
+            .Concat(_queue.Where(entry => entry.Status == QueueEntryStatus.Pending).Take(10))
+            .ToList();
 
     protected override async Task OnInitializedAsync()
     {
         var videosTask = MediaLibraryService.GetAllAsync();
         var queueTask = PlaybackQueue.GetQueueAsync();
         var newsTask = NewsService.GetAllAsync();
+        var historyTask = PlaybackQueue.GetHistoryAsync();
         var statusTask = Dashboard.GetAsync();
-        await Task.WhenAll(videosTask, queueTask, newsTask, statusTask);
+        await Task.WhenAll(videosTask, queueTask, newsTask, historyTask, statusTask);
         _videos = await videosTask;
         _queue = await queueTask;
         _news = await newsTask;
+        _history = (await historyTask).Take(50).ToList();
         _status = await statusTask;
     }
 
@@ -488,6 +551,22 @@
         MediaSourceType.YouTube when entry.ExternalSourceKey?.StartsWith("youtube:", StringComparison.Ordinal) == true =>
             $"YouTube: {entry.ExternalSourceKey[8..]}",
         _ => entry.ExternalSourceKey ?? "Externe Quelle"
+    };
+
+    private string GetHistoryVideoName(PlaybackHistory entry) => entry.SourceType switch
+    {
+        MediaSourceType.Local when entry.MediaId is int mediaId =>
+            _videos.FirstOrDefault(video => video.Id == mediaId)?.FileName ?? $"Video #{mediaId}",
+        MediaSourceType.YouTube when entry.ExternalSourceKey?.StartsWith("youtube:", StringComparison.Ordinal) == true =>
+            entry.ExternalSourceKey[8..],
+        _ => entry.ExternalSourceKey ?? "Unbekannt"
+    };
+
+    private static string FormatHistoryStatus(PlaybackHistory entry) => entry switch
+    {
+        { Completed: true } => "Completed",
+        { Interrupted: true } => "Interrupted",
+        _ => "Error"
     };
 
     private static string FormatSegment(TimeSpan start, TimeSpan end) =>

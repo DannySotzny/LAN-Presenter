@@ -351,6 +351,40 @@ body .mud-button-text-secondary {
     background: #f0f3f9;
 }
 
+.queue-row-actions,
+.queue-row-actions form {
+    display: flex;
+    gap: .3rem;
+}
+
+.queue-row-actions button {
+    min-width: 2rem;
+    padding: .35rem .5rem;
+    cursor: pointer;
+    color: #5637d8;
+    border: 1px solid #c7bff0;
+    border-radius: .45rem;
+    background: #fff;
+    font: inherit;
+    font-size: .75rem;
+    font-weight: 800;
+}
+
+.queue-row-actions button.danger {
+    color: #b42318;
+    border-color: #f2b8b5;
+}
+
+.history-table {
+    overflow: hidden;
+    border: 1px solid #e3e7f0;
+    border-radius: .8rem;
+}
+
+.history-table .mud-table-head {
+    background: #f0f3f9;
+}
+
 .media-actions {
     display: flex;
     min-width: 12rem;

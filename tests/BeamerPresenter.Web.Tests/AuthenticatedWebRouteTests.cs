@@ -70,14 +70,17 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         using var request = new HttpRequestMessage(HttpMethod.Get, "/");
         request.Headers.Add("Cookie", cookie);
         using var pageResponse = await client.SendAsync(request);
+        var html = await pageResponse.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, pageResponse.StatusCode);
-        Assert.Contains("Videobibliothek", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        Assert.Contains("Wiedergabe-Queue", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        Assert.Contains("YouTube einreihen", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        Assert.Contains("News &amp; Einblendungen", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        Assert.Contains("AKTUELLE WIEDERGABE", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        Assert.Contains("dashboard.js", await pageResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("Videobibliothek", html, StringComparison.Ordinal);
+        Assert.Contains("Wiedergabe-Queue", html, StringComparison.Ordinal);
+        Assert.Contains("Queue neu generieren", html, StringComparison.Ordinal);
+        Assert.Contains("Wiedergabehistorie", html, StringComparison.Ordinal);
+        Assert.Contains("YouTube einreihen", html, StringComparison.Ordinal);
+        Assert.Contains("News &amp; Einblendungen", html, StringComparison.Ordinal);
+        Assert.Contains("AKTUELLE WIEDERGABE", html, StringComparison.Ordinal);
+        Assert.Contains("dashboard.js", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -257,8 +260,82 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Equal(TimeSpan.FromMinutes(8), command.Duration);
     }
 
+    [Fact]
+    public async Task Authenticated_queue_management_reorders_and_removes_pending_entries()
+    {
+        long firstId;
+        long secondId;
+        await using (var scope = _application!.Services.CreateAsyncScope())
+        {
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PresenterDbContext>>();
+            await using var context = await factory.CreateDbContextAsync();
+            var first = CreatePendingQueueEntry(1, QueueEntryOrigin.Manual);
+            var second = CreatePendingQueueEntry(2, QueueEntryOrigin.Manual);
+            context.QueueEntries.AddRange(first, second);
+            await context.SaveChangesAsync();
+            firstId = first.Id;
+            secondId = second.Id;
+        }
+
+        using var client = _application.GetTestClient();
+        var cookie = await LoginAsync(client);
+        using (var moveRequest = CreateAuthenticatedFormRequest("/api/queue/move-down", cookie, ("id", firstId.ToString(System.Globalization.CultureInfo.InvariantCulture))))
+        using (var moveResponse = await client.SendAsync(moveRequest))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, moveResponse.StatusCode);
+            Assert.Equal("/?queue=success", moveResponse.Headers.Location?.OriginalString);
+        }
+
+        var queue = await _application.Services.GetRequiredService<PlaybackQueueService>().GetQueueAsync();
+        Assert.Equal([secondId, firstId], queue.Where(entry => entry.Status == QueueEntryStatus.Pending).Select(entry => entry.Id));
+
+        using (var removeRequest = CreateAuthenticatedFormRequest("/api/queue/remove", cookie, ("id", firstId.ToString(System.Globalization.CultureInfo.InvariantCulture))))
+        using (var removeResponse = await client.SendAsync(removeRequest))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, removeResponse.StatusCode);
+            Assert.Equal("/?queue=success", removeResponse.Headers.Location?.OriginalString);
+        }
+
+        queue = await _application.Services.GetRequiredService<PlaybackQueueService>().GetQueueAsync();
+        Assert.Equal(secondId, Assert.Single(queue, entry => entry.Status == QueueEntryStatus.Pending).Id);
+    }
+
+    [Fact]
+    public async Task Authenticated_history_clear_removes_persisted_entries()
+    {
+        await using (var scope = _application!.Services.CreateAsyncScope())
+        {
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PresenterDbContext>>();
+            await using var context = await factory.CreateDbContextAsync();
+            context.PlaybackHistory.Add(new PlaybackHistory
+            {
+                SourceType = MediaSourceType.YouTube,
+                ExternalSourceKey = "youtube:dQw4w9WgXcQ",
+                PlannedStart = TimeSpan.Zero,
+                PlannedEnd = TimeSpan.FromMinutes(3),
+                StartedUtc = DateTimeOffset.UtcNow,
+                Completed = true
+            });
+            await context.SaveChangesAsync();
+        }
+
+        using var client = _application.GetTestClient();
+        var cookie = await LoginAsync(client);
+        using var request = CreateAuthenticatedFormRequest("/api/history/clear", cookie);
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/?history=cleared", response.Headers.Location?.OriginalString);
+        Assert.Empty(await _application.Services.GetRequiredService<PlaybackQueueService>().GetHistoryAsync());
+    }
+
     [Theory]
     [InlineData("/api/queue/now")]
+    [InlineData("/api/queue/move-up")]
+    [InlineData("/api/queue/move-down")]
+    [InlineData("/api/queue/remove")]
+    [InlineData("/api/queue/regenerate")]
+    [InlineData("/api/history/clear")]
     [InlineData("/api/youtube/now")]
     [InlineData("/api/news/show")]
     [InlineData("/api/news/delete")]
@@ -496,6 +573,31 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         ProbeStatus = MediaProbeStatus.Valid,
         PlaybackStatus = playbackStatus
     };
+
+    private static QueueEntry CreatePendingQueueEntry(int sortOrder, QueueEntryOrigin origin) => new()
+    {
+        SourceType = MediaSourceType.YouTube,
+        ExternalSourceKey = $"youtube:queue{sortOrder}",
+        StartPosition = TimeSpan.Zero,
+        EndPosition = TimeSpan.FromMinutes(3),
+        Origin = origin,
+        SortOrder = sortOrder,
+        Status = QueueEntryStatus.Pending,
+        CreatedUtc = DateTimeOffset.UtcNow
+    };
+
+    private static HttpRequestMessage CreateAuthenticatedFormRequest(
+        string route,
+        string cookie,
+        params (string Name, string Value)[] values)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, route)
+        {
+            Content = new FormUrlEncodedContent(values.ToDictionary(value => value.Name, value => value.Value, StringComparer.Ordinal))
+        };
+        request.Headers.Add("Cookie", cookie);
+        return request;
+    }
 
     private static async Task<string> LoginAsync(HttpClient client)
     {

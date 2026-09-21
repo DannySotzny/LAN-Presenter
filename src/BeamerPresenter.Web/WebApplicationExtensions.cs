@@ -36,6 +36,11 @@ public static class WebApplicationExtensions
         app.MapPost("/api/videos/upload", (Delegate)UploadAsync).RequireAuthorization();
         app.MapPost("/api/queue/next", (Delegate)PlayNextAsync).RequireAuthorization();
         app.MapPost("/api/queue/now", (Delegate)PlayNowAsync).RequireAuthorization();
+        app.MapPost("/api/queue/move-up", (Delegate)MoveQueueUpAsync).RequireAuthorization();
+        app.MapPost("/api/queue/move-down", (Delegate)MoveQueueDownAsync).RequireAuthorization();
+        app.MapPost("/api/queue/remove", (Delegate)RemoveQueueEntryAsync).RequireAuthorization();
+        app.MapPost("/api/queue/regenerate", (Delegate)RegenerateQueueAsync).RequireAuthorization();
+        app.MapPost("/api/history/clear", (Delegate)ClearHistoryAsync).RequireAuthorization();
         app.MapPost("/api/youtube/next", (Delegate)PlayYouTubeNextAsync).RequireAuthorization();
         app.MapPost("/api/youtube/now", (Delegate)PlayYouTubeNowAsync).RequireAuthorization();
         app.MapPost("/api/news/create", (Delegate)CreateNewsAsync).RequireAuthorization();
@@ -157,6 +162,61 @@ public static class WebApplicationExtensions
         CancellationToken cancellationToken) =>
         await ExecuteQueueCommandAsync(context, (mediaId, start, duration) =>
             playback.PlayNextAsync(mediaId, start, duration, cancellationToken));
+
+    private static Task<IResult> MoveQueueUpAsync(
+        HttpContext context,
+        PlaybackQueueService queue,
+        CancellationToken cancellationToken) =>
+        ExecuteQueueManagementAsync(context, id => queue.MoveAsync(id, -1, cancellationToken));
+
+    private static Task<IResult> MoveQueueDownAsync(
+        HttpContext context,
+        PlaybackQueueService queue,
+        CancellationToken cancellationToken) =>
+        ExecuteQueueManagementAsync(context, id => queue.MoveAsync(id, 1, cancellationToken));
+
+    private static Task<IResult> RemoveQueueEntryAsync(
+        HttpContext context,
+        PlaybackQueueService queue,
+        CancellationToken cancellationToken) =>
+        ExecuteQueueManagementAsync(context, id => queue.RemoveAsync(id, cancellationToken));
+
+    private static async Task<IResult> RegenerateQueueAsync(
+        PlaybackQueueService queue,
+        CancellationToken cancellationToken)
+    {
+        await queue.RegenerateAsync(cancellationToken);
+        return Results.Redirect("/?queue=success");
+    }
+
+    private static async Task<IResult> ClearHistoryAsync(
+        PlaybackQueueService queue,
+        CancellationToken cancellationToken)
+    {
+        await queue.ClearHistoryAsync(cancellationToken);
+        return Results.Redirect("/?history=cleared");
+    }
+
+    private static async Task<IResult> ExecuteQueueManagementAsync(
+        HttpContext context,
+        Func<long, Task> command)
+    {
+        var form = await context.Request.ReadFormAsync(context.RequestAborted);
+        if (!long.TryParse(form["id"], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id))
+        {
+            return Results.Redirect("/?queue=error&message=Ungültiger%20Queue-Eintrag");
+        }
+
+        try
+        {
+            await command(id);
+            return Results.Redirect("/?queue=success");
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ArgumentOutOfRangeException)
+        {
+            return Results.Redirect($"/?queue=error&message={Uri.EscapeDataString(exception.Message)}");
+        }
+    }
 
     private static async Task<IResult> PlayNowAsync(
         HttpContext context,

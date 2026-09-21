@@ -38,7 +38,9 @@ Die Fundament-Stufe ist implementiert:
 - deterministische Segmentplanung mit vollständiger Wiedergabe kurzer Videos, zufälligen 7- bis 10-Minuten-Ausschnitten langer Videos, Cooldowns und Ausschluss bereits tatsächlich gespielter Bereiche
 - persistente Queue- und Wiedergabehistorie mit konfigurierbaren Schwellenwerten, Segmentlängen, Cooldowns und Zielgröße
 - automatische Queue-Auffüllung im Hintergrund sowie priorisierte Aktionen für „Als Nächstes“ und „Sofort abspielen“, ohne manuelle Einträge zu überschreiben
-- geschützte MudBlazor-Queue-Ansicht mit manueller Segmentwahl; Presenter-Ende und Wiedergabefehler schalten automatisch zum nächsten Eintrag weiter
+- geschützte MudBlazor-Queue-Verwaltung mit manueller Segmentwahl, Verschieben/Entfernen wartender Einträge und gezielter Neugenerierung der automatischen Einträge
+- sichtbare Wiedergabehistorie für lokale und YouTube-Segmente mit Status, tatsächlichem Zeitraum und bewusstem Zurücksetzen
+- Presenter-Ende und Wiedergabefehler schalten automatisch zum nächsten Eintrag weiter
 - sichere Normalisierung von YouTube-Watch-, Kurz- und Shorts-Links auf stabile `youtube:<video-id>`-Quellschlüssel
 - persistente YouTube-Queue- und Verlaufseinträge mit begrenzter Wiedergabezeit und fortlaufenden, nicht ständig am Anfang beginnenden Segmenten
 - YouTube-Wiedergabe über die offizielle IFrame Player API mit Dauer-/Positionsmeldungen, Fünf-Sekunden-Timeout und automatischem Fallback zum nächsten Queue-Eintrag

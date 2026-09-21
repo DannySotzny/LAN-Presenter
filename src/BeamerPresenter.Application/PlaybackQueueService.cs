@@ -16,45 +16,80 @@ public sealed class PlaybackQueueService(
     public Task<IReadOnlyList<QueueEntry>> GetQueueAsync(CancellationToken cancellationToken = default) =>
         store.GetQueueAsync(cancellationToken);
 
+    public Task<IReadOnlyList<PlaybackHistory>> GetHistoryAsync(CancellationToken cancellationToken = default) =>
+        store.GetHistoryAsync(cancellationToken);
+
     public Task EnsureMinimumAsync(CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(() => EnsureMinimumCoreAsync(cancellationToken), cancellationToken);
+
+    public Task MoveAsync(long queueEntryId, int offset, CancellationToken cancellationToken = default) =>
         ExecuteSerializedAsync(async () =>
         {
-            var settings = await settingsService.GetAsync(cancellationToken);
-            var options = PlaybackPlanningOptions.From(settings);
-            var media = await mediaLibrary.GetAllAsync(cancellationToken);
-            var queue = (await store.GetQueueAsync(cancellationToken)).ToList();
-            var planningHistory = (await store.GetHistoryAsync(cancellationToken)).ToList();
-            planningHistory.AddRange(queue.Select(ToReservedHistory));
-            var pendingCount = queue.Count(entry => entry.Status == QueueEntryStatus.Pending);
-            var nextSortOrder = queue.Where(entry => entry.Status == QueueEntryStatus.Pending)
-                .Select(entry => entry.SortOrder)
-                .DefaultIfEmpty(0)
-                .Max() + 1;
-
-            while (pendingCount < options.QueueTargetLength)
+            if (offset is not (-1 or 1))
             {
-                var plan = segmentPlanner.Plan(media, planningHistory, options, timeProvider.GetUtcNow());
-                if (plan is null)
-                {
-                    break;
-                }
-
-                var entry = await store.AddQueueEntryAsync(new QueueEntry
-                {
-                    SourceType = MediaSourceType.Local,
-                    MediaId = plan.MediaId,
-                    StartPosition = plan.Start,
-                    EndPosition = plan.End,
-                    Origin = QueueEntryOrigin.Automatic,
-                    SortOrder = nextSortOrder++,
-                    Status = QueueEntryStatus.Pending,
-                    CreatedUtc = timeProvider.GetUtcNow()
-                }, cancellationToken);
-                queue.Add(entry);
-                planningHistory.Add(ToReservedHistory(entry));
-                pendingCount++;
+                throw new ArgumentOutOfRangeException(nameof(offset), "Die Queue kann nur um genau eine Position verschoben werden.");
             }
+
+            var pending = (await store.GetQueueAsync(cancellationToken))
+                .Where(entry => entry.Status == QueueEntryStatus.Pending)
+                .OrderBy(entry => entry.SortOrder)
+                .ThenBy(entry => entry.Id)
+                .ToList();
+            var currentIndex = pending.FindIndex(entry => entry.Id == queueEntryId);
+            if (currentIndex < 0)
+            {
+                throw new InvalidOperationException("Der Queue-Eintrag wurde nicht gefunden oder läuft bereits.");
+            }
+
+            var targetIndex = currentIndex + offset;
+            if (targetIndex < 0 || targetIndex >= pending.Count)
+            {
+                return;
+            }
+
+            (pending[currentIndex], pending[targetIndex]) = (pending[targetIndex], pending[currentIndex]);
+            await NormalizePendingOrderAsync(pending, cancellationToken);
         }, cancellationToken);
+
+    public Task RemoveAsync(long queueEntryId, CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(async () =>
+        {
+            var queue = await store.GetQueueAsync(cancellationToken);
+            var entry = queue.SingleOrDefault(candidate => candidate.Id == queueEntryId && candidate.Status == QueueEntryStatus.Pending)
+                ?? throw new InvalidOperationException("Nur noch nicht gestartete Queue-Einträge können entfernt werden.");
+            entry.Status = QueueEntryStatus.Skipped;
+            entry.CompletedUtc = timeProvider.GetUtcNow();
+            await store.UpdateQueueEntryAsync(entry, cancellationToken);
+            await NormalizePendingOrderAsync(
+                queue.Where(candidate => candidate.Status == QueueEntryStatus.Pending)
+                    .OrderBy(candidate => candidate.SortOrder)
+                    .ThenBy(candidate => candidate.Id)
+                    .ToList(),
+                cancellationToken);
+        }, cancellationToken);
+
+    public Task RegenerateAsync(CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(async () =>
+        {
+            var queue = await store.GetQueueAsync(cancellationToken);
+            foreach (var entry in queue.Where(entry =>
+                         entry.Status == QueueEntryStatus.Pending && entry.Origin == QueueEntryOrigin.Automatic))
+            {
+                entry.Status = QueueEntryStatus.Skipped;
+                entry.CompletedUtc = timeProvider.GetUtcNow();
+                await store.UpdateQueueEntryAsync(entry, cancellationToken);
+            }
+
+            var remaining = queue.Where(entry => entry.Status == QueueEntryStatus.Pending)
+                .OrderBy(entry => entry.SortOrder)
+                .ThenBy(entry => entry.Id)
+                .ToList();
+            await NormalizePendingOrderAsync(remaining, cancellationToken);
+            await EnsureMinimumCoreAsync(cancellationToken);
+        }, cancellationToken);
+
+    public Task ClearHistoryAsync(CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(() => store.ClearHistoryAsync(cancellationToken), cancellationToken);
 
     public Task<QueueEntry> AddNextAsync(
         int mediaId,
@@ -184,6 +219,60 @@ public sealed class PlaybackQueueService(
             entry.CompletedUtc = timeProvider.GetUtcNow();
             await store.UpdateQueueEntryAsync(entry, cancellationToken);
         }, cancellationToken);
+
+    private async Task EnsureMinimumCoreAsync(CancellationToken cancellationToken)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var options = PlaybackPlanningOptions.From(settings);
+        var media = await mediaLibrary.GetAllAsync(cancellationToken);
+        var queue = (await store.GetQueueAsync(cancellationToken)).ToList();
+        var planningHistory = (await store.GetHistoryAsync(cancellationToken)).ToList();
+        planningHistory.AddRange(queue.Select(ToReservedHistory));
+        var pendingCount = queue.Count(entry => entry.Status == QueueEntryStatus.Pending);
+        var nextSortOrder = queue.Where(entry => entry.Status == QueueEntryStatus.Pending)
+            .Select(entry => entry.SortOrder)
+            .DefaultIfEmpty(0)
+            .Max() + 1;
+
+        while (pendingCount < options.QueueTargetLength)
+        {
+            var plan = segmentPlanner.Plan(media, planningHistory, options, timeProvider.GetUtcNow());
+            if (plan is null)
+            {
+                break;
+            }
+
+            var entry = await store.AddQueueEntryAsync(new QueueEntry
+            {
+                SourceType = MediaSourceType.Local,
+                MediaId = plan.MediaId,
+                StartPosition = plan.Start,
+                EndPosition = plan.End,
+                Origin = QueueEntryOrigin.Automatic,
+                SortOrder = nextSortOrder++,
+                Status = QueueEntryStatus.Pending,
+                CreatedUtc = timeProvider.GetUtcNow()
+            }, cancellationToken);
+            queue.Add(entry);
+            planningHistory.Add(ToReservedHistory(entry));
+            pendingCount++;
+        }
+    }
+
+    private async Task NormalizePendingOrderAsync(IReadOnlyList<QueueEntry> pending, CancellationToken cancellationToken)
+    {
+        for (var index = 0; index < pending.Count; index++)
+        {
+            var sortOrder = index + 1;
+            if (pending[index].SortOrder == sortOrder)
+            {
+                continue;
+            }
+
+            pending[index].SortOrder = sortOrder;
+            await store.UpdateQueueEntryAsync(pending[index], cancellationToken);
+        }
+    }
 
     private async Task<PlannedMediaSegment> ResolveManualSegmentAsync(
         int mediaId,
