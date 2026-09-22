@@ -108,7 +108,7 @@ Ein stabiles Tag ab `v1.0.0`, beispielsweise `v1.2.0`, veröffentlicht zwei Down
 - `HouseOfLAN-Presenter-1.2.0-Setup.exe` – Inno-Setup-Installer
 - `HouseOfLAN-Presenter-1.2.0-win-x64-portable.zip` – selbstenthaltende portable Variante
 
-Zum lokalen Bauen des Installers wird [Inno Setup](https://jrsoftware.org/isinfo.php) benötigt. Das Skript liegt in `installer/BeamerPresenter.iss`.
+Zum lokalen Bauen des Installers wird [Inno Setup](https://jrsoftware.org/isinfo.php) benötigt. Das Skript liegt in `installer/BeamerPresenter.iss`; `PublishDir` und `ArtifactDir` können für isolierte Validierung per `/D` überschrieben werden. Der stabile Tag-Workflow baut und veröffentlicht beide Artefakte, während `v0.x` weiterhin keinen GitHub-Release auslöst.
 
 ## Architektur
 

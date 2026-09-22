@@ -23,6 +23,9 @@ jobs:
       - run: dotnet restore BeamerPresenterForLanParties.slnx --locked-mode
       - run: dotnet format BeamerPresenterForLanParties.slnx --verify-no-changes --no-restore
       - run: dotnet build BeamerPresenterForLanParties.slnx -c Release --no-restore -p:Version=$env:VERSION
+      - name: Install Chromium for presenter browser tests
+        shell: pwsh
+        run: pwsh tests/BeamerPresenter.Browser.Tests/bin/Release/net10.0/playwright.ps1 install chromium
       - name: Test with coverage
         run: dotnet test BeamerPresenterForLanParties.slnx -c Release --no-build --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory artifacts/TestResults
       - name: Enforce 80 percent line coverage
