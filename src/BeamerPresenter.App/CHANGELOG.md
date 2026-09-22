@@ -1,4 +1,11 @@
 Beamerpresenter.App Changelog
+<a name="0.11.1"></a>
+## [0.11.1](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.11.1) (2026-09-22)
+
+### Bug Fixes
+
+* handle aborted media requests ([d7740c4](https://www.github.com/DannySotzny/LAN-Presenter/commit/d7740c44a72c5efd96a4f31f0c0ca3bd742ab7b7))
+
 <a name="0.11.0"></a>
 ## [0.11.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.11.0) (2026-09-22)
 
