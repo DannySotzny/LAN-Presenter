@@ -356,6 +356,13 @@
                     <form method="get" action="/" class="library-search-form">
                         <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" />
                         <input name="q" value="@Search" type="search" class="library-search" placeholder="Datei, Codec oder Container" aria-label="Videobibliothek durchsuchen" />
+                        <select name="mediaStatus" aria-label="Videobibliothek nach Status filtern">
+                            <option value="" selected="@(string.IsNullOrWhiteSpace(MediaStatusFilter))">Alle Status</option>
+                            <option value="ready" selected="@(MediaStatusFilter == "ready")">Bereit</option>
+                            <option value="analysis" selected="@(MediaStatusFilter == "analysis")">In Analyse</option>
+                            <option value="problems" selected="@(MediaStatusFilter == "problems")">Prüfen</option>
+                            <option value="disabled" selected="@(MediaStatusFilter == "disabled")">Deaktiviert</option>
+                        </select>
                         <button type="submit">Suchen</button>
                     </form>
                 </MudStack>
@@ -372,6 +379,8 @@
                             <MudTh>Status</MudTh>
                             <MudTh>Format</MudTh>
                             <MudTh>Dauer</MudTh>
+                            <MudTh>Letzte Wiedergabe</MudTh>
+                            <MudTh>Segmente</MudTh>
                             <MudTh>Größe</MudTh>
                             <MudTh>Aktion</MudTh>
                         </HeaderContent>
@@ -390,6 +399,8 @@
                             </MudTd>
                             <MudTd DataLabel="Format"><span class="codec-label">@FormatCodec(context)</span></MudTd>
                             <MudTd DataLabel="Dauer">@FormatDuration(context.Duration)</MudTd>
+                            <MudTd DataLabel="Letzte Wiedergabe">@FormatLastPlayed(context.Id)</MudTd>
+                            <MudTd DataLabel="Segmente">@FormatUsedSegments(context.Id)</MudTd>
                             <MudTd DataLabel="Größe">@FormatSize(context.FileSize)</MudTd>
                             <MudTd DataLabel="Aktion">
                                 <div class="media-actions">
@@ -453,10 +464,14 @@
     private IReadOnlyList<QueueEntry> _queue = [];
     private IReadOnlyList<NewsItem> _news = [];
     private IReadOnlyList<PlaybackHistory> _history = [];
+    private IReadOnlyList<PlaybackHistory> _allHistory = [];
     private PresenterDashboardSnapshot? _status;
 
     [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "q")]
     public string? Search { get; set; }
+
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "mediaStatus")]
+    public string? MediaStatusFilter { get; set; }
 
     [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "upload")]
     public string? UploadResult { get; set; }
@@ -501,9 +516,7 @@
     private int ReadyCount => _videos.Count(video => video.Enabled && video.IsAvailable && video.PlaybackStatus == MediaPlaybackStatus.Supported);
     private int PendingCount => _videos.Count(video => video.Enabled && video.IsAvailable && video.ProbeStatus == MediaProbeStatus.Unknown);
     private int ProblemCount => _videos.Count(video => video.Enabled && (!video.IsAvailable || video.ProbeStatus is MediaProbeStatus.Invalid or MediaProbeStatus.Missing || video.PlaybackStatus == MediaPlaybackStatus.Unsupported));
-    private IReadOnlyList<VideoAsset> FilteredVideos => string.IsNullOrWhiteSpace(Search)
-        ? _videos
-        : _videos.Where(MatchesSearch).ToList();
+    private IReadOnlyList<VideoAsset> FilteredVideos => _videos.Where(MatchesMediaFilter).ToList();
     private IReadOnlyList<QueueEntry> QueueDisplay =>
         _queue.Where(entry => entry.Status == QueueEntryStatus.Playing)
             .Concat(_queue.Where(entry => entry.Status == QueueEntryStatus.Pending).Take(10))
@@ -520,7 +533,8 @@
         _videos = await videosTask;
         _queue = await queueTask;
         _news = await newsTask;
-        _history = (await historyTask).Take(50).ToList();
+        _allHistory = await historyTask;
+        _history = _allHistory.Take(50).ToList();
         _status = await statusTask;
     }
 
@@ -531,6 +545,25 @@
             || (video.VideoCodec?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
             || (video.AudioCodec?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
             || (video.Container?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    private bool MatchesMediaFilter(VideoAsset video)
+    {
+        if (!string.IsNullOrWhiteSpace(Search) && !MatchesSearch(video))
+        {
+            return false;
+        }
+
+        return MediaStatusFilter?.ToLowerInvariant() switch
+        {
+            "ready" => IsPlayable(video),
+            "analysis" => video.Enabled && video.IsAvailable && video.ProbeStatus == MediaProbeStatus.Unknown,
+            "problems" => video.Enabled && (!video.IsAvailable ||
+                video.ProbeStatus is MediaProbeStatus.Invalid or MediaProbeStatus.Missing or MediaProbeStatus.Unsupported ||
+                video.PlaybackStatus is MediaPlaybackStatus.Unsupported or MediaPlaybackStatus.Failed),
+            "disabled" => !video.Enabled,
+            _ => true
+        };
     }
 
     private static Color GetStatusColor(VideoAsset video) => video switch
@@ -577,6 +610,20 @@
     private static string FormatDuration(TimeSpan? duration) => duration is null
         ? "–"
         : duration.Value.TotalHours >= 1 ? duration.Value.ToString(@"h\:mm\:ss") : duration.Value.ToString(@"m\:ss");
+
+    private string FormatLastPlayed(int mediaId) => _allHistory
+        .Where(entry => entry.MediaId == mediaId)
+        .Select(entry => (DateTimeOffset?)entry.StartedUtc)
+        .Max()
+        ?.ToLocalTime()
+        .ToString("g", System.Globalization.CultureInfo.CurrentCulture) ?? "–";
+
+    private string FormatUsedSegments(int mediaId)
+    {
+        var count = _allHistory.Count(entry => entry.MediaId == mediaId &&
+            entry.ActualStart.HasValue && entry.ActualEnd.HasValue && entry.ActualEnd.Value > entry.ActualStart.Value);
+        return count == 1 ? "1 Segment" : $"{count} Segmente";
+    }
 
     private static string FormatPlaybackPosition(TimeSpan? position, TimeSpan? duration) =>
         $"{FormatClock(position)} / {FormatClock(duration)}";

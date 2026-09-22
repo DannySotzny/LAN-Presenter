@@ -296,6 +296,17 @@ body .mud-button-text-secondary {
     font: inherit;
 }
 
+.library-search-form select {
+    max-width: 8.5rem;
+    padding: .5rem .55rem;
+    color: #384056;
+    border: 1px solid #dbe1ed;
+    border-radius: .55rem;
+    background: #fff;
+    font: inherit;
+    font-size: .76rem;
+}
+
 .library-search-form button {
     padding: .58rem .85rem;
     cursor: pointer;

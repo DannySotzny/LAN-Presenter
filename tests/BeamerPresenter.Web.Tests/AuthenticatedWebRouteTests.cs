@@ -192,9 +192,21 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         {
             var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PresenterDbContext>>();
             await using var context = await factory.CreateDbContextAsync();
-            context.Videos.AddRange(
-                CreateVideo("arena-final.mp4", "h264", MediaPlaybackStatus.Supported),
-                CreateVideo("retro-demo.mkv", "hevc", MediaPlaybackStatus.Unsupported));
+            var playable = CreateVideo("arena-final.mp4", "h264", MediaPlaybackStatus.Supported);
+            context.Videos.AddRange(playable, CreateVideo("retro-demo.mkv", "hevc", MediaPlaybackStatus.Unsupported));
+            await context.SaveChangesAsync();
+            context.PlaybackHistory.Add(new PlaybackHistory
+            {
+                MediaId = playable.Id,
+                SourceType = MediaSourceType.Local,
+                PlannedStart = TimeSpan.FromMinutes(1),
+                PlannedEnd = TimeSpan.FromMinutes(3),
+                ActualStart = TimeSpan.FromMinutes(1),
+                ActualEnd = TimeSpan.FromMinutes(3),
+                StartedUtc = new DateTimeOffset(2026, 9, 21, 20, 0, 0, TimeSpan.Zero),
+                FinishedUtc = new DateTimeOffset(2026, 9, 21, 20, 2, 0, TimeSpan.Zero),
+                Completed = true
+            });
             await context.SaveChangesAsync();
         }
 
@@ -212,7 +224,34 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Contains("Als Nächstes", html, StringComparison.Ordinal);
         Assert.Contains("Deaktivieren", html, StringComparison.Ordinal);
         Assert.Contains("Neu analysieren", html, StringComparison.Ordinal);
+        Assert.Contains("1 Segment", html, StringComparison.Ordinal);
         Assert.DoesNotContain("retro-demo.mkv", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Media_status_filter_shows_only_matching_library_entries()
+    {
+        await using (var scope = _application!.Services.CreateAsyncScope())
+        {
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PresenterDbContext>>();
+            await using var context = await factory.CreateDbContextAsync();
+            var disabled = CreateVideo("disabled.mp4", "h264", MediaPlaybackStatus.Supported);
+            disabled.Enabled = false;
+            context.Videos.AddRange(disabled, CreateVideo("ready.mp4", "h264", MediaPlaybackStatus.Supported));
+            await context.SaveChangesAsync();
+        }
+
+        using var client = _application.GetTestClient();
+        var cookie = await LoginAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/?mediaStatus=disabled");
+        request.Headers.Add("Cookie", cookie);
+
+        using var response = await client.SendAsync(request);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("disabled.mp4", html, StringComparison.Ordinal);
+        Assert.Contains("Deaktiviert", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("ready.mp4", html, StringComparison.Ordinal);
     }
 
     [Fact]
