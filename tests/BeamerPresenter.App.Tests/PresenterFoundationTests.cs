@@ -115,6 +115,15 @@ public sealed class PresenterFoundationTests
     }
 
     [Fact]
+    public async Task Power_management_can_apply_and_release_native_requests()
+    {
+        using var service = new WindowsPowerManagementService();
+
+        await service.ApplyAsync(preventDisplaySleep: true, preventSystemSleep: true);
+        await service.ReleaseAsync();
+    }
+
+    [Fact]
     public async Task Power_management_honors_cancellation_before_native_calls()
     {
         using var cancellation = new CancellationTokenSource();
