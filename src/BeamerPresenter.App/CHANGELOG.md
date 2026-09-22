@@ -1,4 +1,11 @@
 Beamerpresenter.App Changelog
+<a name="0.11.0"></a>
+## [0.11.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.11.0) (2026-09-22)
+
+### Features
+
+* structure management UI with menu routes ([e281c7a](https://www.github.com/DannySotzny/LAN-Presenter/commit/e281c7a05f6aa53122ea5b959e9dc24f40ea606f))
+
 <a name="0.10.2"></a>
 ## [0.10.2](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.10.2) (2026-09-22)
 
