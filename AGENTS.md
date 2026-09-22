@@ -64,6 +64,7 @@
 
 - Vor jedem Commit: `dotnet build BeamerPresenterForLanParties.slnx -c Release` und passende Tests ausführen.
 - Der Test `AuthenticatedWebRouteTests.Valid_login_renders_management_page` prüft mit temporärer Datenbank den vollständigen Ablauf aus gültigem Login, Auth-Cookie und Rendering der Managementseite.
+- `BeamerPresenter.Browser.Tests` startet echtes Kestrel und Chromium. Vor seinem ersten Lauf `pwsh tests/BeamerPresenter.Browser.Tests/bin/Release/net10.0/playwright.ps1 install chromium` ausführen; Medien- und Socket-Testdoubles bleiben auf den Browserkontext beschränkt und dürfen keine Produkt-Testhooks in `presenter.js` erzwingen.
 - Coverage wird mit `coverage.runsettings` in allen Testprojekten gesammelt und mit `scripts/Assert-Coverage.ps1` quellzeilenbasiert zusammengeführt. Die CI muss bei weniger als 80 Prozent abbrechen; neue Ausschlüsse sind nur für generierten oder rein visuellen/Composition-Root-Code zulässig und müssen in README und Review begründet bleiben.
 - NuGet-Versionen stehen ausschließlich in `Directory.Packages.props`; keine Versionsattribute in Projektdateien ergänzen. Alle `packages.lock.json` bleiben eingecheckt. Nach bewussten Paketänderungen mit `dotnet restore BeamerPresenterForLanParties.slnx --force-evaluate` aktualisieren; CI und Release verwenden `--locked-mode`.
 - `BeamerPresenter.Architecture.Tests` erzwingt die Clean-Architecture-Referenzen, die Ablage produktiver C#-Dateien unter `src`, Tests unter `tests` und die Verwendung der `.slnx`-Solution.

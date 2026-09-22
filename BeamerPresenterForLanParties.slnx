@@ -10,6 +10,7 @@
     <Project Path="tests/BeamerPresenter.App.Tests/BeamerPresenter.App.Tests.csproj" />
     <Project Path="tests/BeamerPresenter.Architecture.Tests/BeamerPresenter.Architecture.Tests.csproj" />
     <Project Path="tests/BeamerPresenter.Application.Tests/BeamerPresenter.Application.Tests.csproj" />
+    <Project Path="tests/BeamerPresenter.Browser.Tests/BeamerPresenter.Browser.Tests.csproj" />
     <Project Path="tests/BeamerPresenter.Infrastructure.Tests/BeamerPresenter.Infrastructure.Tests.csproj" />
     <Project Path="tests/BeamerPresenter.Web.Tests/BeamerPresenter.Web.Tests.csproj" />
   </Folder>

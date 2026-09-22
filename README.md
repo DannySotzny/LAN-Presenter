@@ -52,6 +52,7 @@ Die Fundament-Stufe ist implementiert:
 - Presenter-Watchdog für Chrome-, SignalR- und Heartbeat-Ausfälle im aktiven und pausierten Zustand, echte Topmost-Prüfung sowie einmaliges Reload und anschließendes Überspringen dauerhaft festhängender aktiver Wiedergaben
 - live aktualisiertes Management-Dashboard mit Presenter-/Browserstatus, aktuellem Titel und Position, FFprobe-/Scannerzustand sowie direkten Pause-, Resume-, Hide- und Stop-Befehlen
 - anonymer datensparsamer `/health`-Endpunkt und authentifizierte Detailzustände unter `/health/details` beziehungsweise `/api/status`
+- echter Chromium-E2E-Test für die Presenter-Seite mit Kestrel, SignalR, lokaler Wiedergabesteuerung, allen News-Modi, Reconnect sowie End-/Fehlerfortschritt
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 
 Noch offen ist die abschließende Qualitäts- und Release-Härtung.
@@ -69,6 +70,14 @@ Der authentifizierte Ablauf ist durch einen Integrationstest mit temporärer SQL
 
 ```powershell
 dotnet test tests/BeamerPresenter.Web.Tests -c Release
+```
+
+Der Presenter-Browserablauf läuft mit Playwright gegen echtes Kestrel und Chromium. Nach Paketupdates oder auf einem neuen Entwicklungsrechner muss der zur festgeschriebenen Playwright-Version passende Browser einmal installiert werden:
+
+```powershell
+dotnet build tests/BeamerPresenter.Browser.Tests -c Release
+pwsh tests/BeamerPresenter.Browser.Tests/bin/Release/net10.0/playwright.ps1 install chromium
+dotnet test tests/BeamerPresenter.Browser.Tests -c Release --no-build
 ```
 
 Die CI sammelt Coverage über alle Testprojekte, führt Mehrfachmessungen derselben Produktionszeile zusammen und bricht unter 80 Prozent Line Coverage ab. Generierte Migrationen sowie rein visuelle WinForms-/Razor- und Composition-Root-Dateien sind von dieser Metrik ausgenommen:
