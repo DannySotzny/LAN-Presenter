@@ -6,7 +6,7 @@ Lokale Windows-Anwendung zur Steuerung von Videos auf einem Beamer bei LAN-Parti
 
 Die Fundament-Stufe ist implementiert:
 
-- WinForms-Status-/Einstellungsfenster mit vollständigem Tray-Menü für Aktivieren, Pausieren, Ausblenden und Stoppen
+- WinForms-Status-/Einstellungsfenster mit vollständigem Tray-Menü für Aktivieren, Pausieren, Ausblenden und Stoppen sowie Liveanzeige von Presenter-, Chrome- und lokalem/LAN-Webstatus
 - Statusanzeige mit tatsächlicher Version, Buildzeit, Git-Commit und .NET-Runtime aus dem Buildartefakt
 - Single-Instance pro Windows-Benutzer: ein zweiter Start aktiviert über eine Named Pipe das Fenster der laufenden Instanz
 - optionaler Autostart ohne Administratorrechte über den benutzerbezogenen Windows-Run-Schlüssel

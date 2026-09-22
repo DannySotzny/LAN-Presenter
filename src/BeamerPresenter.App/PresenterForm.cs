@@ -13,11 +13,13 @@ internal sealed class PresenterForm : Form
     private readonly StartupRegistrationService _startupRegistration;
     private readonly PlaybackController _playback;
     private readonly PlaybackOrchestrator _playbackOrchestrator;
+    private readonly IBrowserController _browser;
     private readonly Label _version = new() { AutoSize = true };
     private readonly Label _build = new() { AutoSize = true };
     private readonly Label _commit = new() { AutoSize = true };
     private readonly Label _runtime = new() { AutoSize = true };
     private readonly Label _presenterStatus = new() { AutoSize = true };
+    private readonly Label _chromeStatus = new() { AutoSize = true };
     private readonly ComboBox _monitor = new() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly Label _monitorStatus = new() { AutoSize = true };
     private readonly TextBox _chromePath = new() { Dock = DockStyle.Fill };
@@ -42,8 +44,11 @@ internal sealed class PresenterForm : Form
     private readonly ToolStripMenuItem _hidePresenter = new() { Text = "Presenter ausblenden" };
     private readonly ToolStripMenuItem _stopPresenter = new() { Text = "Presenter stoppen" };
     private readonly NotifyIcon _notifyIcon;
+    private readonly System.Windows.Forms.Timer _statusTimer = new() { Interval = 2000 };
     private bool _allowExit;
     private bool _configuredMonitorMissing;
+    private bool _statusRefreshInProgress;
+    private string _localWebUrl = "http://localhost:8765";
 
     public PresenterForm(WebApplication host, bool startMinimized = false)
     {
@@ -54,15 +59,17 @@ internal sealed class PresenterForm : Form
         _startupRegistration = host.Services.GetRequiredService<StartupRegistrationService>();
         _playback = host.Services.GetRequiredService<PlaybackController>();
         _playbackOrchestrator = host.Services.GetRequiredService<PlaybackOrchestrator>();
+        _browser = host.Services.GetRequiredService<IBrowserController>();
         var buildInformation = BuildInformation.Current;
         _version.Text = buildInformation.Version;
         _build.Text = buildInformation.BuildTimestampUtc?.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", System.Globalization.CultureInfo.InvariantCulture) ?? "Nicht verfügbar";
         _commit.Text = buildInformation.ShortGitCommitSha;
         _runtime.Text = buildInformation.RuntimeVersion;
-        Text = "Beamer Presenter for LAN-Parties"; MinimumSize = new Size(740, 720); StartPosition = FormStartPosition.CenterScreen;
+        Text = "Beamer Presenter for LAN-Parties"; MinimumSize = new Size(740, 760); StartPosition = FormStartPosition.CenterScreen;
         Controls.Add(CreateContent()); FormClosing += OnFormClosing; Shown += async (_, _) =>
         {
             await LoadSettingsAsync();
+            _statusTimer.Start();
             if (startMinimized)
             {
                 Hide();
@@ -73,22 +80,23 @@ internal sealed class PresenterForm : Form
         _hidePresenter.Click += async (_, _) => await ChangePresenterStateAsync(_playbackOrchestrator.HideAsync);
         _stopPresenter.Click += async (_, _) => await ChangePresenterStateAsync(_playbackOrchestrator.StopAsync);
         _monitor.SelectedIndexChanged += (_, _) => UpdateSelectedMonitorStatus();
+        _statusTimer.Tick += async (_, _) => await RefreshRuntimeStatusAsync();
         var menu = CreateTrayMenu();
         _notifyIcon = new NotifyIcon { Icon = SystemIcons.Application, Text = "Beamer Presenter for LAN-Parties", Visible = true, ContextMenuStrip = menu };
         _notifyIcon.DoubleClick += (_, _) => ShowFromTray();
         UpdatePresenterStatus();
     }
 
-    protected override void Dispose(bool disposing) { if (disposing) _notifyIcon.Dispose(); base.Dispose(disposing); }
+    protected override void Dispose(bool disposing) { if (disposing) { _statusTimer.Dispose(); _notifyIcon.Dispose(); } base.Dispose(disposing); }
     private Control CreateContent()
     {
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(18), ColumnCount = 2, RowCount = 21, AutoScroll = true };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(18), ColumnCount = 2, RowCount = 22, AutoScroll = true };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32)); root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 68));
         AddRow(root, 0, "Version:", _version); AddRow(root, 1, "Build:", _build); AddRow(root, 2, "Commit:", _commit); AddRow(root, 3, "Runtime:", _runtime); AddRow(root, 4, "Presenter:", _presenterStatus);
-        AddRow(root, 5, "Monitor:", _monitor); AddRow(root, 6, "Monitorstatus:", _monitorStatus); AddRow(root, 7, "Chrome:", CreateChromePathControl()); AddRow(root, 8, "Presenter-Optionen:", CreatePresenterOptionsControl());
-        AddRow(root, 9, "Autostart:", _startWithWindows); AddRow(root, 10, "Web UI:", _webUrl); AddRow(root, 11, "Web UI Port:", _webPort); AddRow(root, 12, "Netzwerk:", _allowLanAccess); AddRow(root, 13, "Videoordner:", CreateMediaFolderControl()); AddRow(root, 14, "FFprobe-Pfad:", CreateFfprobePathControl()); AddRow(root, 15, "FFprobe-Status:", CreateFfprobeStatusControl()); AddRow(root, 16, "Web-Passwort:", _password); AddRow(root, 17, "Passwort wiederholen:", _passwordRepeat); AddRow(root, 18, "Schutzstatus:", _passwordStatus);
-        var save = new Button { Text = "Einstellungen speichern", AutoSize = true, Anchor = AnchorStyles.Left }; save.Click += async (_, _) => await SaveSettingsAsync(); root.Controls.Add(save, 1, 19);
-        root.Controls.Add(new Label { AutoSize = true, Text = "Port- und Netzwerkänderungen gelten nach einem Neustart." }, 1, 20); return root;
+        AddRow(root, 5, "Chrome-Status:", _chromeStatus); AddRow(root, 6, "Monitor:", _monitor); AddRow(root, 7, "Monitorstatus:", _monitorStatus); AddRow(root, 8, "Chrome-Pfad:", CreateChromePathControl()); AddRow(root, 9, "Presenter-Optionen:", CreatePresenterOptionsControl());
+        AddRow(root, 10, "Autostart:", _startWithWindows); AddRow(root, 11, "Web UI:", _webUrl); AddRow(root, 12, "Web UI Port:", _webPort); AddRow(root, 13, "Netzwerk:", _allowLanAccess); AddRow(root, 14, "Videoordner:", CreateMediaFolderControl()); AddRow(root, 15, "FFprobe-Pfad:", CreateFfprobePathControl()); AddRow(root, 16, "FFprobe-Status:", CreateFfprobeStatusControl()); AddRow(root, 17, "Web-Passwort:", _password); AddRow(root, 18, "Passwort wiederholen:", _passwordRepeat); AddRow(root, 19, "Schutzstatus:", _passwordStatus);
+        var save = new Button { Text = "Einstellungen speichern", AutoSize = true, Anchor = AnchorStyles.Left }; save.Click += async (_, _) => await SaveSettingsAsync(); root.Controls.Add(save, 1, 20);
+        root.Controls.Add(new Label { AutoSize = true, Text = "Port- und Netzwerkänderungen gelten nach einem Neustart." }, 1, 21); return root;
     }
     private static void AddRow(TableLayoutPanel panel, int row, string label, Control input) { panel.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, row); panel.Controls.Add(input, 1, row); }
     private Control CreateMediaFolderControl()
@@ -178,6 +186,7 @@ internal sealed class PresenterForm : Form
         {
             await command(CancellationToken.None);
             UpdatePresenterStatus();
+            await RefreshRuntimeStatusAsync();
         }
         catch (Exception exception)
         {
@@ -205,11 +214,13 @@ internal sealed class PresenterForm : Form
         _aggressiveTopmost.Checked = settings.AggressiveTopmost;
         _preventDisplaySleep.Checked = settings.PreventDisplaySleep;
         _preventSystemSleep.Checked = settings.PreventSystemSleep;
-        _webUrl.Text = $"http://localhost:{settings.WebPort}";
+        _localWebUrl = $"http://localhost:{settings.WebPort}";
+        _webUrl.Text = PresenterNetworkAddresses.FormatWebUrls(settings.WebPort, settings.AllowLanAccess, PresenterNetworkAddresses.GetLanIpv4Addresses());
         _passwordStatus.Text = string.IsNullOrWhiteSpace(settings.PasswordHash) ? "Noch nicht eingerichtet" : "Aktiv";
         LoadMonitors(settings.MonitorDeviceName);
         await LoadMediaFoldersAsync();
         await RefreshFfprobeStatusAsync();
+        await RefreshRuntimeStatusAsync();
     }
     private async Task LoadMediaFoldersAsync()
     {
@@ -310,7 +321,29 @@ internal sealed class PresenterForm : Form
         var settings = await _settingsService.GetAsync(); settings.WebPort = webPort; settings.AllowLanAccess = _allowLanAccess.Checked; settings.FfprobePath = string.IsNullOrWhiteSpace(_ffprobePath.Text) ? null : Path.GetFullPath(_ffprobePath.Text.Trim()); settings.ChromePath = string.IsNullOrWhiteSpace(_chromePath.Text) ? null : Path.GetFullPath(_chromePath.Text.Trim()); settings.MonitorDeviceName = selectedMonitor.DeviceName; settings.AlwaysOnTop = _alwaysOnTop.Checked; settings.AggressiveTopmost = _aggressiveTopmost.Checked; settings.PreventDisplaySleep = _preventDisplaySleep.Checked; settings.PreventSystemSleep = _preventSystemSleep.Checked; await _settingsService.SaveAsync(settings); if (!string.IsNullOrWhiteSpace(_password.Text)) await _settingsService.SetWebPasswordAsync(_password.Text);
         _password.Clear(); _passwordRepeat.Clear(); await LoadSettingsAsync(); MessageBox.Show(this, "Einstellungen gespeichert.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
-    private void OpenWebUi() => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_webUrl.Text) { UseShellExecute = true });
+    private async Task RefreshRuntimeStatusAsync()
+    {
+        if (_statusRefreshInProgress || IsDisposed)
+        {
+            return;
+        }
+
+        _statusRefreshInProgress = true;
+        try
+        {
+            _chromeStatus.Text = await _browser.IsRunningAsync() ? "Läuft" : "Gestoppt";
+            UpdatePresenterStatus();
+        }
+        catch (Exception)
+        {
+            _chromeStatus.Text = "Status nicht verfügbar";
+        }
+        finally
+        {
+            _statusRefreshInProgress = false;
+        }
+    }
+    private void OpenWebUi() => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_localWebUrl) { UseShellExecute = true });
     private void ShowFromTray() { Show(); WindowState = FormWindowState.Normal; Activate(); }
     internal void ShowFromExternalLaunch() => ShowFromTray();
     private void ExitApplication() { _allowExit = true; Close(); }
