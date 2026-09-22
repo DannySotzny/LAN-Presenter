@@ -9,6 +9,7 @@ using BeamerPresenter.Infrastructure;
 using BeamerPresenter.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -695,6 +696,24 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Aborted_media_request_is_handled_as_client_closed()
+    {
+        using var requestAbort = new CancellationTokenSource();
+        requestAbort.Cancel();
+        var context = new DefaultHttpContext { RequestAborted = requestAbort.Token };
+
+        var result = await WebApplicationExtensions.StreamMediaAsync(
+            42,
+            context,
+            new CanceledMediaLibraryService(),
+            new FailingMediaFolderService(),
+            requestAbort.Token);
+
+        var statusResult = Assert.IsAssignableFrom<IStatusCodeHttpResult>(result);
+        Assert.Equal(499, statusResult.StatusCode);
+    }
+
+    [Fact]
     public async Task Presenter_page_connects_to_dedicated_signalr_hub_and_reports_status()
     {
         var application = _application!;
@@ -958,6 +977,23 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         public Task PauseAsync(CancellationToken cancellationToken = default) { PauseCalls++; return Task.CompletedTask; }
         public Task HideAsync(CancellationToken cancellationToken = default) { HideCalls++; return Task.CompletedTask; }
         public Task StopAsync(CancellationToken cancellationToken = default) { StopCalls++; return Task.CompletedTask; }
+    }
+
+    private sealed class CanceledMediaLibraryService : IMediaLibraryService
+    {
+        public Task<IReadOnlyList<VideoAsset>> GetAllAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<VideoAsset?> GetByIdAsync(int id, CancellationToken cancellationToken = default) => Task.FromCanceled<VideoAsset?>(cancellationToken);
+        public Task<VideoAsset> AddUploadAsync(string originalFileName, Stream content, long length, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task SetEnabledAsync(int id, bool enabled, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task ReanalyzeAsync(int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task MarkPlaybackFailedAsync(int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class FailingMediaFolderService : IMediaFolderService
+    {
+        public Task<IReadOnlyList<MediaFolder>> GetAllAsync(CancellationToken cancellationToken = default) => throw new InvalidOperationException("Die Ordnerabfrage darf bei einem Request-Abbruch nicht erfolgen.");
+        public Task<MediaFolder> AddAsync(string path, bool includeSubdirectories, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task RemoveAsync(int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed record QueueCommand(int MediaId, TimeSpan? Start, TimeSpan? Duration);

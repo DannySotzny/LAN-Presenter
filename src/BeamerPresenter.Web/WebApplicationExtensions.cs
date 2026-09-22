@@ -17,6 +17,7 @@ public static class WebApplicationExtensions
     private const string MediaPath = "/media";
     private const string NewsPath = "/news";
     private const string PlaybackPath = "/playback";
+    private const int ClientClosedRequestStatusCode = 499;
 
     public static IServiceCollection AddPresenterWebUi(this IServiceCollection services)
     {
@@ -502,25 +503,34 @@ public static class WebApplicationExtensions
         throw new FormatException("Das News-Gültigkeitsfenster ist ungültig.");
     }
 
-    private static async Task<IResult> StreamMediaAsync(
+    internal static async Task<IResult> StreamMediaAsync(
         int mediaId,
+        HttpContext context,
         IMediaLibraryService mediaLibraryService,
         IMediaFolderService mediaFolderService,
         CancellationToken cancellationToken)
     {
-        var asset = await mediaLibraryService.GetByIdAsync(mediaId, cancellationToken);
-        if (asset is null || !asset.Enabled || !asset.IsAvailable || !File.Exists(asset.FullPath))
+        try
         {
-            return Results.NotFound();
-        }
+            var asset = await mediaLibraryService.GetByIdAsync(mediaId, cancellationToken);
+            if (asset is null || !asset.Enabled || !asset.IsAvailable || !File.Exists(asset.FullPath))
+            {
+                return Results.NotFound();
+            }
 
-        var folders = await mediaFolderService.GetAllAsync(cancellationToken);
-        if (!folders.Any(folder => folder.Enabled && IsPathInside(asset.FullPath, folder.Path)))
+            var folders = await mediaFolderService.GetAllAsync(cancellationToken);
+            if (!folders.Any(folder => folder.Enabled && IsPathInside(asset.FullPath, folder.Path)))
+            {
+                return Results.NotFound();
+            }
+
+            return Results.File(asset.FullPath, GetVideoContentType(asset.FullPath), enableRangeProcessing: true);
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
-            return Results.NotFound();
+            // Video elements routinely abort stale range requests while seeking or switching sources.
+            return Results.StatusCode(ClientClosedRequestStatusCode);
         }
-
-        return Results.File(asset.FullPath, GetVideoContentType(asset.FullPath), enableRangeProcessing: true);
     }
 
     private static bool IsPathInside(string filePath, string folderPath)

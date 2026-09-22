@@ -21,6 +21,7 @@ Die Fundament-Stufe ist implementiert:
 - responsive MudBlazor-Medienbibliothek mit Suche, Statusfiltern, technischen Metadaten, letzter Wiedergabe, verwendeten Segmenten, Kennzahlen und klar erkennbaren Analyse-/Kompatibilitätsfehlern
 - persistentes Aktivieren/Deaktivieren einzelner Videos und erneute FFprobe-Analyse direkt aus der geschützten Medienbibliothek; deaktivierte oder zur Laufzeit fehlgeschlagene Medien werden nicht erneut eingeplant
 - anonyme, ID-basierte lokale Medienauslieferung mit HTTP-Range-Support und erneuter Pfadvalidierung gegen aktive Medienordner
+- abgebrochene Browser-Range-Anfragen beim Suchen oder Video-Wechsel werden kontrolliert als Client-Abbruch behandelt und beeinträchtigen den Presenter nicht
 - zusätzliche Loopback-Sperre für `/presenter`, `/media` und `/hubs/presenter`, sodass LAN-Teilnehmer weder Kiosk noch Mediendateien direkt abrufen können
 - dauerhaft geladene Fullscreen-Presenter-Seite mit dediziertem SignalR-Hub, Reconnect, lokalen Video-/Segmentkommandos und Status-/Heartbeat-Rückmeldungen
 - mehrere persistente Videoordner mit optional rekursiver Erfassung; der bisherige Einzelpfad wird automatisch migriert
