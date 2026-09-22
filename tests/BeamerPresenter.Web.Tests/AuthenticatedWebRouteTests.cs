@@ -78,6 +78,8 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Contains("Queue neu generieren", html, StringComparison.Ordinal);
         Assert.Contains("Wiedergabehistorie", html, StringComparison.Ordinal);
         Assert.Contains("YouTube einreihen", html, StringComparison.Ordinal);
+        Assert.Contains("Metadaten laden", html, StringComparison.Ordinal);
+        Assert.Contains("youtube-management.js", html, StringComparison.Ordinal);
         Assert.Contains("News &amp; Einblendungen", html, StringComparison.Ordinal);
         Assert.Contains("AKTUELLE WIEDERGABE", html, StringComparison.Ordinal);
         Assert.Contains("dashboard.js", html, StringComparison.Ordinal);
@@ -471,6 +473,39 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         var command = Assert.Single(_playbackCommands.YouTubeNextCalls);
         Assert.Equal("https://youtu.be/dQw4w9WgXcQ", command.Url);
         Assert.Equal(TimeSpan.FromMinutes(10), command.MaximumDuration);
+    }
+
+    [Fact]
+    public async Task Authenticated_youtube_reference_normalizes_supported_links()
+    {
+        using var client = _application!.GetTestClient();
+        var cookie = await LoginAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/youtube/reference?url=https%3A%2F%2Fyoutu.be%2FdQw4w9WgXcQ");
+        request.Headers.Add("Cookie", cookie);
+
+        using var response = await client.SendAsync(request);
+        var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("dQw4w9WgXcQ", json.GetProperty("videoId").GetString());
+        Assert.Equal("youtube:dQw4w9WgXcQ", json.GetProperty("sourceKey").GetString());
+        Assert.Equal("https://www.youtube.com/watch?v=dQw4w9WgXcQ", json.GetProperty("canonicalUrl").GetString());
+
+        using var invalidRequest = new HttpRequestMessage(HttpMethod.Get, "/api/youtube/reference?url=https%3A%2F%2Fexample.com%2Fvideo");
+        invalidRequest.Headers.Add("Cookie", cookie);
+        using var invalidResponse = await client.SendAsync(invalidRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task YouTube_reference_requires_authentication()
+    {
+        using var client = _application!.GetTestClient();
+
+        using var response = await client.GetAsync("/api/youtube/reference?url=https%3A%2F%2Fyoutu.be%2FdQw4w9WgXcQ");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/login", response.Headers.Location?.AbsolutePath);
     }
 
     [Fact]

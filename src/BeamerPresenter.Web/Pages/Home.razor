@@ -143,12 +143,26 @@
                 <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">Watch-, Kurz- und Shorts-Links werden normalisiert. Bei Netz- oder Playerfehlern läuft die lokale Queue weiter.</MudText>
             </MudItem>
             <MudItem xs="12" md="8">
-                <form method="post" class="youtube-form">
-                    <label class="youtube-url-field">YouTube URL<input name="url" type="url" placeholder="https://youtu.be/…" required /></label>
+                <form method="post" class="youtube-form" id="youtube-management-form">
+                    <div class="youtube-url-row">
+                        <label class="youtube-url-field">YouTube URL<input id="youtube-url" name="url" type="url" placeholder="https://youtu.be/…" required /></label>
+                        <button type="button" id="youtube-load-metadata">Metadaten laden</button>
+                    </div>
+                    <div class="youtube-metadata" aria-live="polite">
+                        <span id="youtube-metadata-status">Noch nicht geprüft</span>
+                        <strong id="youtube-duration">Dauer: –</strong>
+                    </div>
+                    <div id="youtube-preview" class="youtube-preview" hidden></div>
+                    <fieldset class="youtube-playback-mode">
+                        <legend>Wiedergabe</legend>
+                        <label><input type="radio" name="playbackMode" value="automatic" checked /> Automatisch bis zur maximalen Laufzeit</label>
+                        <label><input id="youtube-mode-full" type="radio" name="playbackMode" value="full" disabled /> Vollständig</label>
+                        <label><input type="radio" name="playbackMode" value="custom" /> Eigenes Segment</label>
+                    </fieldset>
                     <div class="youtube-time-grid">
-                        <label>Eigener Start <span>(optional)</span><input name="start" type="text" placeholder="01:20:00" /></label>
-                        <label>Eigene Dauer <span>(optional)</span><input name="duration" type="text" placeholder="00:08:00" /></label>
-                        <label>Maximale Laufzeit<input name="maximumDuration" type="text" value="00:10:00" required /></label>
+                        <label id="youtube-custom-start" hidden>Eigener Start<input id="youtube-start" name="start" type="text" placeholder="01:20:00" /></label>
+                        <label id="youtube-custom-duration" hidden>Eigene Dauer<input id="youtube-custom-duration-input" name="duration" type="text" placeholder="00:08:00" /></label>
+                        <label id="youtube-maximum-duration">Maximale Laufzeit<input id="youtube-maximum-duration-input" name="maximumDuration" type="text" value="00:10:00" required /></label>
                     </div>
                     <div class="youtube-actions">
                         <button type="submit" formaction="/api/youtube/next">Als Nächstes</button>
@@ -430,6 +444,7 @@
 </MudStack>
 
 <script src="_content/BeamerPresenter.Web/js/dashboard.js"></script>
+<script src="_content/BeamerPresenter.Web/js/youtube-management.js"></script>
 
 @code {
     private IReadOnlyList<VideoAsset> _videos = [];

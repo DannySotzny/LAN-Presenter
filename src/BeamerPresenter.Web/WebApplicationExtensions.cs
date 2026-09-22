@@ -43,6 +43,7 @@ public static class WebApplicationExtensions
         app.MapPost("/api/queue/remove", (Delegate)RemoveQueueEntryAsync).RequireAuthorization();
         app.MapPost("/api/queue/regenerate", (Delegate)RegenerateQueueAsync).RequireAuthorization();
         app.MapPost("/api/history/clear", (Delegate)ClearHistoryAsync).RequireAuthorization();
+        app.MapGet("/api/youtube/reference", (Delegate)GetYouTubeReference).RequireAuthorization();
         app.MapPost("/api/youtube/next", (Delegate)PlayYouTubeNextAsync).RequireAuthorization();
         app.MapPost("/api/youtube/now", (Delegate)PlayYouTubeNowAsync).RequireAuthorization();
         app.MapPost("/api/news/create", (Delegate)CreateNewsAsync).RequireAuthorization();
@@ -285,6 +286,21 @@ public static class WebApplicationExtensions
         CancellationToken cancellationToken) =>
         await ExecuteYouTubeCommandAsync(context, (url, start, duration, maximumDuration) =>
             playback.PlayYouTubeNextAsync(url, start, duration, maximumDuration, cancellationToken));
+
+    private static IResult GetYouTubeReference(string? url)
+    {
+        if (!YouTubeUrlParser.TryParse(url, out var reference) || reference is null)
+        {
+            return Results.BadRequest(new { error = "Die angegebene URL ist kein unterstützter YouTube-Link." });
+        }
+
+        return Results.Ok(new
+        {
+            reference.VideoId,
+            reference.SourceKey,
+            reference.CanonicalUrl
+        });
+    }
 
     private static async Task<IResult> PlayYouTubeNowAsync(
         HttpContext context,
