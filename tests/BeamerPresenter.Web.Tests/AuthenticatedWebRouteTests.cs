@@ -81,6 +81,8 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Contains("Metadaten laden", html, StringComparison.Ordinal);
         Assert.Contains("youtube-management.js", html, StringComparison.Ordinal);
         Assert.Contains("News &amp; Einblendungen", html, StringComparison.Ordinal);
+        Assert.Contains("Nur speichern", html, StringComparison.Ordinal);
+        Assert.Contains("Speichern &amp; jetzt anzeigen", html, StringComparison.Ordinal);
         Assert.Contains("AKTUELLE WIEDERGABE", html, StringComparison.Ordinal);
         Assert.Contains("dashboard.js", html, StringComparison.Ordinal);
     }
@@ -599,6 +601,32 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         using var showResponse = await client.SendAsync(showRequest);
 
         Assert.Equal("/?news=shown", showResponse.Headers.Location?.OriginalString);
+        Assert.Equal(item.Id, Assert.Single(_playbackCommands.ShownNews).Id);
+    }
+
+    [Fact]
+    public async Task Authenticated_news_can_be_saved_and_shown_in_one_step()
+    {
+        using var client = _application!.GetTestClient();
+        var cookie = await LoginAsync(client);
+        using var createRequest = new HttpRequestMessage(HttpMethod.Post, "/api/news/create")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["title"] = "Turnierstart",
+                ["text"] = "CS2 startet in 10 Minuten",
+                ["mode"] = "Fullscreen",
+                ["duration"] = "00:05:00",
+                ["priority"] = "10",
+                ["showNow"] = "true"
+            })
+        };
+        createRequest.Headers.Add("Cookie", cookie);
+
+        using var createResponse = await client.SendAsync(createRequest);
+
+        Assert.Equal("/?news=created-shown", createResponse.Headers.Location?.OriginalString);
+        var item = Assert.Single(await _application!.Services.GetRequiredService<INewsService>().GetAllAsync());
         Assert.Equal(item.Id, Assert.Single(_playbackCommands.ShownNews).Id);
     }
 

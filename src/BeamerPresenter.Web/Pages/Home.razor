@@ -95,9 +95,25 @@
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(YouTubeMessage) ? YouTubeMessage : "Der YouTube-Link konnte nicht eingereiht werden.")</MudAlert>
     }
-    @if (NewsResult is "created" or "shown" or "stopped" or "deleted")
+    @if (NewsResult == "created-shown")
     {
-        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die News-Aktion wurde ausgeführt.</MudAlert>
+        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die News wurde gespeichert und wird jetzt auf dem Presenter angezeigt.</MudAlert>
+    }
+    else if (NewsResult == "created")
+    {
+        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die News wurde gespeichert. Mit „Jetzt anzeigen“ kann sie auf den Presenter gesendet werden.</MudAlert>
+    }
+    else if (NewsResult == "shown")
+    {
+        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die News wird jetzt auf dem Presenter angezeigt.</MudAlert>
+    }
+    else if (NewsResult == "stopped")
+    {
+        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die aktuelle News wurde beendet.</MudAlert>
+    }
+    else if (NewsResult == "deleted")
+    {
+        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die News wurde gelöscht.</MudAlert>
     }
     else if (NewsResult == "error")
     {
@@ -290,7 +306,10 @@
                         <label>Gültig ab <span>(optional)</span><input name="validFrom" type="datetime-local" /></label>
                         <label>Gültig bis <span>(optional)</span><input name="validUntil" type="datetime-local" /></label>
                     </div>
-                    <button type="submit" class="news-create-button">News speichern</button>
+                    <div class="news-form-actions">
+                        <button type="submit" name="showNow" value="true" class="news-create-button">Speichern &amp; jetzt anzeigen</button>
+                        <button type="submit" class="news-save-button">Nur speichern</button>
+                    </div>
                 </form>
             </MudItem>
             <MudItem xs="12" lg="7">

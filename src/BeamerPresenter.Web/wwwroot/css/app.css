@@ -673,7 +673,14 @@ body .mud-button-text-secondary {
     width: auto;
 }
 
+.news-form-actions {
+    display: grid;
+    grid-template-columns: minmax(13rem, 1.3fr) minmax(8rem, .7fr);
+    gap: .65rem;
+}
+
 .news-create-button,
+.news-save-button,
 .news-row-actions button {
     padding: .65rem .85rem;
     cursor: pointer;
@@ -683,6 +690,12 @@ body .mud-button-text-secondary {
     background: #5637d8;
     font: inherit;
     font-weight: 700;
+}
+
+.news-save-button {
+    color: #5637d8;
+    border: 1px solid #5637d8;
+    background: #fff;
 }
 
 .news-table {
@@ -763,7 +776,8 @@ body .mud-button-text-secondary {
     }
 
     .news-form-grid,
-    .news-schedule-grid {
+    .news-schedule-grid,
+    .news-form-actions {
         grid-template-columns: 1fr;
     }
 }

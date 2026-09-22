@@ -382,6 +382,7 @@ public static class WebApplicationExtensions
     private static async Task<IResult> CreateNewsAsync(
         HttpContext context,
         INewsService newsService,
+        INewsCommandService commands,
         CancellationToken cancellationToken)
     {
         var form = await context.Request.ReadFormAsync(cancellationToken);
@@ -393,7 +394,7 @@ public static class WebApplicationExtensions
             }
 
             _ = int.TryParse(form["priority"], out var priority);
-            await newsService.AddAsync(new NewsItem
+            var item = await newsService.AddAsync(new NewsItem
             {
                 Title = form["title"].ToString().Trim(),
                 Text = form["text"].ToString().Trim(),
@@ -404,6 +405,13 @@ public static class WebApplicationExtensions
                 ValidUntil = ParseOptionalDateTime(form["validUntil"].ToString()),
                 Priority = priority
             }, cancellationToken);
+
+            if (form.ContainsKey("showNow"))
+            {
+                await commands.ShowNewsAsync(item, cancellationToken);
+                return Results.Redirect("/?news=created-shown");
+            }
+
             return Results.Redirect("/?news=created");
         }
         catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FormatException)
