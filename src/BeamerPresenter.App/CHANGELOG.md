@@ -1,4 +1,11 @@
 Beamerpresenter.App Changelog
+<a name="0.10.2"></a>
+## [0.10.2](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.10.2) (2026-09-22)
+
+### Bug Fixes
+
+* show news immediately after creation ([533f65c](https://www.github.com/DannySotzny/LAN-Presenter/commit/533f65c85850b40f93e63b4f4a7fd84f98d3cc05))
+
 <a name="0.10.1"></a>
 ## [0.10.1](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.10.1) (2026-09-22)
 
