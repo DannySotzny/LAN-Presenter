@@ -73,18 +73,36 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         var html = await pageResponse.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, pageResponse.StatusCode);
-        Assert.Contains("Videobibliothek", html, StringComparison.Ordinal);
-        Assert.Contains("Wiedergabe-Queue", html, StringComparison.Ordinal);
-        Assert.Contains("Queue neu generieren", html, StringComparison.Ordinal);
-        Assert.Contains("Wiedergabehistorie", html, StringComparison.Ordinal);
-        Assert.Contains("YouTube einreihen", html, StringComparison.Ordinal);
-        Assert.Contains("Metadaten laden", html, StringComparison.Ordinal);
-        Assert.Contains("youtube-management.js", html, StringComparison.Ordinal);
-        Assert.Contains("News &amp; Einblendungen", html, StringComparison.Ordinal);
-        Assert.Contains("Nur speichern", html, StringComparison.Ordinal);
-        Assert.Contains("Speichern &amp; jetzt anzeigen", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/playback\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/media\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/news\"", html, StringComparison.Ordinal);
         Assert.Contains("AKTUELLE WIEDERGABE", html, StringComparison.Ordinal);
         Assert.Contains("dashboard.js", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Wiedergabe-Queue", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Videobibliothek", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("/playback", "Wiedergabe-Queue", "youtube-management.js")]
+    [InlineData("/media", "Videobibliothek", "Video hinzufügen")]
+    [InlineData("/news", "News &amp; Einblendungen", "Speichern &amp; jetzt anzeigen")]
+    public async Task Authenticated_management_sections_have_dedicated_routes(string path, string heading, string marker)
+    {
+        using var client = _application!.GetTestClient();
+        var cookie = await LoginAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.Add("Cookie", cookie);
+
+        using var response = await client.SendAsync(request);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(heading, html, StringComparison.Ordinal);
+        Assert.Contains(marker, html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/playback\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/media\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/news\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -214,7 +232,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
 
         using var client = _application.GetTestClient();
         var cookie = await LoginAsync(client);
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/?q=h264");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/media?q=h264");
         request.Headers.Add("Cookie", cookie);
 
         using var response = await client.SendAsync(request);
@@ -245,7 +263,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
 
         using var client = _application.GetTestClient();
         var cookie = await LoginAsync(client);
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/?mediaStatus=disabled");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/media?mediaStatus=disabled");
         request.Headers.Add("Cookie", cookie);
 
         using var response = await client.SendAsync(request);
@@ -287,7 +305,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
                    ("enabled", "false")))
         using (var disableResponse = await client.SendAsync(disableRequest))
         {
-            Assert.Equal("/?media=disabled", disableResponse.Headers.Location?.OriginalString);
+            Assert.Equal("/media?media=disabled", disableResponse.Headers.Location?.OriginalString);
         }
 
         var mediaLibrary = _application.Services.GetRequiredService<IMediaLibraryService>();
@@ -300,7 +318,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
                    ("enabled", "true")))
         using (var enableResponse = await client.SendAsync(enableRequest))
         {
-            Assert.Equal("/?media=enabled", enableResponse.Headers.Location?.OriginalString);
+            Assert.Equal("/media?media=enabled", enableResponse.Headers.Location?.OriginalString);
         }
 
         using var reanalyzeRequest = CreateAuthenticatedFormRequest(
@@ -308,7 +326,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
             cookie,
             ("id", mediaId.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         using var reanalyzeResponse = await client.SendAsync(reanalyzeRequest);
-        Assert.Equal("/?media=reanalyzing", reanalyzeResponse.Headers.Location?.OriginalString);
+        Assert.Equal("/media?media=reanalyzing", reanalyzeResponse.Headers.Location?.OriginalString);
     }
 
     [Fact]
@@ -320,7 +338,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         using var client = _application.GetTestClient();
         var cookie = await LoginAsync(client);
         using var form = new MultipartFormDataContent();
-        form.Add(new StringContent("/"), "returnUrl");
+        form.Add(new StringContent("/media"), "returnUrl");
         var videoContent = new ByteArrayContent([0, 1, 2, 3]);
         videoContent.Headers.ContentType = new MediaTypeHeaderValue("video/mp4");
         form.Add(videoContent, "video", "uploaded-clip.mp4");
@@ -330,7 +348,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         using var uploadResponse = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Redirect, uploadResponse.StatusCode);
-        Assert.Equal("/?upload=success", uploadResponse.Headers.Location?.OriginalString);
+        Assert.Equal("/media?upload=success", uploadResponse.Headers.Location?.OriginalString);
         Assert.True(File.Exists(Path.Combine(uploadDirectory, "uploaded-clip.mp4")));
     }
 
@@ -353,7 +371,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         using var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal("/?queue=success", response.Headers.Location?.OriginalString);
+        Assert.Equal("/playback?queue=success", response.Headers.Location?.OriginalString);
         var command = Assert.Single(_playbackCommands.NextCalls);
         Assert.Equal(42, command.MediaId);
         Assert.Equal(TimeSpan.FromHours(1) + TimeSpan.FromMinutes(20), command.Start);
@@ -383,7 +401,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         using (var moveResponse = await client.SendAsync(moveRequest))
         {
             Assert.Equal(HttpStatusCode.Redirect, moveResponse.StatusCode);
-            Assert.Equal("/?queue=success", moveResponse.Headers.Location?.OriginalString);
+            Assert.Equal("/playback?queue=success", moveResponse.Headers.Location?.OriginalString);
         }
 
         var queue = await _application.Services.GetRequiredService<PlaybackQueueService>().GetQueueAsync();
@@ -393,7 +411,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         using (var removeResponse = await client.SendAsync(removeRequest))
         {
             Assert.Equal(HttpStatusCode.Redirect, removeResponse.StatusCode);
-            Assert.Equal("/?queue=success", removeResponse.Headers.Location?.OriginalString);
+            Assert.Equal("/playback?queue=success", removeResponse.Headers.Location?.OriginalString);
         }
 
         queue = await _application.Services.GetRequiredService<PlaybackQueueService>().GetQueueAsync();
@@ -408,13 +426,13 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         using (var nextRequest = CreateAuthenticatedFormRequest("/api/queue/play-next", cookie, ("id", "17")))
         using (var nextResponse = await client.SendAsync(nextRequest))
         {
-            Assert.Equal("/?queue=success", nextResponse.Headers.Location?.OriginalString);
+            Assert.Equal("/playback?queue=success", nextResponse.Headers.Location?.OriginalString);
         }
 
         using (var nowRequest = CreateAuthenticatedFormRequest("/api/queue/play-now", cookie, ("id", "23")))
         using (var nowResponse = await client.SendAsync(nowRequest))
         {
-            Assert.Equal("/?queue=success", nowResponse.Headers.Location?.OriginalString);
+            Assert.Equal("/playback?queue=success", nowResponse.Headers.Location?.OriginalString);
         }
 
         Assert.Equal([17L], _playbackCommands.PrioritizedQueueEntries);
@@ -430,30 +448,30 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         using (var mediaRequest = CreateAuthenticatedFormRequest("/api/videos/set-enabled", cookie, ("id", "invalid"), ("enabled", "false")))
         using (var mediaResponse = await client.SendAsync(mediaRequest))
         {
-            Assert.StartsWith("/?media=error", mediaResponse.Headers.Location?.OriginalString, StringComparison.Ordinal);
+            Assert.StartsWith("/media?media=error", mediaResponse.Headers.Location?.OriginalString, StringComparison.Ordinal);
         }
 
         using (var reanalyzeRequest = CreateAuthenticatedFormRequest("/api/videos/reanalyze", cookie, ("id", int.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture))))
         using (var reanalyzeResponse = await client.SendAsync(reanalyzeRequest))
         {
-            Assert.StartsWith("/?media=error", reanalyzeResponse.Headers.Location?.OriginalString, StringComparison.Ordinal);
+            Assert.StartsWith("/media?media=error", reanalyzeResponse.Headers.Location?.OriginalString, StringComparison.Ordinal);
         }
 
         using (var queueRequest = CreateAuthenticatedFormRequest("/api/queue/move-up", cookie, ("id", "invalid")))
         using (var queueResponse = await client.SendAsync(queueRequest))
         {
-            Assert.StartsWith("/?queue=error", queueResponse.Headers.Location?.OriginalString, StringComparison.Ordinal);
+            Assert.StartsWith("/playback?queue=error", queueResponse.Headers.Location?.OriginalString, StringComparison.Ordinal);
         }
 
         using (var missingQueueRequest = CreateAuthenticatedFormRequest("/api/queue/remove", cookie, ("id", long.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture))))
         using (var missingQueueResponse = await client.SendAsync(missingQueueRequest))
         {
-            Assert.StartsWith("/?queue=error", missingQueueResponse.Headers.Location?.OriginalString, StringComparison.Ordinal);
+            Assert.StartsWith("/playback?queue=error", missingQueueResponse.Headers.Location?.OriginalString, StringComparison.Ordinal);
         }
 
         using var regenerateRequest = CreateAuthenticatedFormRequest("/api/queue/regenerate", cookie);
         using var regenerateResponse = await client.SendAsync(regenerateRequest);
-        Assert.Equal("/?queue=success", regenerateResponse.Headers.Location?.OriginalString);
+        Assert.Equal("/playback?queue=success", regenerateResponse.Headers.Location?.OriginalString);
     }
 
     [Fact]
@@ -481,7 +499,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         using var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal("/?history=cleared", response.Headers.Location?.OriginalString);
+        Assert.Equal("/playback?history=cleared", response.Headers.Location?.OriginalString);
         Assert.Empty(await _application.Services.GetRequiredService<PlaybackQueueService>().GetHistoryAsync());
     }
 
@@ -533,7 +551,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         using var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal("/?youtube=success", response.Headers.Location?.OriginalString);
+        Assert.Equal("/playback?youtube=success", response.Headers.Location?.OriginalString);
         var command = Assert.Single(_playbackCommands.YouTubeNextCalls);
         Assert.Equal("https://youtu.be/dQw4w9WgXcQ", command.Url);
         Assert.Equal(TimeSpan.FromMinutes(10), command.MaximumDuration);
@@ -590,7 +608,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         };
         createRequest.Headers.Add("Cookie", cookie);
         using var createResponse = await client.SendAsync(createRequest);
-        Assert.Equal("/?news=created", createResponse.Headers.Location?.OriginalString);
+        Assert.Equal("/news?news=created", createResponse.Headers.Location?.OriginalString);
         var item = Assert.Single(await _application!.Services.GetRequiredService<INewsService>().GetAllAsync());
 
         using var showRequest = new HttpRequestMessage(HttpMethod.Post, "/api/news/show")
@@ -600,7 +618,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         showRequest.Headers.Add("Cookie", cookie);
         using var showResponse = await client.SendAsync(showRequest);
 
-        Assert.Equal("/?news=shown", showResponse.Headers.Location?.OriginalString);
+        Assert.Equal("/news?news=shown", showResponse.Headers.Location?.OriginalString);
         Assert.Equal(item.Id, Assert.Single(_playbackCommands.ShownNews).Id);
     }
 
@@ -625,7 +643,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
 
         using var createResponse = await client.SendAsync(createRequest);
 
-        Assert.Equal("/?news=created-shown", createResponse.Headers.Location?.OriginalString);
+        Assert.Equal("/news?news=created-shown", createResponse.Headers.Location?.OriginalString);
         var item = Assert.Single(await _application!.Services.GetRequiredService<INewsService>().GetAllAsync());
         Assert.Equal(item.Id, Assert.Single(_playbackCommands.ShownNews).Id);
     }

@@ -1,4 +1,5 @@
 @using MudBlazor
+@using Microsoft.AspNetCore.Components.Routing
 @inherits LayoutComponentBase
 
 <MudLayout>
@@ -10,10 +11,25 @@
                 <MudText Typo="Typo.caption" Class="brand-subtitle">FOR LAN-PARTIES</MudText>
             </div>
         </MudStack>
+        <MudSpacer />
+        <form method="post" action="/account/logout" class="app-bar-logout">
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Logout">Abmelden</MudButton>
+        </form>
     </MudAppBar>
-    <MudMainContent Class="main-content">
-        <MudContainer MaxWidth="MaxWidth.Large">
-            @Body
-        </MudContainer>
-    </MudMainContent>
+    <div class="management-shell">
+        <aside class="management-sidebar" aria-label="Verwaltungsmenü">
+            <MudText Typo="Typo.overline" Class="management-nav-caption">VERWALTUNG</MudText>
+            <MudNavMenu Class="management-nav">
+                <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+                <MudNavLink Href="/playback" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.PlaylistPlay">Wiedergabe</MudNavLink>
+                <MudNavLink Href="/media" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.VideoLibrary">Mediathek</MudNavLink>
+                <MudNavLink Href="/news" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Campaign">News</MudNavLink>
+            </MudNavMenu>
+        </aside>
+        <MudMainContent Class="main-content management-content">
+            <MudContainer MaxWidth="MaxWidth.ExtraLarge">
+                @Body
+            </MudContainer>
+        </MudMainContent>
+    </div>
 </MudLayout>

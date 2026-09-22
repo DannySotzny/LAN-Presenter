@@ -54,6 +54,58 @@ body .mud-button-text-secondary {
     letter-spacing: .18em !important;
 }
 
+.app-bar-logout {
+    margin-left: auto;
+}
+
+.management-shell {
+    display: grid;
+    min-height: 100vh;
+    grid-template-columns: 15rem minmax(0, 1fr);
+}
+
+.management-sidebar {
+    position: sticky;
+    top: 64px;
+    align-self: start;
+    height: calc(100vh - 64px);
+    box-sizing: border-box;
+    padding: 2rem 1rem;
+    overflow-y: auto;
+    color: #dfe5f5;
+    border-right: 1px solid rgba(117, 136, 180, .16);
+    background: rgba(10, 14, 25, .96);
+}
+
+.management-nav-caption {
+    display: block;
+    padding: 0 .85rem .65rem;
+    color: #71809f !important;
+    font-weight: 800 !important;
+    letter-spacing: .16em !important;
+}
+
+.management-nav {
+    display: grid;
+    gap: .35rem;
+}
+
+.management-nav .mud-nav-link {
+    min-height: 3rem;
+    color: #aeb9d0;
+    border-radius: .7rem;
+}
+
+.management-nav .mud-nav-link.active {
+    color: #fff;
+    background: linear-gradient(105deg, rgba(86, 55, 216, .82), rgba(46, 116, 202, .62));
+}
+
+.management-nav .mud-nav-link:hover {
+    color: #fff;
+    background: rgba(139, 108, 255, .14);
+}
+
 .main-content {
     min-height: 100vh;
     padding: 96px 0 48px;
@@ -61,6 +113,21 @@ body .mud-button-text-secondary {
         radial-gradient(circle at 88% 7%, rgba(90, 80, 220, .18), transparent 28rem),
         radial-gradient(circle at 8% 45%, rgba(0, 180, 220, .1), transparent 32rem),
         var(--lan-bg);
+}
+
+.management-content {
+    min-width: 0;
+}
+
+.management-page-heading {
+    padding: .5rem .25rem .75rem;
+    color: #f7f9ff;
+}
+
+.management-page-heading .mud-typography-h4 {
+    margin: .15rem 0 .35rem;
+    font-weight: 750;
+    letter-spacing: -.03em;
 }
 
 .login-shell {
@@ -721,11 +788,6 @@ body .mud-button-text-secondary {
     background: #fff;
 }
 
-.logout-form {
-    display: flex;
-    justify-content: flex-end;
-}
-
 .login-input {
     width: 100%;
     min-height: 3.5rem;
@@ -736,9 +798,65 @@ body .mud-button-text-secondary {
     font: inherit;
 }
 
+@media (max-width: 900px) {
+    .management-shell {
+        display: block;
+    }
+
+    .management-sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        padding: 80px 1rem 1rem;
+        overflow: visible;
+        border-right: 0;
+        border-bottom: 1px solid rgba(117, 136, 180, .16);
+    }
+
+    .management-nav-caption {
+        display: none;
+    }
+
+    .management-nav {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .management-nav .mud-nav-link {
+        justify-content: center;
+        padding: .65rem .5rem;
+    }
+
+    .management-content {
+        min-height: auto;
+        padding-top: 24px;
+    }
+}
+
 @media (max-width: 600px) {
     .main-content {
         padding-top: 80px;
+    }
+
+    .management-content {
+        padding-top: 20px;
+    }
+
+    .management-sidebar {
+        padding: 72px .6rem .75rem;
+    }
+
+    .management-nav {
+        gap: .2rem;
+    }
+
+    .management-nav .mud-nav-link {
+        min-height: 2.8rem;
+        padding: .5rem .3rem;
+        font-size: .72rem;
+    }
+
+    .management-nav .mud-nav-link-icon {
+        margin-right: .3rem;
     }
 
     .hero-title {

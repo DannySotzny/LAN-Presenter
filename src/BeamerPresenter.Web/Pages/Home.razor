@@ -1,4 +1,7 @@
 @page "/"
+@page "/playback"
+@page "/media"
+@page "/news"
 @using BeamerPresenter.Domain
 @using MudBlazor
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
@@ -7,151 +10,122 @@
 @inject BeamerPresenter.Application.INewsService NewsService
 @inject BeamerPresenter.Application.PlaybackController Playback
 @inject BeamerPresenter.Web.PresenterDashboardService Dashboard
+@inject NavigationManager Navigation
 
 <MudStack Spacing="4">
-    <MudPaper Elevation="0" Class="hero-panel pa-7 pa-sm-9">
-        <MudGrid Class="hero-grid">
-            <MudItem xs="12" md="8">
-                <MudText Typo="Typo.overline" Class="hero-kicker">LAN PARTY CONTROL DECK</MudText>
-                <MudText Typo="Typo.h3" Class="hero-title">Bereit für den nächsten Clip.</MudText>
-                <MudText Typo="Typo.body1" Class="hero-copy">Lokale Medien prüfen, neue Videos einsammeln und den Beamer im Blick behalten.</MudText>
-            </MudItem>
-            <MudItem xs="12" md="4">
-                <div class="presenter-state-card">
-                    <MudIcon Icon="@PresenterIcon" Size="Size.Large" />
-                    <div>
-                        <MudText Typo="Typo.caption" Class="state-label">PRESENTER</MudText>
-                        <MudText Typo="Typo.h5" id="dashboard-presenter-state">@(_status?.PresenterState ?? Playback.State.ToString())</MudText>
-                        <MudText Typo="Typo.caption" id="dashboard-browser-state">Browser: @(_status?.BrowserConnected == true ? "Verbunden" : "Getrennt")</MudText>
+    @if (IsDashboard)
+    {
+        <MudPaper Elevation="0" Class="hero-panel pa-7 pa-sm-9">
+            <MudGrid Class="hero-grid">
+                <MudItem xs="12" md="8">
+                    <MudText Typo="Typo.overline" Class="hero-kicker">LAN PARTY CONTROL DECK</MudText>
+                    <MudText Typo="Typo.h3" Class="hero-title">Bereit für den nächsten Clip.</MudText>
+                    <MudText Typo="Typo.body1" Class="hero-copy">Presenter steuern und den aktuellen Systemzustand im Blick behalten.</MudText>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <div class="presenter-state-card">
+                        <MudIcon Icon="@PresenterIcon" Size="Size.Large" />
+                        <div>
+                            <MudText Typo="Typo.caption" Class="state-label">PRESENTER</MudText>
+                            <MudText Typo="Typo.h5" id="dashboard-presenter-state">@(_status?.PresenterState ?? Playback.State.ToString())</MudText>
+                            <MudText Typo="Typo.caption" id="dashboard-browser-state">Browser: @(_status?.BrowserConnected == true ? "Verbunden" : "Getrennt")</MudText>
+                        </div>
                     </div>
-                </div>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Elevation="0" Class="content-panel pa-6 live-status-panel">
+            <MudGrid Spacing="3" Class="live-status-grid">
+                <MudItem xs="12" md="5">
+                    <MudText Typo="Typo.overline" Class="live-status-label">AKTUELLE WIEDERGABE</MudText>
+                    <MudText Typo="Typo.h5" id="dashboard-current-title">@(_status?.CurrentTitle ?? "–")</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" id="dashboard-position">@FormatPlaybackPosition(_status?.Position, _status?.Duration)</MudText>
+                </MudItem>
+                <MudItem xs="6" md="2">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">FFPROBE</MudText>
+                    <div class="health-value" id="dashboard-ffprobe">@(_status?.FfprobeAvailable == true ? "OK" : "Nicht verfügbar")</div>
+                </MudItem>
+                <MudItem xs="6" md="2">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">MEDIA SCANNER</MudText>
+                    <div class="health-value" id="dashboard-scanner">@(_status?.MediaScannerRunning == true ? "Läuft" : "Bereit")</div>
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <div class="presenter-controls" aria-label="Presenter steuern">
+                        <form method="post" action="/api/presenter/pause"><button type="submit">Pause</button></form>
+                        <form method="post" action="/api/presenter/activate"><button type="submit" class="primary">Resume</button></form>
+                        <form method="post" action="/api/presenter/hide"><button type="submit">Hide</button></form>
+                        <form method="post" action="/api/presenter/stop"><button type="submit" class="danger">Stop</button></form>
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        @if (PresenterResult == "error")
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(PresenterMessage) ? PresenterMessage : "Der Presenter-Befehl ist fehlgeschlagen.")</MudAlert>
+        }
+
+        <MudGrid Spacing="3">
+            <MudItem xs="6" md="3">
+                <MudPaper Elevation="0" Class="metric-card">
+                    <MudIcon Icon="@Icons.Material.Filled.VideoLibrary" Color="Color.Primary" />
+                    <MudText Typo="Typo.h4">@_videos.Count</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Videos gesamt</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="6" md="3">
+                <MudPaper Elevation="0" Class="metric-card">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
+                    <MudText Typo="Typo.h4">@ReadyCount</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Abspielbereit</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="6" md="3">
+                <MudPaper Elevation="0" Class="metric-card">
+                    <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Color="Color.Info" />
+                    <MudText Typo="Typo.h4">@PendingCount</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">In Analyse</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="6" md="3">
+                <MudPaper Elevation="0" Class="metric-card">
+                    <MudIcon Icon="@Icons.Material.Filled.WarningAmber" Color="Color.Warning" />
+                    <MudText Typo="Typo.h4">@ProblemCount</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Prüfen</MudText>
+                </MudPaper>
             </MudItem>
         </MudGrid>
-    </MudPaper>
+    }
+    else if (IsPlayback)
+    {
+        <div class="management-page-heading">
+            <MudText Typo="Typo.overline" Class="hero-kicker">WIEDERGABE</MudText>
+            <MudText Typo="Typo.h4">Queue, Quellen und Verlauf</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary">Lokale und externe Inhalte einreihen, priorisieren und nachvollziehen.</MudText>
+        </div>
+        @if (QueueResult == "success")
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die Wiedergabe-Queue wurde aktualisiert.</MudAlert>
+        }
+        else if (QueueResult == "error")
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(QueueMessage) ? QueueMessage : "Die Queue-Aktion ist fehlgeschlagen.")</MudAlert>
+        }
+        @if (HistoryResult == "cleared")
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die Wiedergabehistorie wurde zurückgesetzt.</MudAlert>
+        }
+        @if (YouTubeResult == "success")
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Das YouTube-Video wurde normalisiert und in die Queue aufgenommen.</MudAlert>
+        }
+        else if (YouTubeResult == "error")
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(YouTubeMessage) ? YouTubeMessage : "Der YouTube-Link konnte nicht eingereiht werden.")</MudAlert>
+        }
 
-    <MudPaper Elevation="0" Class="content-panel pa-6 live-status-panel">
-        <MudGrid Spacing="3" Class="live-status-grid">
-            <MudItem xs="12" md="5">
-                <MudText Typo="Typo.overline" Class="live-status-label">AKTUELLE WIEDERGABE</MudText>
-                <MudText Typo="Typo.h5" id="dashboard-current-title">@(_status?.CurrentTitle ?? "–")</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Secondary" id="dashboard-position">@FormatPlaybackPosition(_status?.Position, _status?.Duration)</MudText>
-            </MudItem>
-            <MudItem xs="6" md="2">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">FFPROBE</MudText>
-                <div class="health-value" id="dashboard-ffprobe">@(_status?.FfprobeAvailable == true ? "OK" : "Nicht verfügbar")</div>
-            </MudItem>
-            <MudItem xs="6" md="2">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">MEDIA SCANNER</MudText>
-                <div class="health-value" id="dashboard-scanner">@(_status?.MediaScannerRunning == true ? "Läuft" : "Bereit")</div>
-            </MudItem>
-            <MudItem xs="12" md="3">
-                <div class="presenter-controls" aria-label="Presenter steuern">
-                    <form method="post" action="/api/presenter/pause"><button type="submit">Pause</button></form>
-                    <form method="post" action="/api/presenter/activate"><button type="submit" class="primary">Resume</button></form>
-                    <form method="post" action="/api/presenter/hide"><button type="submit">Hide</button></form>
-                    <form method="post" action="/api/presenter/stop"><button type="submit" class="danger">Stop</button></form>
-                </div>
-            </MudItem>
-        </MudGrid>
-    </MudPaper>
-
-    @if (UploadResult == "success")
-    {
-        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Das Video wurde gespeichert und für die Medienanalyse eingereiht.</MudAlert>
-    }
-    else if (UploadResult == "error")
-    {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(UploadMessage) ? UploadMessage : "Das Video konnte nicht hochgeladen werden.")</MudAlert>
-    }
-    @if (MediaResult is "enabled" or "disabled" or "reanalyzing")
-    {
-        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die Videoeinstellung wurde aktualisiert.</MudAlert>
-    }
-    else if (MediaResult == "error")
-    {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(MediaMessage) ? MediaMessage : "Die Videoaktion ist fehlgeschlagen.")</MudAlert>
-    }
-    @if (PresenterResult == "error")
-    {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(PresenterMessage) ? PresenterMessage : "Der Presenter-Befehl ist fehlgeschlagen.")</MudAlert>
-    }
-    @if (QueueResult == "success")
-    {
-        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die Wiedergabe-Queue wurde aktualisiert.</MudAlert>
-    }
-    @if (HistoryResult == "cleared")
-    {
-        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die Wiedergabehistorie wurde zurückgesetzt.</MudAlert>
-    }
-    else if (QueueResult == "error")
-    {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(QueueMessage) ? QueueMessage : "Die Queue-Aktion ist fehlgeschlagen.")</MudAlert>
-    }
-    @if (YouTubeResult == "success")
-    {
-        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Das YouTube-Video wurde normalisiert und in die Queue aufgenommen.</MudAlert>
-    }
-    else if (YouTubeResult == "error")
-    {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(YouTubeMessage) ? YouTubeMessage : "Der YouTube-Link konnte nicht eingereiht werden.")</MudAlert>
-    }
-    @if (NewsResult == "created-shown")
-    {
-        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die News wurde gespeichert und wird jetzt auf dem Presenter angezeigt.</MudAlert>
-    }
-    else if (NewsResult == "created")
-    {
-        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die News wurde gespeichert. Mit „Jetzt anzeigen“ kann sie auf den Presenter gesendet werden.</MudAlert>
-    }
-    else if (NewsResult == "shown")
-    {
-        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die News wird jetzt auf dem Presenter angezeigt.</MudAlert>
-    }
-    else if (NewsResult == "stopped")
-    {
-        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die aktuelle News wurde beendet.</MudAlert>
-    }
-    else if (NewsResult == "deleted")
-    {
-        <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die News wurde gelöscht.</MudAlert>
-    }
-    else if (NewsResult == "error")
-    {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(NewsMessage) ? NewsMessage : "Die News-Aktion ist fehlgeschlagen.")</MudAlert>
-    }
-
-    <MudGrid Spacing="3">
-        <MudItem xs="6" md="3">
-            <MudPaper Elevation="0" Class="metric-card">
-                <MudIcon Icon="@Icons.Material.Filled.VideoLibrary" Color="Color.Primary" />
-                <MudText Typo="Typo.h4">@_videos.Count</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">Videos gesamt</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="6" md="3">
-            <MudPaper Elevation="0" Class="metric-card">
-                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
-                <MudText Typo="Typo.h4">@ReadyCount</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">Abspielbereit</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="6" md="3">
-            <MudPaper Elevation="0" Class="metric-card">
-                <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Color="Color.Info" />
-                <MudText Typo="Typo.h4">@PendingCount</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">In Analyse</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="6" md="3">
-            <MudPaper Elevation="0" Class="metric-card">
-                <MudIcon Icon="@Icons.Material.Filled.WarningAmber" Color="Color.Warning" />
-                <MudText Typo="Typo.h4">@ProblemCount</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">Prüfen</MudText>
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
-
-    <MudPaper Elevation="0" Class="content-panel pa-6 youtube-panel">
+        <MudPaper Elevation="0" Class="content-panel pa-6 youtube-panel">
         <MudGrid Spacing="3">
             <MudItem xs="12" md="4">
                 <div class="panel-icon youtube-icon"><MudIcon Icon="@Icons.Custom.Brands.YouTube" Size="Size.Large" /></div>
@@ -273,9 +247,41 @@
                 </RowTemplate>
             </MudTable>
         }
-    </MudPaper>
+        </MudPaper>
+    }
+    else if (IsNews)
+    {
+        <div class="management-page-heading">
+            <MudText Typo="Typo.overline" Class="hero-kicker">NEWS</MudText>
+            <MudText Typo="Typo.h4">Einblendungen verwalten</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary">Ticker, Split-Screen und Fullscreen-Meldungen erstellen, planen und senden.</MudText>
+        </div>
+        @if (NewsResult == "created-shown")
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die News wurde gespeichert und wird jetzt auf dem Presenter angezeigt.</MudAlert>
+        }
+        else if (NewsResult == "created")
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die News wurde gespeichert. Mit „Jetzt anzeigen“ kann sie auf den Presenter gesendet werden.</MudAlert>
+        }
+        else if (NewsResult == "shown")
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die News wird jetzt auf dem Presenter angezeigt.</MudAlert>
+        }
+        else if (NewsResult == "stopped")
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die aktuelle News wurde beendet.</MudAlert>
+        }
+        else if (NewsResult == "deleted")
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die News wurde gelöscht.</MudAlert>
+        }
+        else if (NewsResult == "error")
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(NewsMessage) ? NewsMessage : "Die News-Aktion ist fehlgeschlagen.")</MudAlert>
+        }
 
-    <MudPaper Elevation="0" Class="content-panel pa-6 news-panel">
+        <MudPaper Elevation="0" Class="content-panel pa-6 news-panel">
         <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
             <div>
                 <MudText Typo="Typo.h5">News &amp; Einblendungen</MudText>
@@ -344,16 +350,40 @@
                 }
             </MudItem>
         </MudGrid>
-    </MudPaper>
+        </MudPaper>
+    }
+    else if (IsMedia)
+    {
+        <div class="management-page-heading">
+            <MudText Typo="Typo.overline" Class="hero-kicker">MEDIATHEK</MudText>
+            <MudText Typo="Typo.h4">Lokale Videos verwalten</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary">Videos hochladen, durchsuchen, analysieren und für die Wiedergabe freigeben.</MudText>
+        </div>
+        @if (UploadResult == "success")
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Das Video wurde gespeichert und für die Medienanalyse eingereiht.</MudAlert>
+        }
+        else if (UploadResult == "error")
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(UploadMessage) ? UploadMessage : "Das Video konnte nicht hochgeladen werden.")</MudAlert>
+        }
+        @if (MediaResult is "enabled" or "disabled" or "reanalyzing")
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die Videoeinstellung wurde aktualisiert.</MudAlert>
+        }
+        else if (MediaResult == "error")
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@(!string.IsNullOrWhiteSpace(MediaMessage) ? MediaMessage : "Die Videoaktion ist fehlgeschlagen.")</MudAlert>
+        }
 
-    <MudGrid Spacing="4">
+        <MudGrid Spacing="4">
         <MudItem xs="12" lg="4">
             <MudPaper Elevation="0" Class="content-panel pa-6 full-height">
                 <div class="panel-icon"><MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" /></div>
                 <MudText Typo="Typo.h5" Class="mt-4">Video hinzufügen</MudText>
                 <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2 mb-5">Die Datei landet im ersten aktiven Videoordner. Analyse und Status aktualisieren sich automatisch.</MudText>
                 <form method="post" enctype="multipart/form-data" action="/api/videos/upload">
-                    <input type="hidden" name="returnUrl" value="/" />
+                    <input type="hidden" name="returnUrl" value="/media" />
                     <label class="upload-dropzone" for="video-upload">
                         <MudIcon Icon="@Icons.Material.Filled.AddToDrive" Size="Size.Large" />
                         <span>Datei auswählen</span>
@@ -372,7 +402,7 @@
                         <MudText Typo="Typo.h5">Videobibliothek</MudText>
                         <MudText Typo="Typo.body2" Color="Color.Secondary">@FilteredVideos.Count von @_videos.Count Einträgen</MudText>
                     </div>
-                    <form method="get" action="/" class="library-search-form">
+                    <form method="get" action="/media" class="library-search-form">
                         <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" />
                         <input name="q" value="@Search" type="search" class="library-search" placeholder="Datei, Codec oder Container" aria-label="Videobibliothek durchsuchen" />
                         <select name="mediaStatus" aria-label="Videobibliothek nach Status filtern">
@@ -468,15 +498,18 @@
                 }
             </MudPaper>
         </MudItem>
-    </MudGrid>
-
-    <form method="post" action="/account/logout" class="logout-form">
-        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Logout">Abmelden</MudButton>
-    </form>
+        </MudGrid>
+    }
 </MudStack>
 
-<script src="_content/BeamerPresenter.Web/js/dashboard.js"></script>
-<script src="_content/BeamerPresenter.Web/js/youtube-management.js"></script>
+@if (IsDashboard)
+{
+    <script src="_content/BeamerPresenter.Web/js/dashboard.js"></script>
+}
+else if (IsPlayback)
+{
+    <script src="_content/BeamerPresenter.Web/js/youtube-management.js"></script>
+}
 
 @code {
     private IReadOnlyList<VideoAsset> _videos = [];
@@ -485,6 +518,12 @@
     private IReadOnlyList<PlaybackHistory> _history = [];
     private IReadOnlyList<PlaybackHistory> _allHistory = [];
     private PresenterDashboardSnapshot? _status;
+
+    private string CurrentSection => new Uri(Navigation.Uri).AbsolutePath.Trim('/').ToLowerInvariant();
+    private bool IsDashboard => CurrentSection.Length == 0;
+    private bool IsPlayback => CurrentSection == "playback";
+    private bool IsMedia => CurrentSection == "media";
+    private bool IsNews => CurrentSection == "news";
 
     [Microsoft.AspNetCore.Components.SupplyParameterFromQuery(Name = "q")]
     public string? Search { get; set; }
@@ -543,18 +582,43 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var videosTask = MediaLibraryService.GetAllAsync();
-        var queueTask = PlaybackQueue.GetQueueAsync();
-        var newsTask = NewsService.GetAllAsync();
-        var historyTask = PlaybackQueue.GetHistoryAsync();
-        var statusTask = Dashboard.GetAsync();
-        await Task.WhenAll(videosTask, queueTask, newsTask, historyTask, statusTask);
-        _videos = await videosTask;
-        _queue = await queueTask;
-        _news = await newsTask;
-        _allHistory = await historyTask;
-        _history = _allHistory.Take(50).ToList();
-        _status = await statusTask;
+        if (IsDashboard)
+        {
+            var videosTask = MediaLibraryService.GetAllAsync();
+            var statusTask = Dashboard.GetAsync();
+            await Task.WhenAll(videosTask, statusTask);
+            _videos = await videosTask;
+            _status = await statusTask;
+            return;
+        }
+
+        if (IsPlayback)
+        {
+            var videosTask = MediaLibraryService.GetAllAsync();
+            var queueTask = PlaybackQueue.GetQueueAsync();
+            var historyTask = PlaybackQueue.GetHistoryAsync();
+            await Task.WhenAll(videosTask, queueTask, historyTask);
+            _videos = await videosTask;
+            _queue = await queueTask;
+            _allHistory = await historyTask;
+            _history = _allHistory.Take(50).ToList();
+            return;
+        }
+
+        if (IsMedia)
+        {
+            var videosTask = MediaLibraryService.GetAllAsync();
+            var historyTask = PlaybackQueue.GetHistoryAsync();
+            await Task.WhenAll(videosTask, historyTask);
+            _videos = await videosTask;
+            _allHistory = await historyTask;
+            return;
+        }
+
+        if (IsNews)
+        {
+            _news = await NewsService.GetAllAsync();
+        }
     }
 
     private bool MatchesSearch(VideoAsset video)

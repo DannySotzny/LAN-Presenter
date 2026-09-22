@@ -13,6 +13,7 @@ Die Fundament-Stufe ist implementiert:
 - Windows-Monitorerkennung mit Friendly Name, DeviceName, Auflösung und Position; ein verschwundener Zielmonitor blockiert die Aktivierung bis zur bewussten Fallback-Auswahl
 - strukturiertes JSONL-Logging mit täglicher Rotation und 14 Tagen Aufbewahrung unter `%LOCALAPPDATA%\HouseOfLAN\Presenter\Logs`
 - Kestrel-Weboberfläche auf Port 8765, inklusive Health-Endpunkt und MudBlazor-Management-UI
+- menügeführte Verwaltungsoberfläche mit eigenen Bereichen für Dashboard (`/`), Wiedergabe (`/playback`), Mediathek (`/media`) und News (`/news`) statt einer langen Scroll-Seite
 - Passwortschutz per Cookie-Login; das Passwort wird ausschließlich in der Desktop-App gesetzt
 - standardmäßig ausschließlich an `127.0.0.1` gebundene Web UI; LAN-Bindung wird bewusst in der Desktop-App aktiviert und bleibt passwortgeschützt
 - PBKDF2-SHA512-Hash mit zufälligem Salt, kein Klartextpasswort

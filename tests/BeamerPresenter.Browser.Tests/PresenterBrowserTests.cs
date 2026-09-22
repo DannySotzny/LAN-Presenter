@@ -16,6 +16,7 @@ namespace BeamerPresenter.Browser.Tests;
 
 public sealed class PresenterBrowserTests : IAsyncLifetime
 {
+    private const string TestPassword = "browser-test-password";
     private readonly string _dataDirectory = Path.Combine(Path.GetTempPath(), "BeamerPresenter.BrowserTests", Guid.NewGuid().ToString("N"));
     private readonly RecordingPlaybackCommands _playbackCommands = new();
     private WebApplication? _application;
@@ -52,12 +53,41 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
         _application.UseAntiforgery();
         _application.MapPresenterWebUi();
         await _application.StartAsync();
+        await _application.Services.GetRequiredService<IPresenterSettingsService>().SetWebPasswordAsync(TestPassword);
 
         var addresses = _application.Services.GetRequiredService<IServer>()
             .Features.Get<IServerAddressesFeature>()?.Addresses;
         _baseAddress = Assert.Single(addresses!);
         _playwright = await Playwright.CreateAsync();
         _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+    }
+
+    [Fact]
+    public async Task Management_uses_clickable_menu_routes_instead_of_one_long_page()
+    {
+        await using var context = await _browser!.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync($"{_baseAddress}/login");
+        await page.FillAsync("#password", TestPassword);
+        await page.Locator("form[action='/account/login'] button[type='submit']").ClickAsync();
+        await page.WaitForURLAsync($"{_baseAddress}/");
+
+        Assert.Equal(4, await page.Locator(".management-nav a").CountAsync());
+        Assert.True(await page.GetByText("AKTUELLE WIEDERGABE", new() { Exact = true }).IsVisibleAsync());
+        Assert.False(await page.GetByText("Wiedergabe-Queue", new() { Exact = true }).IsVisibleAsync());
+
+        await page.GetByRole(AriaRole.Link, new() { Name = "Wiedergabe", Exact = true }).ClickAsync();
+        await page.WaitForURLAsync($"{_baseAddress}/playback");
+        Assert.True(await page.GetByText("Wiedergabe-Queue", new() { Exact = true }).IsVisibleAsync());
+
+        await page.GetByRole(AriaRole.Link, new() { Name = "Mediathek", Exact = true }).ClickAsync();
+        await page.WaitForURLAsync($"{_baseAddress}/media");
+        Assert.True(await page.GetByText("Videobibliothek", new() { Exact = true }).IsVisibleAsync());
+
+        await page.GetByRole(AriaRole.Link, new() { Name = "News", Exact = true }).ClickAsync();
+        await page.WaitForURLAsync($"{_baseAddress}/news");
+        Assert.True(await page.GetByText("News & Einblendungen", new() { Exact = true }).IsVisibleAsync());
     }
 
     [Fact]

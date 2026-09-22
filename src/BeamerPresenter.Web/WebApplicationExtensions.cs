@@ -13,6 +13,11 @@ namespace BeamerPresenter.Web;
 
 public static class WebApplicationExtensions
 {
+    private const string DashboardPath = "/";
+    private const string MediaPath = "/media";
+    private const string NewsPath = "/news";
+    private const string PlaybackPath = "/playback";
+
     public static IServiceCollection AddPresenterWebUi(this IServiceCollection services)
     {
         services.AddRazorComponents();
@@ -122,11 +127,11 @@ public static class WebApplicationExtensions
         try
         {
             await command(cancellationToken);
-            return Results.Redirect($"/?presenter={result}");
+            return Results.Redirect($"{DashboardPath}?presenter={result}");
         }
         catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or IOException)
         {
-            return Results.Redirect($"/?presenter=error&message={Uri.EscapeDataString(exception.Message)}");
+            return Results.Redirect($"{DashboardPath}?presenter=error&message={Uri.EscapeDataString(exception.Message)}");
         }
     }
 
@@ -170,7 +175,7 @@ public static class WebApplicationExtensions
         if (!int.TryParse(form["id"], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) ||
             !bool.TryParse(form["enabled"], out var enabled))
         {
-            return Results.Redirect("/?media=error&message=Ungültige%20Videoaktion");
+            return Results.Redirect($"{MediaPath}?media=error&message=Ungültige%20Videoaktion");
         }
 
         return await ExecuteMediaCommandAsync(
@@ -186,7 +191,7 @@ public static class WebApplicationExtensions
         var form = await context.Request.ReadFormAsync(cancellationToken);
         if (!int.TryParse(form["id"], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id))
         {
-            return Results.Redirect("/?media=error&message=Ungültiges%20Video");
+            return Results.Redirect($"{MediaPath}?media=error&message=Ungültiges%20Video");
         }
 
         return await ExecuteMediaCommandAsync(
@@ -199,11 +204,11 @@ public static class WebApplicationExtensions
         try
         {
             await command();
-            return Results.Redirect($"/?media={result}");
+            return Results.Redirect($"{MediaPath}?media={result}");
         }
         catch (InvalidOperationException exception)
         {
-            return Results.Redirect($"/?media=error&message={Uri.EscapeDataString(exception.Message)}");
+            return Results.Redirect($"{MediaPath}?media=error&message={Uri.EscapeDataString(exception.Message)}");
         }
     }
 
@@ -257,7 +262,7 @@ public static class WebApplicationExtensions
         CancellationToken cancellationToken)
     {
         await queue.RegenerateAsync(cancellationToken);
-        return Results.Redirect("/?queue=success");
+        return Results.Redirect($"{PlaybackPath}?queue=success");
     }
 
     private static async Task<IResult> ClearHistoryAsync(
@@ -265,7 +270,7 @@ public static class WebApplicationExtensions
         CancellationToken cancellationToken)
     {
         await queue.ClearHistoryAsync(cancellationToken);
-        return Results.Redirect("/?history=cleared");
+        return Results.Redirect($"{PlaybackPath}?history=cleared");
     }
 
     private static async Task<IResult> ExecuteQueueManagementAsync(
@@ -275,17 +280,17 @@ public static class WebApplicationExtensions
         var form = await context.Request.ReadFormAsync(context.RequestAborted);
         if (!long.TryParse(form["id"], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id))
         {
-            return Results.Redirect("/?queue=error&message=Ungültiger%20Queue-Eintrag");
+            return Results.Redirect($"{PlaybackPath}?queue=error&message=Ungültiger%20Queue-Eintrag");
         }
 
         try
         {
             await command(id);
-            return Results.Redirect("/?queue=success");
+            return Results.Redirect($"{PlaybackPath}?queue=success");
         }
         catch (Exception exception) when (exception is InvalidOperationException or ArgumentOutOfRangeException)
         {
-            return Results.Redirect($"/?queue=error&message={Uri.EscapeDataString(exception.Message)}");
+            return Results.Redirect($"{PlaybackPath}?queue=error&message={Uri.EscapeDataString(exception.Message)}");
         }
     }
 
@@ -344,7 +349,7 @@ public static class WebApplicationExtensions
         var form = await context.Request.ReadFormAsync(context.RequestAborted);
         if (!int.TryParse(form["mediaId"], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var mediaId))
         {
-            return Results.Redirect("/?queue=error&message=Ungültiges%20Video");
+            return Results.Redirect($"{PlaybackPath}?queue=error&message=Ungültiges%20Video");
         }
 
         try
@@ -352,11 +357,11 @@ public static class WebApplicationExtensions
             var start = ParseOptionalTime(form["start"].ToString());
             var duration = ParseOptionalTime(form["duration"].ToString());
             await command(mediaId, start, duration);
-            return Results.Redirect("/?queue=success");
+            return Results.Redirect($"{PlaybackPath}?queue=success");
         }
         catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FormatException)
         {
-            return Results.Redirect($"/?queue=error&message={Uri.EscapeDataString(exception.Message)}");
+            return Results.Redirect($"{PlaybackPath}?queue=error&message={Uri.EscapeDataString(exception.Message)}");
         }
     }
 
@@ -371,11 +376,11 @@ public static class WebApplicationExtensions
             var duration = ParseOptionalTime(form["duration"].ToString());
             var maximumDuration = ParseOptionalTime(form["maximumDuration"].ToString());
             await command(form["url"].ToString(), start, duration, maximumDuration);
-            return Results.Redirect("/?youtube=success");
+            return Results.Redirect($"{PlaybackPath}?youtube=success");
         }
         catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FormatException)
         {
-            return Results.Redirect($"/?youtube=error&message={Uri.EscapeDataString(exception.Message)}");
+            return Results.Redirect($"{PlaybackPath}?youtube=error&message={Uri.EscapeDataString(exception.Message)}");
         }
     }
 
@@ -409,14 +414,14 @@ public static class WebApplicationExtensions
             if (form.ContainsKey("showNow"))
             {
                 await commands.ShowNewsAsync(item, cancellationToken);
-                return Results.Redirect("/?news=created-shown");
+                return Results.Redirect($"{NewsPath}?news=created-shown");
             }
 
-            return Results.Redirect("/?news=created");
+            return Results.Redirect($"{NewsPath}?news=created");
         }
         catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FormatException)
         {
-            return Results.Redirect($"/?news=error&message={Uri.EscapeDataString(exception.Message)}");
+            return Results.Redirect($"{NewsPath}?news=error&message={Uri.EscapeDataString(exception.Message)}");
         }
     }
 
@@ -430,11 +435,11 @@ public static class WebApplicationExtensions
         var item = (await newsService.GetAllAsync(cancellationToken)).SingleOrDefault(news => news.Id == id);
         if (item is null)
         {
-            return Results.Redirect("/?news=error&message=News%20nicht%20gefunden");
+            return Results.Redirect($"{NewsPath}?news=error&message=News%20nicht%20gefunden");
         }
 
         await commands.ShowNewsAsync(item, cancellationToken);
-        return Results.Redirect("/?news=shown");
+        return Results.Redirect($"{NewsPath}?news=shown");
     }
 
     private static async Task<IResult> StopNewsAsync(
@@ -442,7 +447,7 @@ public static class WebApplicationExtensions
         CancellationToken cancellationToken)
     {
         await commands.StopNewsAsync(cancellationToken: cancellationToken);
-        return Results.Redirect("/?news=stopped");
+        return Results.Redirect($"{NewsPath}?news=stopped");
     }
 
     private static async Task<IResult> DeleteNewsAsync(
@@ -453,11 +458,11 @@ public static class WebApplicationExtensions
         try
         {
             await newsService.DeleteAsync(await ReadNewsIdAsync(context, cancellationToken), cancellationToken);
-            return Results.Redirect("/?news=deleted");
+            return Results.Redirect($"{NewsPath}?news=deleted");
         }
         catch (InvalidOperationException exception)
         {
-            return Results.Redirect($"/?news=error&message={Uri.EscapeDataString(exception.Message)}");
+            return Results.Redirect($"{NewsPath}?news=error&message={Uri.EscapeDataString(exception.Message)}");
         }
     }
 
