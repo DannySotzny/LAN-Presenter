@@ -71,4 +71,5 @@
 - Kleine, abgeschlossene Conventional-Commit-Schritte verwenden. Nach fertigen, releasbaren Features `dotnet versionize --workingDir src/BeamerPresenter.App --configDir ../..` ausführen, damit der App-Changelog alle Projektverzeichnisse berücksichtigt.
 - `versionize` verwaltet Changelog, Release-Commit und Tag. Changelog-Dateien nicht manuell editieren.
 - `v0.x`-Tags markieren nur Entwicklungsstände und dürfen keinen GitHub-Release erzeugen. Der Release-Workflow akzeptiert erst stabile Tags ab `v1.0.0`.
+- Vor dem ersten stabilen `v1.0.0`-Tag AC-TOP-004 manuell am echten Beamer zusammen mit der vorhandenen konkurrierenden Präsentationssoftware abnehmen; diese umgebungsabhängige Prüfung niemals allein aus Unit-, Browser- oder Mock-Tests als bestanden ableiten.
 - Bei Änderungen an Release-Dateien die erwarteten Namen `HouseOfLAN-Presenter-<Version>-Setup.exe` und `HouseOfLAN-Presenter-<Version>-win-x64-portable.zip` erhalten.

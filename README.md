@@ -55,7 +55,7 @@ Die Fundament-Stufe ist implementiert:
 - echter Chromium-E2E-Test für die Presenter-Seite mit Kestrel, SignalR, lokaler Wiedergabesteuerung, allen News-Modi, Reconnect sowie End-/Fehlerfortschritt
 - GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
 
-Noch offen ist die abschließende Qualitäts- und Release-Härtung.
+Der automatisierbare Implementierungsumfang einschließlich Qualitäts- und Release-Härtung ist mit `v0.10.0` umgesetzt. Vor dem stabilen `v1.0.0`-Tag bleibt eine umgebungsabhängige Vor-Ort-Abnahme offen: Das Topmost-Verhalten muss gemäß AC-TOP-004 am echten Beamer zusammen mit der bereits vorhandenen konkurrierenden Präsentationssoftware geprüft werden. Bis diese Abnahme bewusst abgeschlossen ist, bleiben `v0.x`-Tags reine Git-Versionen ohne GitHub-Release.
 
 ## Lokaler Start
 
