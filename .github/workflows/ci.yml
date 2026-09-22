@@ -9,8 +9,8 @@ jobs:
   build-and-test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
       - run: dotnet tool restore
@@ -27,7 +27,7 @@ jobs:
         run: ./scripts/Assert-Coverage.ps1 -ResultsDirectory artifacts/TestResults -Threshold 80
       - name: Publish self-contained application
         run: dotnet publish src/BeamerPresenter.App/BeamerPresenter.App.csproj -c Release -r win-x64 --self-contained true --no-restore -o artifacts/publish
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: BeamerPresenter-win-x64-${{ github.sha }}
           path: artifacts/publish
