@@ -1,4 +1,11 @@
 Beamerpresenter.App Changelog
+<a name="0.10.1"></a>
+## [0.10.1](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.10.1) (2026-09-22)
+
+### Bug Fixes
+
+* load Windows power APIs from kernel32 ([4f71acf](https://www.github.com/DannySotzny/LAN-Presenter/commit/4f71acf30566501cdaf858caea956d60f3b5a0a6))
+
 <a name="0.10.0"></a>
 ## [0.10.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.10.0) (2026-09-22)
 
