@@ -354,6 +354,7 @@ body .mud-button-text-secondary {
 .queue-row-actions,
 .queue-row-actions form {
     display: flex;
+    flex-wrap: wrap;
     gap: .3rem;
 }
 
@@ -373,6 +374,12 @@ body .mud-button-text-secondary {
 .queue-row-actions button.danger {
     color: #b42318;
     border-color: #f2b8b5;
+}
+
+.queue-row-actions button.primary {
+    color: #fff;
+    border-color: #5637d8;
+    background: #5637d8;
 }
 
 .history-table {

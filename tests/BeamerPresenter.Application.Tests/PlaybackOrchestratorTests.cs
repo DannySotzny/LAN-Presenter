@@ -107,6 +107,38 @@ public sealed class PlaybackOrchestratorTests
     }
 
     [Fact]
+    public async Task Queued_play_now_stops_current_and_loads_selected_entry()
+    {
+        var calls = new List<string>();
+        var settings = new StubSettingsService();
+        var orchestrator = new PlaybackOrchestrator(
+            new PlaybackController(),
+            new RecordingBrowser(calls),
+            new RecordingPresenter(calls),
+            settings,
+            new RecordingPowerManagement(calls),
+            new PlaybackQueueService(
+                new QueuedPlaybackStore(calls),
+                new EmptyMediaLibrary(),
+                settings,
+                new MediaSegmentPlanner(new ZeroRandomSource()),
+                TimeProvider.System));
+
+        var started = await orchestrator.PlayQueuedNowAsync(2, TimeSpan.FromMinutes(3));
+
+        Assert.Equal(2, started.Id);
+        Assert.Equal(
+            [
+                "store:update:1:Interrupted",
+                "store:history:00:03:00",
+                "store:update:2:Playing",
+                "presenter:stop",
+                "presenter:load:2:00:00:00-00:09:00"
+            ],
+            calls);
+    }
+
+    [Fact]
     public async Task YouTube_play_now_stops_current_and_loads_normalized_iframe_source()
     {
         var calls = new List<string>();
@@ -380,6 +412,61 @@ public sealed class PlaybackOrchestratorTests
         }
 
         public Task<IReadOnlyList<PlaybackHistory>> GetHistoryAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<PlaybackHistory>>([]);
+
+        public Task<PlaybackHistory> AddHistoryAsync(PlaybackHistory entry, CancellationToken cancellationToken = default)
+        {
+            calls.Add($"store:history:{entry.ActualEnd}");
+            return Task.FromResult(entry);
+        }
+
+        public Task UpdateHistoryAsync(PlaybackHistory entry, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task ClearHistoryAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class QueuedPlaybackStore(List<string> calls) : IPlaybackStore
+    {
+        private readonly List<QueueEntry> queue =
+        [
+            new QueueEntry
+            {
+                Id = 1,
+                MediaId = 1,
+                SourceType = MediaSourceType.Local,
+                StartPosition = TimeSpan.Zero,
+                EndPosition = TimeSpan.FromMinutes(7),
+                Origin = QueueEntryOrigin.Automatic,
+                Status = QueueEntryStatus.Playing,
+                CreatedUtc = DateTimeOffset.UtcNow.AddMinutes(-5),
+                StartedUtc = DateTimeOffset.UtcNow.AddMinutes(-5)
+            },
+            new QueueEntry
+            {
+                Id = 2,
+                MediaId = 2,
+                SourceType = MediaSourceType.Local,
+                StartPosition = TimeSpan.Zero,
+                EndPosition = TimeSpan.FromMinutes(9),
+                Origin = QueueEntryOrigin.Automatic,
+                SortOrder = 1,
+                Status = QueueEntryStatus.Pending,
+                CreatedUtc = DateTimeOffset.UtcNow
+            }
+        ];
+
+        public Task<IReadOnlyList<QueueEntry>> GetQueueAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<QueueEntry>>(queue);
+
+        public Task<QueueEntry> AddQueueEntryAsync(QueueEntry entry, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task UpdateQueueEntryAsync(QueueEntry entry, CancellationToken cancellationToken = default)
+        {
+            calls.Add($"store:update:{entry.Id}:{entry.Status}");
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<PlaybackHistory>> GetHistoryAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PlaybackHistory>>([]);
 
         public Task<PlaybackHistory> AddHistoryAsync(PlaybackHistory entry, CancellationToken cancellationToken = default)
         {

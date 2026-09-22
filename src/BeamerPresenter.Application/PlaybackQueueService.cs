@@ -68,6 +68,52 @@ public sealed class PlaybackQueueService(
                 cancellationToken);
         }, cancellationToken);
 
+    public Task PrioritizeAsync(long queueEntryId, CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(async () =>
+        {
+            var pending = (await store.GetQueueAsync(cancellationToken))
+                .Where(entry => entry.Status == QueueEntryStatus.Pending)
+                .OrderBy(entry => entry.SortOrder)
+                .ThenBy(entry => entry.Id)
+                .ToList();
+            var target = pending.SingleOrDefault(entry => entry.Id == queueEntryId)
+                ?? throw new InvalidOperationException("Der Queue-Eintrag wurde nicht gefunden oder läuft bereits.");
+            pending.Remove(target);
+            pending.Insert(0, target);
+            target.Origin = QueueEntryOrigin.ManualNext;
+            await store.UpdateQueueEntryAsync(target, cancellationToken);
+            await NormalizePendingOrderAsync(pending, cancellationToken);
+        }, cancellationToken);
+
+    public Task<QueueEntry> StartQueuedNowAsync(
+        long queueEntryId,
+        TimeSpan? currentPosition,
+        CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(async () =>
+        {
+            var queue = (await store.GetQueueAsync(cancellationToken)).ToList();
+            var target = queue.SingleOrDefault(entry => entry.Id == queueEntryId && entry.Status == QueueEntryStatus.Pending)
+                ?? throw new InvalidOperationException("Nur ein wartender Queue-Eintrag kann sofort gestartet werden.");
+            var current = queue.SingleOrDefault(entry => entry.Status == QueueEntryStatus.Playing);
+            if (current is not null)
+            {
+                await FinishEntryAsync(current, currentPosition, QueueEntryStatus.Interrupted, cancellationToken);
+            }
+
+            target.Status = QueueEntryStatus.Playing;
+            target.Origin = QueueEntryOrigin.ManualNow;
+            target.SortOrder = 0;
+            target.StartedUtc = timeProvider.GetUtcNow();
+            await store.UpdateQueueEntryAsync(target, cancellationToken);
+            await NormalizePendingOrderAsync(
+                queue.Where(entry => entry.Status == QueueEntryStatus.Pending && entry.Id != target.Id)
+                    .OrderBy(entry => entry.SortOrder)
+                    .ThenBy(entry => entry.Id)
+                    .ToList(),
+                cancellationToken);
+            return target;
+        }, cancellationToken);
+
     public Task RegenerateAsync(CancellationToken cancellationToken = default) =>
         ExecuteSerializedAsync(async () =>
         {

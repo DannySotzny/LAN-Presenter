@@ -360,6 +360,27 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Authenticated_queue_entries_can_be_prioritized_or_started_now()
+    {
+        using var client = _application!.GetTestClient();
+        var cookie = await LoginAsync(client);
+        using (var nextRequest = CreateAuthenticatedFormRequest("/api/queue/play-next", cookie, ("id", "17")))
+        using (var nextResponse = await client.SendAsync(nextRequest))
+        {
+            Assert.Equal("/?queue=success", nextResponse.Headers.Location?.OriginalString);
+        }
+
+        using (var nowRequest = CreateAuthenticatedFormRequest("/api/queue/play-now", cookie, ("id", "23")))
+        using (var nowResponse = await client.SendAsync(nowRequest))
+        {
+            Assert.Equal("/?queue=success", nowResponse.Headers.Location?.OriginalString);
+        }
+
+        Assert.Equal([17L], _playbackCommands.PrioritizedQueueEntries);
+        Assert.Equal([23L], _playbackCommands.QueuedNowEntries);
+    }
+
+    [Fact]
     public async Task Authenticated_management_actions_return_visible_errors_for_invalid_input()
     {
         using var client = _application!.GetTestClient();
@@ -430,6 +451,8 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
     [InlineData("/api/queue/move-up")]
     [InlineData("/api/queue/move-down")]
     [InlineData("/api/queue/remove")]
+    [InlineData("/api/queue/play-next")]
+    [InlineData("/api/queue/play-now")]
     [InlineData("/api/queue/regenerate")]
     [InlineData("/api/history/clear")]
     [InlineData("/api/youtube/now")]
@@ -772,6 +795,8 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         public List<YouTubeCommand> YouTubeNextCalls { get; } = [];
         public List<YouTubeCommand> YouTubeNowCalls { get; } = [];
         public List<AdvanceCommand> AdvanceCalls { get; } = [];
+        public List<long> PrioritizedQueueEntries { get; } = [];
+        public List<long> QueuedNowEntries { get; } = [];
         public TaskCompletionSource Advanced { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<NewsItem> ShownNews { get; } = [];
         public int StopNewsCalls { get; private set; }
@@ -798,6 +823,18 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         {
             YouTubeNowCalls.Add(new YouTubeCommand(url, start, duration, maximumDuration));
             return Task.FromResult(new QueueEntry { ExternalSourceKey = "youtube:dQw4w9WgXcQ", SourceType = MediaSourceType.YouTube });
+        }
+
+        public Task PrioritizeQueuedAsync(long queueEntryId, CancellationToken cancellationToken = default)
+        {
+            PrioritizedQueueEntries.Add(queueEntryId);
+            return Task.CompletedTask;
+        }
+
+        public Task<QueueEntry> PlayQueuedNowAsync(long queueEntryId, TimeSpan? currentPosition, CancellationToken cancellationToken = default)
+        {
+            QueuedNowEntries.Add(queueEntryId);
+            return Task.FromResult(new QueueEntry { Id = queueEntryId, SourceType = MediaSourceType.YouTube });
         }
 
         public Task<QueueEntry?> AdvanceAsync(TimeSpan? actualPosition, bool successful = true, CancellationToken cancellationToken = default)

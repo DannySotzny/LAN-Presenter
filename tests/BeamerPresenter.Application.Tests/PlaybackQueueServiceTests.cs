@@ -88,6 +88,47 @@ public sealed class PlaybackQueueServiceTests
     }
 
     [Fact]
+    public async Task Pending_entry_can_be_prioritized_as_manual_next()
+    {
+        var store = new MemoryPlaybackStore();
+        store.Queue.Add(Entry(1, QueueEntryOrigin.Automatic, QueueEntryStatus.Pending, 1));
+        store.Queue.Add(Entry(2, QueueEntryOrigin.Automatic, QueueEntryStatus.Pending, 2));
+        store.Queue.Add(Entry(3, QueueEntryOrigin.Automatic, QueueEntryStatus.Pending, 3));
+        var service = CreateService(store, []);
+
+        await service.PrioritizeAsync(3);
+
+        Assert.Equal(
+            [(3L, 1), (1L, 2), (2L, 3)],
+            store.Queue.Where(entry => entry.Status == QueueEntryStatus.Pending)
+                .OrderBy(entry => entry.SortOrder)
+                .Select(entry => (entry.Id, entry.SortOrder)));
+        Assert.Equal(QueueEntryOrigin.ManualNext, store.Queue.Single(entry => entry.Id == 3).Origin);
+    }
+
+    [Fact]
+    public async Task Pending_entry_can_interrupt_current_and_start_immediately()
+    {
+        var store = new MemoryPlaybackStore();
+        var current = Entry(1, QueueEntryOrigin.Automatic, QueueEntryStatus.Playing, 0);
+        current.StartPosition = TimeSpan.FromMinutes(1);
+        current.EndPosition = TimeSpan.FromMinutes(8);
+        store.Queue.Add(current);
+        store.Queue.Add(Entry(2, QueueEntryOrigin.Automatic, QueueEntryStatus.Pending, 1));
+        store.Queue.Add(Entry(3, QueueEntryOrigin.Automatic, QueueEntryStatus.Pending, 2));
+        var service = CreateService(store, []);
+
+        var started = await service.StartQueuedNowAsync(3, TimeSpan.FromMinutes(4));
+
+        Assert.Equal(QueueEntryStatus.Interrupted, current.Status);
+        Assert.True(Assert.Single(store.History).Interrupted);
+        Assert.Equal(QueueEntryStatus.Playing, started.Status);
+        Assert.Equal(QueueEntryOrigin.ManualNow, started.Origin);
+        Assert.Equal(0, started.SortOrder);
+        Assert.Equal(1, store.Queue.Single(entry => entry.Id == 2).SortOrder);
+    }
+
+    [Fact]
     public async Task Regeneration_replaces_only_automatic_pending_entries()
     {
         var store = new MemoryPlaybackStore();

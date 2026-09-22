@@ -150,6 +150,30 @@ public sealed class PlaybackOrchestrator(
             }
         }, cancellationToken);
 
+    public Task PrioritizeQueuedAsync(long queueEntryId, CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(() => queue.PrioritizeAsync(queueEntryId, cancellationToken), cancellationToken);
+
+    public Task<QueueEntry> PlayQueuedNowAsync(
+        long queueEntryId,
+        TimeSpan? currentPosition,
+        CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(async () =>
+        {
+            var entry = await queue.StartQueuedNowAsync(queueEntryId, currentPosition, cancellationToken);
+            await presenter.StopAsync(cancellationToken);
+            try
+            {
+                await LoadEntryAsync(entry, autoPlay: true, cancellationToken);
+                playback.Activate();
+                return entry;
+            }
+            catch
+            {
+                await queue.MarkFailedAsync(entry, CancellationToken.None);
+                throw;
+            }
+        }, cancellationToken);
+
     public Task<QueueEntry?> AdvanceAsync(
         TimeSpan? actualPosition,
         bool successful = true,

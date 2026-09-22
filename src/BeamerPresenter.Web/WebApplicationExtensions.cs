@@ -41,6 +41,8 @@ public static class WebApplicationExtensions
         app.MapPost("/api/queue/move-up", (Delegate)MoveQueueUpAsync).RequireAuthorization();
         app.MapPost("/api/queue/move-down", (Delegate)MoveQueueDownAsync).RequireAuthorization();
         app.MapPost("/api/queue/remove", (Delegate)RemoveQueueEntryAsync).RequireAuthorization();
+        app.MapPost("/api/queue/play-next", (Delegate)PlayQueuedNextAsync).RequireAuthorization();
+        app.MapPost("/api/queue/play-now", (Delegate)PlayQueuedNowAsync).RequireAuthorization();
         app.MapPost("/api/queue/regenerate", (Delegate)RegenerateQueueAsync).RequireAuthorization();
         app.MapPost("/api/history/clear", (Delegate)ClearHistoryAsync).RequireAuthorization();
         app.MapGet("/api/youtube/reference", (Delegate)GetYouTubeReference).RequireAuthorization();
@@ -229,6 +231,26 @@ public static class WebApplicationExtensions
         PlaybackQueueService queue,
         CancellationToken cancellationToken) =>
         ExecuteQueueManagementAsync(context, id => queue.RemoveAsync(id, cancellationToken));
+
+    private static Task<IResult> PlayQueuedNextAsync(
+        HttpContext context,
+        IPlaybackCommandService playback,
+        CancellationToken cancellationToken) =>
+        ExecuteQueueManagementAsync(context, id => playback.PrioritizeQueuedAsync(id, cancellationToken));
+
+    private static Task<IResult> PlayQueuedNowAsync(
+        HttpContext context,
+        IPlaybackCommandService playback,
+        PresenterConnectionState presenterState,
+        CancellationToken cancellationToken)
+    {
+        TimeSpan? currentPosition = presenterState.LatestReport.PositionSeconds is >= 0
+            ? TimeSpan.FromSeconds(presenterState.LatestReport.PositionSeconds.Value)
+            : null;
+        return ExecuteQueueManagementAsync(
+            context,
+            async id => { await playback.PlayQueuedNowAsync(id, currentPosition, cancellationToken); });
+    }
 
     private static async Task<IResult> RegenerateQueueAsync(
         PlaybackQueueService queue,

@@ -211,6 +211,8 @@
                         @if (context.Status == QueueEntryStatus.Pending)
                         {
                             <div class="queue-row-actions">
+                                <form method="post" action="/api/queue/play-next"><input type="hidden" name="id" value="@context.Id" /><button type="submit" title="Als Nächstes einplanen">Als Nächstes</button></form>
+                                <form method="post" action="/api/queue/play-now"><input type="hidden" name="id" value="@context.Id" /><button type="submit" class="primary" title="Sofort abspielen">Sofort</button></form>
                                 <form method="post" action="/api/queue/move-up"><input type="hidden" name="id" value="@context.Id" /><button type="submit" title="Nach oben">↑</button></form>
                                 <form method="post" action="/api/queue/move-down"><input type="hidden" name="id" value="@context.Id" /><button type="submit" title="Nach unten">↓</button></form>
                                 <form method="post" action="/api/queue/remove"><input type="hidden" name="id" value="@context.Id" /><button type="submit" class="danger">Entfernen</button></form>
