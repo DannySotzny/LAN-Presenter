@@ -1,4 +1,21 @@
 Beamerpresenter.App Changelog
+<a name="0.10.0"></a>
+## [0.10.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.10.0) (2026-09-22)
+
+### Features
+
+* filter media and show playback metrics ([8fbb95e](https://www.github.com/DannySotzny/LAN-Presenter/commit/8fbb95e5b1e2104ad8edf4aebd0e200e6a62bf59))
+* load YouTube metadata in management UI ([71a4bb4](https://www.github.com/DannySotzny/LAN-Presenter/commit/71a4bb42e4d12cd8e5b2223ac37f9fc5270a3c30))
+* manage media availability and analysis ([ff69eb2](https://www.github.com/DannySotzny/LAN-Presenter/commit/ff69eb2216830ed8acf9907daa538facf57263db))
+* manage queue and playback history ([7b4e1ca](https://www.github.com/DannySotzny/LAN-Presenter/commit/7b4e1cad4b8a6376b9c0a06d3724ee8aef47558b))
+* show browser and network status ([76b1ded](https://www.github.com/DannySotzny/LAN-Presenter/commit/76b1ded8fafdbf78781d89bff647875415b403eb))
+* start or prioritize queued entries ([b8d39ce](https://www.github.com/DannySotzny/LAN-Presenter/commit/b8d39ce8b6a466ec11b3e1da1dcc5ecf39679924))
+
+### Bug Fixes
+
+* recover paused presenter and topmost state ([8e85801](https://www.github.com/DannySotzny/LAN-Presenter/commit/8e85801709a42233a092ca7aa73590ed588a55d5))
+* restrict presenter resources to loopback ([748c3d8](https://www.github.com/DannySotzny/LAN-Presenter/commit/748c3d8e96a0a270a07d62bbab80c9d16d970e48))
+
 <a name="0.9.0"></a>
 ## [0.9.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.9.0) (2026-09-21)
 
