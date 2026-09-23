@@ -29,8 +29,12 @@ public sealed class YouTubeMediaStoreTests
             await using (var db = await factory.CreateDbContextAsync())
             {
                 db.Videos.AddRange(
-                    new VideoAsset { FileName = "missing.mp4", FullPath = Path.Combine(media, "missing.mp4"),
-                        YouTubeSourceKey = "youtube:M7lc1UVf-VE" },
+                    new VideoAsset
+                    {
+                        FileName = "missing.mp4",
+                        FullPath = Path.Combine(media, "missing.mp4"),
+                        YouTubeSourceKey = "youtube:M7lc1UVf-VE"
+                    },
                     new VideoAsset { FileName = Path.GetFileName(newPath), FullPath = newPath });
                 await db.SaveChangesAsync();
             }

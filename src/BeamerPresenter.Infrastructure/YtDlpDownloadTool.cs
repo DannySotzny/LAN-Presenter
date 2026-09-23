@@ -43,8 +43,11 @@ internal sealed class YtDlpDownloadTool(IExternalProcessRunner processRunner, st
             while (await timer.WaitForNextTickAsync(limit.Token))
             {
                 long currentBytes;
-                try { currentBytes = Directory.EnumerateFiles(stagingDirectory, "*", SearchOption.AllDirectories)
-                    .Sum(path => new FileInfo(path).Length); }
+                try
+                {
+                    currentBytes = Directory.EnumerateFiles(stagingDirectory, "*", SearchOption.AllDirectories)
+                    .Sum(path => new FileInfo(path).Length);
+                }
                 catch (IOException) { continue; }
                 catch (UnauthorizedAccessException) { continue; }
                 if (currentBytes <= YouTubeDownloadLimits.MaximumBytes) continue;

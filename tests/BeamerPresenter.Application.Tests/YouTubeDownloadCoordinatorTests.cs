@@ -62,10 +62,15 @@ public sealed class YouTubeDownloadCoordinatorTests
         using var fixture = new Fixture();
         fixture.Store.Asset = new VideoAsset
         {
-            Id = 23, YouTubeSourceKey = "youtube:" + VideoId, FileName = "missing.mp4",
+            Id = 23,
+            YouTubeSourceKey = "youtube:" + VideoId,
+            FileName = "missing.mp4",
             FullPath = Path.Combine(fixture.MediaDirectory, "missing.mp4"),
-            AddedAtUtc = DateTimeOffset.UtcNow.AddDays(-10), IsAvailable = true, Enabled = true,
-            ProbeStatus = MediaProbeStatus.Valid, PlaybackStatus = MediaPlaybackStatus.Supported
+            AddedAtUtc = DateTimeOffset.UtcNow.AddDays(-10),
+            IsAvailable = true,
+            Enabled = true,
+            ProbeStatus = MediaProbeStatus.Valid,
+            PlaybackStatus = MediaPlaybackStatus.Supported
         };
         fixture.Probe.Block = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var coordinator = fixture.CreateCoordinator();
@@ -138,9 +143,16 @@ public sealed class YouTubeDownloadCoordinatorTests
 
         public VideoAsset MakeAsset(string path, DateTimeOffset added) => new()
         {
-            Id = 23, YouTubeSourceKey = "youtube:" + VideoId, FileName = Path.GetFileName(path), FullPath = path,
-            FileSize = new FileInfo(path).Length, AddedAtUtc = added, IsAvailable = true, Enabled = true,
-            Duration = TimeSpan.FromMinutes(1), ProbeStatus = MediaProbeStatus.Valid,
+            Id = 23,
+            YouTubeSourceKey = "youtube:" + VideoId,
+            FileName = Path.GetFileName(path),
+            FullPath = path,
+            FileSize = new FileInfo(path).Length,
+            AddedAtUtc = added,
+            IsAvailable = true,
+            Enabled = true,
+            Duration = TimeSpan.FromMinutes(1),
+            ProbeStatus = MediaProbeStatus.Valid,
             PlaybackStatus = MediaPlaybackStatus.Supported
         };
 
@@ -175,9 +187,14 @@ public sealed class YouTubeDownloadCoordinatorTests
         {
             Asset = new VideoAsset
             {
-                Id = 23, YouTubeSourceKey = sourceKey, FullPath = fullPath, FileName = Path.GetFileName(fullPath),
-                FileSize = new FileInfo(fullPath).Length, AddedAtUtc = DateTimeOffset.UtcNow,
-                Duration = TimeSpan.FromMinutes(1), ProbeStatus = MediaProbeStatus.Valid,
+                Id = 23,
+                YouTubeSourceKey = sourceKey,
+                FullPath = fullPath,
+                FileName = Path.GetFileName(fullPath),
+                FileSize = new FileInfo(fullPath).Length,
+                AddedAtUtc = DateTimeOffset.UtcNow,
+                Duration = TimeSpan.FromMinutes(1),
+                ProbeStatus = MediaProbeStatus.Valid,
                 PlaybackStatus = MediaPlaybackStatus.Supported
             };
             return Task.FromResult(Asset);

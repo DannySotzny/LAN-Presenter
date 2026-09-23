@@ -256,8 +256,12 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
         await context.RouteAsync("**/api/youtube/download**", async route =>
         {
             requests.Add(route.Request.Url + " " + route.Request.Method + " " + route.Request.PostData);
-            await route.FulfillAsync(new RouteFulfillOptions { Status = 200, ContentType = "application/json",
-                Body = """{"videoId":"Es7F0h1DKGs","phase":"downloading","mediaId":null,"error":null,"durationSeconds":null}""" });
+            await route.FulfillAsync(new RouteFulfillOptions
+            {
+                Status = 200,
+                ContentType = "application/json",
+                Body = """{"videoId":"Es7F0h1DKGs","phase":"downloading","mediaId":null,"error":null,"durationSeconds":null}"""
+            });
         });
         var page = await context.NewPageAsync();
         await page.GotoAsync($"{_baseAddress}/login");
@@ -283,15 +287,21 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
             database.Videos.AddRange(
                 new VideoAsset
                 {
-                    FileName = "recent-video.mp4", FullPath = Path.Combine(_dataDirectory, "recent-video.mp4"),
-                    AddedAtUtc = DateTimeOffset.UtcNow.AddDays(-6), IsAvailable = true,
-                    ProbeStatus = MediaProbeStatus.Valid, PlaybackStatus = MediaPlaybackStatus.Supported
+                    FileName = "recent-video.mp4",
+                    FullPath = Path.Combine(_dataDirectory, "recent-video.mp4"),
+                    AddedAtUtc = DateTimeOffset.UtcNow.AddDays(-6),
+                    IsAvailable = true,
+                    ProbeStatus = MediaProbeStatus.Valid,
+                    PlaybackStatus = MediaPlaybackStatus.Supported
                 },
                 new VideoAsset
                 {
-                    FileName = "old-video.mp4", FullPath = Path.Combine(_dataDirectory, "old-video.mp4"),
-                    AddedAtUtc = DateTimeOffset.UtcNow.AddDays(-8), IsAvailable = true,
-                    ProbeStatus = MediaProbeStatus.Valid, PlaybackStatus = MediaPlaybackStatus.Supported
+                    FileName = "old-video.mp4",
+                    FullPath = Path.Combine(_dataDirectory, "old-video.mp4"),
+                    AddedAtUtc = DateTimeOffset.UtcNow.AddDays(-8),
+                    IsAvailable = true,
+                    ProbeStatus = MediaProbeStatus.Valid,
+                    PlaybackStatus = MediaPlaybackStatus.Supported
                 });
             await database.SaveChangesAsync();
         }

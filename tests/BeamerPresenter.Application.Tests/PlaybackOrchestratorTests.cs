@@ -194,7 +194,11 @@ public sealed class PlaybackOrchestratorTests
 
         await orchestrator.ShowNewsAsync(new NewsItem
         {
-            Id = 40, Title = "Ticker", Text = "Ohne Video", Mode = NewsMode.Ticker, Permanent = true
+            Id = 40,
+            Title = "Ticker",
+            Text = "Ohne Video",
+            Mode = NewsMode.Ticker,
+            Permanent = true
         });
 
         Assert.Equal(PresenterState.Active, playback.State);
@@ -352,12 +356,18 @@ public sealed class PlaybackOrchestratorTests
 
         await orchestrator.ShowNewsAsync(new NewsItem
         {
-            Id = 20, Title = "Ticker", Text = "Text", Mode = NewsMode.Ticker,
+            Id = 20,
+            Title = "Ticker",
+            Text = "Text",
+            Mode = NewsMode.Ticker,
             Duration = TimeSpan.FromMilliseconds(25)
         });
         await orchestrator.ShowNewsAsync(new NewsItem
         {
-            Id = 21, Title = "50:50", Text = "Text", Mode = NewsMode.SplitScreen,
+            Id = 21,
+            Title = "50:50",
+            Text = "Text",
+            Mode = NewsMode.SplitScreen,
             Permanent = true
         });
         await presenter.TickerHidden.Task.WaitAsync(TimeSpan.FromSeconds(2));
@@ -388,12 +398,18 @@ public sealed class PlaybackOrchestratorTests
 
         await orchestrator.ShowNewsAsync(new NewsItem
         {
-            Id = 30, Title = "Ticker", Text = "Text", Mode = NewsMode.Ticker,
+            Id = 30,
+            Title = "Ticker",
+            Text = "Text",
+            Mode = NewsMode.Ticker,
             Permanent = true
         });
         await orchestrator.ShowNewsAsync(new NewsItem
         {
-            Id = 31, Title = "50:50", Text = "Text", Mode = NewsMode.SplitScreen,
+            Id = 31,
+            Title = "50:50",
+            Text = "Text",
+            Mode = NewsMode.SplitScreen,
             Duration = TimeSpan.FromMilliseconds(25)
         });
         await presenter.NewsHidden.Task.WaitAsync(TimeSpan.FromSeconds(2));
