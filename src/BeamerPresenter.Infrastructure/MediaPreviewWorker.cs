@@ -77,7 +77,7 @@ internal sealed class MediaPreviewWorker(
                 Directory.CreateDirectory(previews.CacheDirectory);
                 var result = await processRunner.RunAsync(executable,
                     ["-nostdin", "-hide_banner", "-loglevel", "error", "-i", asset.FullPath,
-                     "-t", "120", "-vf", "fps=1/5,scale=160:90:force_original_aspect_ratio=decrease,pad=160:90:(ow-iw)/2:(oh-ih)/2,tile=6x4:nb_frames=24",
+                     "-t", "120", "-vf", "fps=1/5,scale=384:216:force_original_aspect_ratio=decrease,pad=384:216:(ow-iw)/2:(oh-ih)/2,tile=6x4:nb_frames=24",
                      "-frames:v", "1", "-update", "1", temporary],
                     TimeSpan.FromMinutes(3), cancellationToken);
                 snapshot.Refresh();
@@ -156,7 +156,7 @@ internal sealed class MediaPreviewService(string dataDirectory) : IMediaPreviewS
 
     internal string GetCachePath(VideoAsset asset)
     {
-        var version = $"{asset.FullPath.ToUpperInvariant()}|{asset.FileSize.ToString(CultureInfo.InvariantCulture)}|{asset.LastWriteUtc.UtcTicks.ToString(CultureInfo.InvariantCulture)}";
+        var version = $"v2|{asset.FullPath.ToUpperInvariant()}|{asset.FileSize.ToString(CultureInfo.InvariantCulture)}|{asset.LastWriteUtc.UtcTicks.ToString(CultureInfo.InvariantCulture)}";
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(version)))[..24];
         return Path.Combine(CacheDirectory, $"{asset.Id}-{hash}.jpg");
     }

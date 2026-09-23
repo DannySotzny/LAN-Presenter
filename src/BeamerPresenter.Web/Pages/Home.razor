@@ -432,85 +432,78 @@
                 }
                 else
                 {
-                    <MudTable T="VideoAsset" Items="@FilteredVideos" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Class="media-table">
-                        <HeaderContent>
-                            <MudTh>Video</MudTh>
-                            <MudTh>Status</MudTh>
-                            <MudTh>Format</MudTh>
-                            <MudTh>Dauer</MudTh>
-                            <MudTh>Letzte Wiedergabe</MudTh>
-                            <MudTh>Segmente</MudTh>
-                            <MudTh>Größe</MudTh>
-                            <MudTh>Aktion</MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd DataLabel="Video">
-                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                                    <div class="media-preview" data-preview-url="@($"/api/videos/{context.Id}/preview")" data-preview-count="@PreviewFrameCount(context)" role="img" aria-label="Vorschau für @context.FileName">
-                                        <MudIcon Icon="@Icons.Material.Filled.Movie" Size="Size.Small" />
-                                    </div>
-                                    <div class="media-name-cell">
-                                        <MudText Typo="Typo.body2">@context.FileName</MudText>
-                                        @if (IsRecentlyLoaded(context))
-                                        {
-                                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Kürzlich geladen</MudChip>
-                                        }
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@(context.IsAvailable ? FormatResolution(context) : "Datei nicht verfügbar")</MudText>
-                                    </div>
-                                </MudStack>
-                            </MudTd>
-                            <MudTd DataLabel="Status">
-                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@GetStatusColor(context)" Icon="@GetStatusIcon(context)">@GetStatusText(context)</MudChip>
-                            </MudTd>
-                            <MudTd DataLabel="Format"><span class="codec-label">@FormatCodec(context)</span></MudTd>
-                            <MudTd DataLabel="Dauer">@FormatDuration(context.Duration)</MudTd>
-                            <MudTd DataLabel="Letzte Wiedergabe">@FormatLastPlayed(context.Id)</MudTd>
-                            <MudTd DataLabel="Segmente">@FormatUsedSegments(context.Id)</MudTd>
-                            <MudTd DataLabel="Größe">@FormatSize(context.FileSize)</MudTd>
-                            <MudTd DataLabel="Aktion">
-                                <div class="media-actions">
-                                    @if (IsPlayable(context))
-                                    {
-                                        <form method="post" action="/api/queue/next">
-                                            <input type="hidden" name="mediaId" value="@context.Id" />
-                                            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.SkipNext">Als Nächstes</MudButton>
-                                        </form>
-                                        <form method="post" action="/api/queue/now">
-                                            <input type="hidden" name="mediaId" value="@context.Id" />
-                                            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.PlayArrow">Sofort</MudButton>
-                                        </form>
-                                        @if (context.Duration > TimeSpan.FromMinutes(10))
-                                        {
-                                            <details class="segment-picker">
-                                                <summary>Segment wählen</summary>
-                                                <form method="post" class="segment-form">
-                                                    <input type="hidden" name="mediaId" value="@context.Id" />
-                                                    <label>Start<input name="start" type="text" placeholder="01:20:00" required /></label>
-                                                    <label>Dauer<input name="duration" type="text" placeholder="00:08:00" required /></label>
-                                                    <div>
-                                                        <button type="submit" formaction="/api/queue/next">Als Nächstes</button>
-                                                        <button type="submit" formaction="/api/queue/now">Sofort</button>
-                                                    </div>
-                                                </form>
-                                            </details>
-                                        }
-                                    }
-                                    <form method="post" action="/api/videos/set-enabled">
-                                        <input type="hidden" name="id" value="@context.Id" />
-                                        <input type="hidden" name="enabled" value="@(!context.Enabled)" />
-                                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="@(context.Enabled ? Color.Warning : Color.Success)" Size="Size.Small" StartIcon="@(context.Enabled ? Icons.Material.Filled.Block : Icons.Material.Filled.CheckCircle)">@(context.Enabled ? "Deaktivieren" : "Aktivieren")</MudButton>
-                                    </form>
-                                    @if (context.IsAvailable)
-                                    {
-                                        <form method="post" action="/api/videos/reanalyze">
-                                            <input type="hidden" name="id" value="@context.Id" />
-                                            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="Color.Secondary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Refresh">Neu analysieren</MudButton>
-                                        </form>
-                                    }
+                    <div class="media-library-list">
+                        @foreach (var video in FilteredVideos)
+                        {
+                            <article class="media-card">
+                                <div class="media-preview" data-preview-url="@($"/api/videos/{video.Id}/preview")" data-preview-count="@PreviewFrameCount(video)" role="img" aria-label="Vorschau für @video.FileName">
+                                    <MudIcon Icon="@Icons.Material.Filled.Movie" Size="Size.Large" />
                                 </div>
-                            </MudTd>
-                        </RowTemplate>
-                    </MudTable>
+                                <div class="media-card-content">
+                                    <div class="media-card-heading">
+                                        <div class="media-card-title-group">
+                                            <h3 title="@video.FileName">@video.FileName</h3>
+                                            <div class="media-card-subtitle">
+                                                @if (IsRecentlyLoaded(video))
+                                                {
+                                                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Kürzlich geladen</MudChip>
+                                                }
+                                                <span>@(video.IsAvailable ? FormatResolution(video) : "Datei nicht verfügbar")</span>
+                                            </div>
+                                        </div>
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@GetStatusColor(video)" Icon="@GetStatusIcon(video)">@GetStatusText(video)</MudChip>
+                                    </div>
+                                    <dl class="media-card-details">
+                                        <div><dt>Format</dt><dd><span class="codec-label">@FormatCodec(video)</span></dd></div>
+                                        <div><dt>Dauer</dt><dd>@FormatDuration(video.Duration)</dd></div>
+                                        <div><dt>Letzte Wiedergabe</dt><dd>@FormatLastPlayed(video.Id)</dd></div>
+                                        <div><dt>Segmente</dt><dd>@FormatUsedSegments(video.Id)</dd></div>
+                                        <div><dt>Größe</dt><dd>@FormatSize(video.FileSize)</dd></div>
+                                    </dl>
+                                    <div class="media-actions">
+                                        @if (IsPlayable(video))
+                                        {
+                                            <form method="post" action="/api/queue/next">
+                                                <input type="hidden" name="mediaId" value="@video.Id" />
+                                                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.SkipNext">Als Nächstes</MudButton>
+                                            </form>
+                                            <form method="post" action="/api/queue/now">
+                                                <input type="hidden" name="mediaId" value="@video.Id" />
+                                                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.PlayArrow">Sofort</MudButton>
+                                            </form>
+                                            @if (video.Duration > TimeSpan.FromMinutes(10))
+                                            {
+                                                <details class="segment-picker">
+                                                    <summary>Segment wählen</summary>
+                                                    <form method="post" class="segment-form">
+                                                        <input type="hidden" name="mediaId" value="@video.Id" />
+                                                        <label>Start<input name="start" type="text" placeholder="01:20:00" required /></label>
+                                                        <label>Dauer<input name="duration" type="text" placeholder="00:08:00" required /></label>
+                                                        <div>
+                                                            <button type="submit" formaction="/api/queue/next">Als Nächstes</button>
+                                                            <button type="submit" formaction="/api/queue/now">Sofort</button>
+                                                        </div>
+                                                    </form>
+                                                </details>
+                                            }
+                                        }
+                                        <form method="post" action="/api/videos/set-enabled">
+                                            <input type="hidden" name="id" value="@video.Id" />
+                                            <input type="hidden" name="enabled" value="@(!video.Enabled)" />
+                                            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="@(video.Enabled ? Color.Warning : Color.Success)" Size="Size.Small" StartIcon="@(video.Enabled ? Icons.Material.Filled.Block : Icons.Material.Filled.CheckCircle)">@(video.Enabled ? "Deaktivieren" : "Aktivieren")</MudButton>
+                                        </form>
+                                        @if (video.IsAvailable)
+                                        {
+                                            <form method="post" action="/api/videos/reanalyze">
+                                                <input type="hidden" name="id" value="@video.Id" />
+                                                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="Color.Secondary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Refresh">Neu analysieren</MudButton>
+                                            </form>
+                                        }
+                                    </div>
+                                </div>
+                            </article>
+                        }
+                    </div>
                 }
             </MudPaper>
         </MudItem>

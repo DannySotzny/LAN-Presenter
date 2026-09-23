@@ -46,6 +46,7 @@ public sealed class MediaPreviewWorkerTests
             Assert.NotNull(first);
             Assert.True(File.Exists(first));
             Assert.Contains("fps=1/5", runner.LastArguments![Array.IndexOf(runner.LastArguments, "-vf") + 1], StringComparison.Ordinal);
+            Assert.Contains("scale=384:216", runner.LastArguments[Array.IndexOf(runner.LastArguments, "-vf") + 1], StringComparison.Ordinal);
 
             await worker.GeneratePendingAsync();
             Assert.Equal(1, runner.CallCount);

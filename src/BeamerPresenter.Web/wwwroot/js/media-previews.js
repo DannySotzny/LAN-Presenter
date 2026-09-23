@@ -8,7 +8,7 @@
     const loading = new Set();
 
     const showFrame = (element, frame) => {
-        element.style.backgroundPosition = `${-(frame % 6) * 160}px ${-Math.floor(frame / 6) * 90}px`;
+        element.style.backgroundPosition = `${(frame % 6) * 20}% ${Math.floor(frame / 6) * 100 / 3}%`;
     };
 
     const load = element => {

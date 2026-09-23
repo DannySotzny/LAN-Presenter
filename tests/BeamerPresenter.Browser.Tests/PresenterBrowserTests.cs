@@ -278,14 +278,19 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
 
         await using var context = await _browser!.NewContextAsync();
         var page = await context.NewPageAsync();
+        await page.SetViewportSizeAsync(1920, 1080);
         await page.GotoAsync($"{_baseAddress}/login");
         await page.FillAsync("#password", TestPassword);
         await page.Locator("form[action='/account/login'] button[type='submit']").ClickAsync();
         await page.GotoAsync($"{_baseAddress}/media");
 
         Assert.Equal(1, await page.GetByText("Kürzlich geladen").CountAsync());
-        Assert.Equal(1, await page.Locator("tr").Filter(new LocatorFilterOptions { HasText = "recent-video.mp4" })
-            .GetByText("Kürzlich geladen").CountAsync());
+        var recentCard = page.Locator(".media-card").Filter(new LocatorFilterOptions { HasText = "recent-video.mp4" });
+        Assert.Equal(1, await recentCard.GetByText("Kürzlich geladen").CountAsync());
+        var preview = await recentCard.Locator(".media-preview").BoundingBoxAsync();
+        Assert.NotNull(preview);
+        Assert.InRange(preview.Width, 350, 385);
+        Assert.InRange(preview.Height, 195, 220);
     }
 
     public async Task DisposeAsync()
