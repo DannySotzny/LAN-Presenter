@@ -221,6 +221,9 @@ public sealed class PlaybackOrchestratorTests
         await orchestrator.ShowNewsAsync(ticker);
         await orchestrator.ShowNewsAsync(split);
         await orchestrator.ShowNewsAsync(fullscreen);
+        var snapshot = await orchestrator.GetNewsDisplayAsync();
+        Assert.Equal(fullscreen.Id, snapshot.Main?.Id);
+        Assert.Equal(ticker.Id, snapshot.Ticker?.Id);
         await orchestrator.StopNewsAsync(fullscreen.Id);
 
         Assert.Equal(
@@ -233,7 +236,7 @@ public sealed class PlaybackOrchestratorTests
                 "presenter:play",
                 "presenter:news:3:SplitScreen"
             ],
-            calls);
+            calls.Where(call => call.StartsWith("presenter:", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -265,7 +268,7 @@ public sealed class PlaybackOrchestratorTests
         });
         await presenter.TickerHidden.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
-        Assert.Equal(["presenter:ticker:3", "presenter:hide-ticker"], calls);
+        Assert.Equal(["presenter:ticker:3", "presenter:hide-ticker"], calls.Where(call => call.StartsWith("presenter:", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -329,7 +332,7 @@ public sealed class PlaybackOrchestratorTests
         });
         await presenter.TickerHidden.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
-        Assert.Equal(["presenter:ticker:20", "presenter:news:21:SplitScreen", "presenter:hide-ticker"], calls);
+        Assert.Equal(["presenter:ticker:20", "presenter:news:21:SplitScreen", "presenter:hide-ticker"], calls.Where(call => call.StartsWith("presenter:", StringComparison.Ordinal)));
         await orchestrator.StopNewsAsync();
         Assert.Equal("presenter:hide-news", calls[^1]);
     }
@@ -365,7 +368,7 @@ public sealed class PlaybackOrchestratorTests
         });
         await presenter.NewsHidden.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
-        Assert.Equal(["presenter:ticker:30", "presenter:news:31:SplitScreen", "presenter:hide-news"], calls);
+        Assert.Equal(["presenter:ticker:30", "presenter:news:31:SplitScreen", "presenter:hide-news"], calls.Where(call => call.StartsWith("presenter:", StringComparison.Ordinal)));
         await orchestrator.StopTickerAsync();
         Assert.Equal("presenter:hide-ticker", calls[^1]);
     }

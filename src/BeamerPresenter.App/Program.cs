@@ -86,6 +86,7 @@ internal static class Program
         builder.Services.AddSingleton<IPlaybackCommandService>(provider => provider.GetRequiredService<PlaybackOrchestrator>());
         builder.Services.AddSingleton<IPresenterControlService>(provider => provider.GetRequiredService<PlaybackOrchestrator>());
         builder.Services.AddSingleton<INewsCommandService>(provider => provider.GetRequiredService<PlaybackOrchestrator>());
+        builder.Services.AddSingleton<INewsDisplayState>(provider => provider.GetRequiredService<PlaybackOrchestrator>());
         builder.Services.AddSingleton<IPresenterRecoveryService>(provider => provider.GetRequiredService<PlaybackOrchestrator>());
         builder.Services.AddHostedService<NewsSchedulingWorker>();
         builder.Services.AddHostedService<PresenterWatchdog>();

@@ -85,6 +85,23 @@ public sealed class PresenterHub(
     public override async Task OnConnectedAsync()
     {
         connectionState.Connected();
+        var displayState = services.GetService<INewsDisplayState>();
+        if (displayState is not null)
+        {
+            var snapshot = await displayState.GetNewsDisplayAsync(Context.ConnectionAborted);
+            if (snapshot.Main is { } main)
+            {
+                await Clients.Caller.ShowNews(
+                    main.Id, main.Title, main.Text, main.Mode.ToString(),
+                    main.Duration?.TotalSeconds, main.Permanent, main.Priority);
+            }
+
+            if (snapshot.Ticker is { } ticker)
+            {
+                await Clients.Caller.ShowTicker(ticker.Id, ticker.Title, ticker.Text);
+            }
+        }
+
         await base.OnConnectedAsync();
     }
 

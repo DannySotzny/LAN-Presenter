@@ -210,4 +210,11 @@ public interface INewsCommandService
     Task StopTickerAsync(CancellationToken cancellationToken = default);
 }
 
+public interface INewsDisplayState
+{
+    Task<NewsDisplaySnapshot> GetNewsDisplayAsync(CancellationToken cancellationToken = default);
+}
+
+public sealed record NewsDisplaySnapshot(NewsItem? Main, NewsItem? Ticker);
+
 public sealed record PresenterStatus(PresenterState State, string Version, string WebUrl);

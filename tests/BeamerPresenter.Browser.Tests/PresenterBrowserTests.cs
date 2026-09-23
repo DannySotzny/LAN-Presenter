@@ -19,6 +19,7 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
     private const string TestPassword = "browser-test-password";
     private readonly string _dataDirectory = Path.Combine(Path.GetTempPath(), "BeamerPresenter.BrowserTests", Guid.NewGuid().ToString("N"));
     private readonly RecordingPlaybackCommands _playbackCommands = new();
+    private readonly RecordingNewsDisplayState _newsDisplayState = new();
     private WebApplication? _application;
     private IPlaywright? _playwright;
     private IBrowser? _browser;
@@ -36,6 +37,7 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
         builder.Services.AddPresenterWebUi();
         builder.Services.AddSingleton<IPlaybackCommandService>(_playbackCommands);
         builder.Services.AddSingleton<INewsCommandService>(_playbackCommands);
+        builder.Services.AddSingleton<INewsDisplayState>(_newsDisplayState);
         builder.Services.AddSingleton<IPresenterControlService, NoOpPresenterControls>();
 
         _application = builder.Build();
@@ -88,6 +90,36 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
         await page.GetByRole(AriaRole.Link, new() { Name = "News", Exact = true }).ClickAsync();
         await page.WaitForURLAsync($"{_baseAddress}/news");
         Assert.True(await page.GetByText("News & Einblendungen", new() { Exact = true }).IsVisibleAsync());
+    }
+
+    [Fact]
+    public async Task Ticker_started_before_presenter_connects_is_visible_over_idle_screen()
+    {
+        _newsDisplayState.Snapshot = new NewsDisplaySnapshot(null, new NewsItem
+        {
+            Id = 99,
+            Title = "Turnier",
+            Text = "Start in fünf Minuten",
+            Mode = NewsMode.Ticker,
+            Permanent = true
+        });
+        await using var context = await _browser!.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync($"{_baseAddress}/presenter");
+        await page.WaitForFunctionAsync("document.querySelector('#presenter-ticker').dataset.newsId === '99'");
+
+        Assert.True(await page.Locator("#presenter-ticker").IsVisibleAsync());
+        Assert.Equal("Turnier", await page.TextContentAsync("#presenter-ticker-title"));
+        Assert.False(await page.Locator("#presenter-news").IsVisibleAsync());
+        Assert.True(await page.EvaluateAsync<bool>("""
+            () => {
+                const ticker = document.querySelector('#presenter-ticker');
+                const rect = ticker.getBoundingClientRect();
+                return rect.height > 0 && rect.bottom === window.innerHeight &&
+                    ticker.contains(document.elementFromPoint(window.innerWidth / 2, window.innerHeight - 20));
+            }
+            """));
     }
 
     [Fact]
@@ -415,6 +447,14 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
 
         public Task StopTickerAsync(CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class RecordingNewsDisplayState : INewsDisplayState
+    {
+        public NewsDisplaySnapshot Snapshot { get; set; } = new(null, null);
+
+        public Task<NewsDisplaySnapshot> GetNewsDisplayAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Snapshot);
     }
 
     private sealed class NoOpPresenterControls : IPresenterControlService

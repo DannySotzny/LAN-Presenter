@@ -8,7 +8,7 @@ public sealed class PlaybackOrchestrator(
     IPresenterGateway presenter,
     IPresenterSettingsService settingsService,
     IPowerManagementService powerManagement,
-    PlaybackQueueService queue) : IPlaybackCommandService, INewsCommandService, IPresenterRecoveryService, IPresenterControlService
+    PlaybackQueueService queue) : IPlaybackCommandService, INewsCommandService, INewsDisplayState, IPresenterRecoveryService, IPresenterControlService
 {
     private readonly SemaphoreSlim commandGate = new(1, 1);
     private CancellationTokenSource? newsTimeout;
@@ -16,6 +16,9 @@ public sealed class PlaybackOrchestrator(
     private NewsItem? currentNews;
     private NewsItem? suspendedNews;
     private NewsItem? currentTicker;
+
+    public Task<NewsDisplaySnapshot> GetNewsDisplayAsync(CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(() => Task.FromResult(new NewsDisplaySnapshot(currentNews, currentTicker)), cancellationToken);
 
     public async Task ActivateAsync(CancellationToken cancellationToken = default)
     {
