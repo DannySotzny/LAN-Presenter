@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using BeamerPresenter.Application;
 
@@ -19,7 +20,7 @@ internal sealed partial class WindowsMonitorService : IMonitorService
         .ThenBy(monitor => monitor.Y)
         .ToList();
 
-    private static unsafe string GetFriendlyName(string deviceName)
+    private static string GetFriendlyName(string deviceName)
     {
         var displayDevice = DisplayDevice.Create();
         if (!EnumDisplayDevices(deviceName, 0, ref displayDevice, 0))
@@ -27,8 +28,9 @@ internal sealed partial class WindowsMonitorService : IMonitorService
             return deviceName;
         }
 
-        char* deviceString = displayDevice.DeviceString;
-        var friendlyName = new string(deviceString);
+        Span<char> deviceString = displayDevice.DeviceString;
+        var terminator = deviceString.IndexOf('\0');
+        var friendlyName = new string(deviceString[..(terminator < 0 ? deviceString.Length : terminator)]);
         return string.IsNullOrWhiteSpace(friendlyName) ? deviceName : friendlyName;
     }
 
@@ -41,19 +43,43 @@ internal sealed partial class WindowsMonitorService : IMonitorService
         uint flags);
 
     [StructLayout(LayoutKind.Sequential)]
-    private unsafe struct DisplayDevice
+    private struct DisplayDevice
     {
         public int Size;
-        public fixed char DeviceName[32];
-        public fixed char DeviceString[128];
+        public DeviceNameBuffer DeviceName;
+        public DeviceStringBuffer DeviceString;
 
         public int StateFlags;
-        public fixed char DeviceId[128];
-        public fixed char DeviceKey[128];
+        public DeviceIdBuffer DeviceId;
+        public DeviceKeyBuffer DeviceKey;
 
         public static DisplayDevice Create() => new()
         {
             Size = Marshal.SizeOf<DisplayDevice>()
         };
+    }
+
+    [InlineArray(32)]
+    private struct DeviceNameBuffer
+    {
+        private char element0;
+    }
+
+    [InlineArray(128)]
+    private struct DeviceStringBuffer
+    {
+        private char element0;
+    }
+
+    [InlineArray(128)]
+    private struct DeviceIdBuffer
+    {
+        private char element0;
+    }
+
+    [InlineArray(128)]
+    private struct DeviceKeyBuffer
+    {
+        private char element0;
     }
 }

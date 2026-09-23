@@ -183,7 +183,7 @@ internal sealed class MediaReconciliationWorker(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return;
+            logger.LogDebug("Media reconciliation stopped because the host is shutting down");
         }
         catch (Exception exception)
         {

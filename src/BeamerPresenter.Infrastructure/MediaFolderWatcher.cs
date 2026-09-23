@@ -55,7 +55,7 @@ internal sealed class MediaFolderWatcher(
                 coalescedSignals++;
             }
 
-            if (coalescedSignals > 0)
+            if (coalescedSignals > 0 && logger.IsEnabled(LogLevel.Debug))
             {
                 logger.LogDebug("Coalesced {ChangeCount} media watcher signals before reconciliation", coalescedSignals);
             }
