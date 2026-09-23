@@ -46,7 +46,7 @@ public sealed class YouTubeDownloadCoordinatorTests
         var path = Path.Combine(fixture.MediaDirectory, "existing.mp4");
         await File.WriteAllBytesAsync(path, [1, 2, 3]);
         var added = DateTimeOffset.UtcNow.AddDays(-5);
-        fixture.Store.Asset = fixture.MakeAsset(path, added);
+        fixture.Store.Asset = Fixture.MakeAsset(path, added);
         await using var coordinator = fixture.CreateCoordinator();
 
         await coordinator.StartAsync(Url);
@@ -161,7 +161,7 @@ public sealed class YouTubeDownloadCoordinatorTests
         public YouTubeDownloadCoordinator CreateCoordinator() => new(Tool, Store,
             new FakeFolders(MediaDirectory), new FakeScanner(), Probe, Playback, new FakeTelemetry(), Path.Combine(root, "Data"));
 
-        public VideoAsset MakeAsset(string path, DateTimeOffset added) => new()
+        public static VideoAsset MakeAsset(string path, DateTimeOffset added) => new()
         {
             Id = 23,
             YouTubeSourceKey = "youtube:" + VideoId,

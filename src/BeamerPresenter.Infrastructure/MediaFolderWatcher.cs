@@ -49,8 +49,15 @@ internal sealed class MediaFolderWatcher(
         {
             _ = changeSignal;
             await Task.Delay(DebouncePeriod, cancellationToken);
+            var coalescedChanges = 0;
             while (changes.Reader.TryRead(out _))
             {
+                coalescedChanges++;
+            }
+
+            if (coalescedChanges > 0)
+            {
+                logger.LogDebug("Coalesced {ChangeCount} additional media change notifications", coalescedChanges);
             }
 
             try

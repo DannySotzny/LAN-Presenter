@@ -111,6 +111,10 @@ internal sealed class SingleInstanceCoordinator : IDisposable
         }
         catch (OperationCanceledException)
         {
+            if (!_stopping.IsCancellationRequested)
+            {
+                throw;
+            }
         }
 
         _stopping.Dispose();

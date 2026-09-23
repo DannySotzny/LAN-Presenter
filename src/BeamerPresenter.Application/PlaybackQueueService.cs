@@ -307,7 +307,7 @@ public sealed class PlaybackQueueService(
         }
     }
 
-    private async Task NormalizePendingOrderAsync(IReadOnlyList<QueueEntry> pending, CancellationToken cancellationToken)
+    private async Task NormalizePendingOrderAsync(List<QueueEntry> pending, CancellationToken cancellationToken)
     {
         for (var index = 0; index < pending.Count; index++)
         {

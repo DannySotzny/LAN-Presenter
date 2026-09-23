@@ -266,8 +266,8 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
         Assert.Null(await page.QuerySelectorAsync("#youtube-iframe-api"));
         await page.Locator(".youtube-actions button").First.ClickAsync();
         await page.WaitForFunctionAsync("document.querySelector('#youtube-metadata-status').textContent.includes('vorgemerkt')");
-        Assert.True(intentBody?.Contains("action=next", StringComparison.Ordinal) == true,
-            string.Join(" | ", downloadRequests));
+        Assert.NotNull(intentBody);
+        Assert.Contains("action=next", intentBody, StringComparison.Ordinal);
         phase = "ready";
         await WaitForTextAsync(page, "#youtube-metadata-status", "Mediathek bereit");
         Assert.Equal("Dauer: 00:05:19", await page.Locator("#youtube-duration").InnerTextAsync());
@@ -349,6 +349,49 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
         Assert.NotNull(preview);
         Assert.InRange(preview.Width, 350, 385);
         Assert.InRange(preview.Height, 195, 220);
+    }
+
+    [Fact]
+    public async Task Media_preview_loads_visible_sprite_and_cycles_frames_until_pointer_leaves()
+    {
+        await using var context = await _browser!.NewContextAsync();
+        await context.AddInitScriptAsync("""
+            (() => {
+                window.__previewObservers = [];
+                window.__previewImages = [];
+                window.IntersectionObserver = class {
+                    constructor(callback) { this.callback = callback; window.__previewObservers.push(this); }
+                    observe(target) { this.target = target; }
+                };
+                window.Image = class {
+                    set src(value) {
+                        this._src = value;
+                        window.__previewImages.push(this);
+                        queueMicrotask(() => this.onload?.());
+                    }
+                    get src() { return this._src; }
+                };
+            })();
+            """);
+        await using var coverage = new BrowserCoverageCapture(context);
+        var page = await coverage.NewPageAsync();
+        await page.SetContentAsync($"""
+            <div id="preview" class="media-preview" style="display:block;width:160px;height:90px" data-preview-url="{_baseAddress}/preview.jpg" data-preview-count="6"></div>
+            <script src="{_baseAddress}/_content/BeamerPresenter.Web/js/media-previews.js"></script>
+            """);
+
+        await page.EvaluateAsync("window.__previewObservers[0].callback([{target: document.querySelector('#preview'), isIntersecting: true}])");
+        await page.WaitForFunctionAsync("document.querySelector('#preview').classList.contains('is-ready')");
+        Assert.StartsWith("url(\"", await page.Locator("#preview").EvaluateAsync<string>("element => element.style.backgroundImage"), StringComparison.Ordinal);
+
+        await page.Locator("#preview").HoverAsync();
+        await page.WaitForFunctionAsync("document.querySelector('#preview').style.backgroundPosition !== '0% 0%'", null,
+            new PageWaitForFunctionOptions { Timeout = 2_000 });
+        var animatedPosition = await page.Locator("#preview").EvaluateAsync<string>("element => element.style.backgroundPosition");
+        Assert.NotEqual("0% 0%", animatedPosition);
+
+        await page.Locator("#preview").DispatchEventAsync("mouseleave");
+        Assert.Equal("0% 0%", await page.Locator("#preview").EvaluateAsync<string>("element => element.style.backgroundPosition"));
     }
 
     public async Task DisposeAsync()

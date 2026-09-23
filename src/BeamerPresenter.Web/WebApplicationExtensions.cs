@@ -670,5 +670,5 @@ public static class WebApplicationExtensions
         _ => "application/octet-stream"
     };
 
-    private static bool IsLocalUrl(string value) => value.StartsWith("/", StringComparison.Ordinal) && !value.StartsWith("//", StringComparison.Ordinal);
+    private static bool IsLocalUrl(string value) => value.StartsWith('/') && !value.StartsWith("//", StringComparison.Ordinal);
 }

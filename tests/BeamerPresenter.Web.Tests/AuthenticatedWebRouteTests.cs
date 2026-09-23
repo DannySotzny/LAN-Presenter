@@ -780,7 +780,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
             new FailingMediaFolderService(),
             requestAbort.Token);
 
-        var statusResult = Assert.IsAssignableFrom<IStatusCodeHttpResult>(result);
+        var statusResult = Assert.IsType<IStatusCodeHttpResult>(result, exactMatch: false);
         Assert.Equal(499, statusResult.StatusCode);
     }
 

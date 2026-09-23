@@ -180,6 +180,7 @@ internal sealed class MediaReconciliationWorker(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            cancellationToken.ThrowIfCancellationRequested();
         }
         catch (Exception exception)
         {

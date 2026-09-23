@@ -96,7 +96,7 @@ public sealed class MediaSegmentPlanner
         return minimum + TimeSpan.FromSeconds(rangeInSeconds == 0 ? 0 : random.Next(rangeInSeconds + 1));
     }
 
-    private static IReadOnlyList<TimeRange> GetFreeRanges(
+    private static List<TimeRange> GetFreeRanges(
         VideoAsset asset,
         IReadOnlyCollection<PlaybackHistory> history)
     {

@@ -69,6 +69,48 @@ public sealed class YtDlpDownloadToolTests
     }
 
     [Fact]
+    public async Task Broken_downloader_candidate_is_skipped_for_the_next_verified_executable()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PresenterYtDlpTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var broken = Path.Combine(root, "broken.exe");
+            var working = Path.Combine(root, "working.exe");
+            File.WriteAllText(broken, "not executable");
+            File.WriteAllText(working, "executable");
+            var runner = new RecordingRunner(working);
+            runner.FailingVersionChecks.Add(broken);
+            var tool = new YtDlpDownloadTool(runner, root, [broken, working]);
+
+            Assert.Equal(working, await tool.EnsureAvailableAsync(CancellationToken.None));
+
+            Assert.Equal([broken, working], runner.Calls.Select(call => call.Path));
+            Assert.All(runner.Calls, call => Assert.Equal(["--version"], call.Arguments));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task Successful_install_is_rejected_when_no_executable_can_be_verified()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PresenterYtDlpTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var executable = Path.Combine(root, "yt-dlp.exe");
+            var runner = new RecordingRunner(executable) { CreateExecutableOnInstall = false };
+            var tool = new YtDlpDownloadTool(runner, root, [executable]);
+
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => tool.EnsureAvailableAsync(CancellationToken.None));
+
+            Assert.Contains("nicht ausführbar", error.Message);
+            Assert.Single(runner.Calls);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
     public void Download_arguments_restrict_source_size_format_and_configuration()
     {
         var args = YtDlpDownloadTool.BuildArguments("M7lc1UVf-VE", @"C:\staging");
@@ -85,14 +127,17 @@ public sealed class YtDlpDownloadToolTests
     private sealed class RecordingRunner(string executable) : IExternalProcessRunner
     {
         public int InstallExitCode { get; set; }
+        public bool CreateExecutableOnInstall { get; set; } = true;
+        public HashSet<string> FailingVersionChecks { get; } = new(StringComparer.OrdinalIgnoreCase);
         public List<(string Path, IReadOnlyList<string> Arguments)> Calls { get; } = [];
 
         public Task<ProcessExecutionResult> RunAsync(string executablePath, IReadOnlyList<string> arguments,
             TimeSpan timeout, CancellationToken cancellationToken)
         {
             Calls.Add((executablePath, arguments));
-            if (executablePath == "winget.exe" && InstallExitCode == 0) File.WriteAllText(executable, "test");
-            return Task.FromResult(new ProcessExecutionResult(executablePath == "winget.exe" ? InstallExitCode : 0,
+            if (executablePath == "winget.exe" && InstallExitCode == 0 && CreateExecutableOnInstall) File.WriteAllText(executable, "test");
+            var exitCode = executablePath == "winget.exe" ? InstallExitCode : FailingVersionChecks.Contains(executablePath) ? 1 : 0;
+            return Task.FromResult(new ProcessExecutionResult(exitCode,
                 executablePath == "winget.exe" ? "" : "test-version", ""));
         }
     }
