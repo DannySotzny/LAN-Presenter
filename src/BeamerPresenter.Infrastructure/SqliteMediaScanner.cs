@@ -181,9 +181,9 @@ internal sealed class MediaReconciliationWorker(
         {
             await mediaScanner.ScanAllAsync(cancellationToken);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
         {
-            logger.LogDebug("Media reconciliation stopped because the host is shutting down");
+            logger.LogDebug(exception, "Media reconciliation stopped because the host is shutting down");
         }
         catch (Exception exception)
         {

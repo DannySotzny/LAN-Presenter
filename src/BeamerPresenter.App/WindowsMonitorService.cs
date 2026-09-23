@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using BeamerPresenter.Application;
@@ -55,31 +56,35 @@ internal sealed partial class WindowsMonitorService : IMonitorService
 
         public static DisplayDevice Create() => new()
         {
-            Size = Marshal.SizeOf<DisplayDevice>()
+            Size = Unsafe.SizeOf<DisplayDevice>()
         };
     }
 
     [InlineArray(32)]
     private struct DeviceNameBuffer
     {
+        [SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed", Justification = "InlineArray backing storage is consumed by compiler-generated indexing.")]
         private char element0;
     }
 
     [InlineArray(128)]
     private struct DeviceStringBuffer
     {
+        [SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed", Justification = "InlineArray backing storage is consumed by compiler-generated indexing.")]
         private char element0;
     }
 
     [InlineArray(128)]
     private struct DeviceIdBuffer
     {
+        [SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed", Justification = "InlineArray backing storage is consumed by compiler-generated indexing.")]
         private char element0;
     }
 
     [InlineArray(128)]
     private struct DeviceKeyBuffer
     {
+        [SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed", Justification = "InlineArray backing storage is consumed by compiler-generated indexing.")]
         private char element0;
     }
 }
