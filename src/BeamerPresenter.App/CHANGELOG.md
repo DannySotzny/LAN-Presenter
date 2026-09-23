@@ -1,4 +1,14 @@
 Beamerpresenter.App Changelog
+<a name="0.13.1"></a>
+## [0.13.1](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.13.1) (2026-09-23)
+
+### Bug Fixes
+
+* download every queued YouTube video locally ([14e5c7d](https://www.github.com/DannySotzny/LAN-Presenter/commit/14e5c7dacbf789579adf4c88979881c8767c8498))
+* enlarge media library previews ([f18bde7](https://www.github.com/DannySotzny/LAN-Presenter/commit/f18bde7e5e3d9ae9d452c4e3df7ed80a105bbd91))
+* restore active news when presenter reconnects ([e7719c6](https://www.github.com/DannySotzny/LAN-Presenter/commit/e7719c662284cb6497ebe411afd9a62de6260a09))
+* start presenter for news without video ([d0858dc](https://www.github.com/DannySotzny/LAN-Presenter/commit/d0858dc1205ae0cc92796af0688d864403f26e35))
+
 <a name="0.13.0"></a>
 ## [0.13.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.13.0) (2026-09-23)
 
