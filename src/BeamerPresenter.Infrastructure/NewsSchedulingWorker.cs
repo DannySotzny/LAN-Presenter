@@ -11,7 +11,8 @@ public sealed class NewsSchedulingWorker(
     ILogger<NewsSchedulingWorker> logger) : BackgroundService
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
-    private long? scheduledNewsId;
+    private long? scheduledTickerId;
+    private long? scheduledMainId;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -27,21 +28,33 @@ public sealed class NewsSchedulingWorker(
     {
         try
         {
-            var selected = NewsScheduleSelector.Select(await newsService.GetAllAsync(cancellationToken), timeProvider.GetUtcNow());
-            if (selected?.Id == scheduledNewsId)
+            var selection = NewsScheduleSelector.Select(await newsService.GetAllAsync(cancellationToken), timeProvider.GetUtcNow());
+            if (selection.Ticker?.Id != scheduledTickerId)
             {
-                return;
+                if (scheduledTickerId.HasValue)
+                {
+                    await commands.StopNewsAsync(scheduledTickerId.Value, cancellationToken);
+                }
+
+                scheduledTickerId = selection.Ticker?.Id;
+                if (selection.Ticker is not null)
+                {
+                    await commands.ShowNewsAsync(selection.Ticker, cancellationToken);
+                }
             }
 
-            if (scheduledNewsId.HasValue)
+            if (selection.Main?.Id != scheduledMainId)
             {
-                await commands.StopNewsAsync(scheduledNewsId.Value, cancellationToken);
-            }
+                if (scheduledMainId.HasValue)
+                {
+                    await commands.StopNewsAsync(scheduledMainId.Value, cancellationToken);
+                }
 
-            scheduledNewsId = selected?.Id;
-            if (selected is not null)
-            {
-                await commands.ShowNewsAsync(selected, cancellationToken);
+                scheduledMainId = selection.Main?.Id;
+                if (selection.Main is not null)
+                {
+                    await commands.ShowNewsAsync(selection.Main, cancellationToken);
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

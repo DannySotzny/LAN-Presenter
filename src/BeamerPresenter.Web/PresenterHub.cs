@@ -16,6 +16,8 @@ public interface IPresenterClient
     Task SetVolume(double volume);
     Task ShowNews(long id, string title, string text, string mode, double? durationSeconds, bool permanent, int priority);
     Task HideNews();
+    Task ShowTicker(long id, string title, string text);
+    Task HideTicker();
 }
 
 public sealed class PresenterConnectionState : IPresenterTelemetry
@@ -132,15 +134,23 @@ internal sealed class SignalRPresenterGateway(IHubContext<PresenterHub, IPresent
         hubContext.Clients.All.SetVolume(Math.Clamp(volume, 0, 1)).WaitAsync(cancellationToken);
 
     public Task ShowNewsAsync(NewsItem item, CancellationToken cancellationToken = default) =>
-        hubContext.Clients.All.ShowNews(
-            item.Id,
-            item.Title,
-            item.Text,
-            item.Mode.ToString(),
-            item.Duration?.TotalSeconds,
-            item.Permanent,
-            item.Priority).WaitAsync(cancellationToken);
+        item.Mode == NewsMode.Ticker
+            ? ShowTickerAsync(item, cancellationToken)
+            : hubContext.Clients.All.ShowNews(
+                item.Id,
+                item.Title,
+                item.Text,
+                item.Mode.ToString(),
+                item.Duration?.TotalSeconds,
+                item.Permanent,
+                item.Priority).WaitAsync(cancellationToken);
 
     public Task HideNewsAsync(CancellationToken cancellationToken = default) =>
         hubContext.Clients.All.HideNews().WaitAsync(cancellationToken);
+
+    public Task ShowTickerAsync(NewsItem item, CancellationToken cancellationToken = default) =>
+        hubContext.Clients.All.ShowTicker(item.Id, item.Title, item.Text).WaitAsync(cancellationToken);
+
+    public Task HideTickerAsync(CancellationToken cancellationToken = default) =>
+        hubContext.Clients.All.HideTicker().WaitAsync(cancellationToken);
 }

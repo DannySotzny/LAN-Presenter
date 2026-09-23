@@ -9,9 +9,12 @@
     const news = document.getElementById("presenter-news");
     const newsTitle = document.getElementById("presenter-news-title");
     const newsText = document.getElementById("presenter-news-text");
+    const ticker = document.getElementById("presenter-ticker");
+    const tickerTitle = document.getElementById("presenter-ticker-title");
+    const tickerText = document.getElementById("presenter-ticker-text");
     const idle = document.getElementById("presenter-idle");
     const statusText = document.getElementById("presenter-status");
-    if (!video || !youtubeHost || !presenterRoot || !news || !newsTitle || !newsText || !idle || !statusText) return;
+    if (!video || !youtubeHost || !presenterRoot || !news || !newsTitle || !newsText || !ticker || !tickerTitle || !tickerText || !idle || !statusText) return;
 
     let socket;
     let reconnectTimer;
@@ -180,6 +183,18 @@
         news.removeAttribute("data-news-id");
         presenterRoot.classList.remove("news-split-active");
     };
+    const showTicker = (id, title, text) => {
+        ticker.dataset.newsId = String(id);
+        tickerTitle.textContent = title;
+        tickerText.textContent = text;
+        ticker.classList.remove("presenter-media-hidden");
+        presenterRoot.classList.add("ticker-active");
+    };
+    const hideTicker = () => {
+        ticker.classList.add("presenter-media-hidden");
+        ticker.removeAttribute("data-news-id");
+        presenterRoot.classList.remove("ticker-active");
+    };
     const handleInvocation = async (message) => {
         const target = String(message.target || "").toLowerCase();
         const args = message.arguments || [];
@@ -208,6 +223,8 @@
                 break;
             case "shownews": showNews(args[0], args[1], args[2], args[3]); break;
             case "hidenews": hideNews(); break;
+            case "showticker": showTicker(args[0], args[1], args[2]); break;
+            case "hideticker": hideTicker(); break;
         }
     };
     const handleMessages = async (payload) => {

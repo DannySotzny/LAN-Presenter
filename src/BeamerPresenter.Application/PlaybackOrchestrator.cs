@@ -12,8 +12,10 @@ public sealed class PlaybackOrchestrator(
 {
     private readonly SemaphoreSlim commandGate = new(1, 1);
     private CancellationTokenSource? newsTimeout;
+    private CancellationTokenSource? tickerTimeout;
     private NewsItem? currentNews;
     private NewsItem? suspendedNews;
+    private NewsItem? currentTicker;
 
     public async Task ActivateAsync(CancellationToken cancellationToken = default)
     {
@@ -194,9 +196,22 @@ public sealed class PlaybackOrchestrator(
         ExecuteSerializedAsync(async () =>
         {
             ArgumentNullException.ThrowIfNull(item);
+            if (item.Mode == NewsMode.Ticker)
+            {
+                if (currentTicker is null || item.Priority >= currentTicker.Priority)
+                {
+                    CancelTickerTimeout();
+                    currentTicker = item;
+                    await presenter.ShowTickerAsync(item, cancellationToken);
+                    ScheduleNewsTimeout(item);
+                }
+
+                return;
+            }
+
             if (item.Mode == NewsMode.Fullscreen)
             {
-                if (currentNews is not null && currentNews.Mode != NewsMode.Fullscreen)
+                if (currentNews?.Mode == NewsMode.SplitScreen)
                 {
                     suspendedNews = currentNews;
                 }
@@ -235,18 +250,20 @@ public sealed class PlaybackOrchestrator(
     public Task StopNewsAsync(long? newsId = null, CancellationToken cancellationToken = default) =>
         ExecuteSerializedAsync(async () =>
         {
-            if (currentNews is null)
+            if (newsId.HasValue && currentTicker?.Id == newsId.Value)
             {
+                await StopTickerCoreAsync(cancellationToken);
                 return;
             }
 
-            if (newsId.HasValue && currentNews.Id != newsId.Value)
+            if (newsId.HasValue && suspendedNews?.Id == newsId.Value)
             {
-                if (suspendedNews?.Id == newsId.Value)
-                {
-                    suspendedNews = null;
-                }
+                suspendedNews = null;
+                return;
+            }
 
+            if (currentNews is null || (newsId.HasValue && currentNews.Id != newsId.Value))
+            {
                 return;
             }
 
@@ -266,6 +283,21 @@ public sealed class PlaybackOrchestrator(
                 }
             }
         }, cancellationToken);
+
+    public Task StopTickerAsync(CancellationToken cancellationToken = default) =>
+        ExecuteSerializedAsync(() => StopTickerCoreAsync(cancellationToken), cancellationToken);
+
+    private async Task StopTickerCoreAsync(CancellationToken cancellationToken)
+    {
+        if (currentTicker is null)
+        {
+            return;
+        }
+
+        CancelTickerTimeout();
+        currentTicker = null;
+        await presenter.HideTickerAsync(cancellationToken);
+    }
 
     private Task LoadEntryAsync(QueueEntry entry, bool autoPlay, CancellationToken cancellationToken) => entry.SourceType switch
     {
@@ -297,7 +329,14 @@ public sealed class PlaybackOrchestrator(
         }
 
         var cancellation = new CancellationTokenSource();
-        newsTimeout = cancellation;
+        if (item.Mode == NewsMode.Ticker)
+        {
+            tickerTimeout = cancellation;
+        }
+        else
+        {
+            newsTimeout = cancellation;
+        }
         _ = StopNewsAfterDelayAsync(item.Id, item.Duration.Value, cancellation.Token);
     }
 
@@ -318,6 +357,13 @@ public sealed class PlaybackOrchestrator(
         newsTimeout?.Cancel();
         newsTimeout?.Dispose();
         newsTimeout = null;
+    }
+
+    private void CancelTickerTimeout()
+    {
+        tickerTimeout?.Cancel();
+        tickerTimeout?.Dispose();
+        tickerTimeout = null;
     }
 
     private async Task ExecuteSerializedAsync(Func<Task> command, CancellationToken cancellationToken)

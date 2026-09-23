@@ -53,6 +53,33 @@ public sealed class NewsSchedulingWorkerTests
         await worker.SynchronizeAsync();
     }
 
+    [Fact]
+    public async Task Synchronization_tracks_ticker_and_main_news_independently()
+    {
+        var newsService = new StubNewsService
+        {
+            Items =
+            [
+                new NewsItem { Id = 1, Title = "Ticker", Text = "Text", Mode = NewsMode.Ticker, Permanent = true, ValidFrom = Now.AddMinutes(-1), ValidUntil = Now.AddMinutes(1) },
+                new NewsItem { Id = 2, Title = "50:50", Text = "Text", Mode = NewsMode.SplitScreen, Permanent = true, ValidFrom = Now.AddMinutes(-1), ValidUntil = Now.AddMinutes(10) }
+            ]
+        };
+        var commands = new RecordingNewsCommands();
+        var clock = new MutableTimeProvider(Now);
+        var worker = new NewsSchedulingWorker(newsService, commands, clock, NullLogger<NewsSchedulingWorker>.Instance);
+
+        await worker.SynchronizeAsync();
+        Assert.Equal([1L, 2L], commands.ShownIds);
+
+        clock.Advance(TimeSpan.FromMinutes(2));
+        await worker.SynchronizeAsync();
+        Assert.Equal([1L], commands.StoppedIds);
+
+        clock.Advance(TimeSpan.FromMinutes(10));
+        await worker.SynchronizeAsync();
+        Assert.Equal([1L, 2L], commands.StoppedIds);
+    }
+
     private sealed class StubNewsService : INewsService
     {
         public IReadOnlyList<NewsItem> Items { get; set; } = [];
@@ -82,6 +109,8 @@ public sealed class NewsSchedulingWorkerTests
             StoppedIds.Add(newsId.GetValueOrDefault());
             return Task.CompletedTask;
         }
+
+        public Task StopTickerAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class MutableTimeProvider(DateTimeOffset now) : TimeProvider

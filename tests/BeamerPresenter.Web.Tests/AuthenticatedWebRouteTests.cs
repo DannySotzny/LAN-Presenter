@@ -540,6 +540,8 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
     [InlineData("/api/youtube/download")]
     [InlineData("/api/youtube/download/dQw4w9WgXcQ/intent")]
     [InlineData("/api/news/show")]
+    [InlineData("/api/news/stop")]
+    [InlineData("/api/news/stop-ticker")]
     [InlineData("/api/news/delete")]
     public async Task Management_actions_reject_unauthenticated_requests(string endpoint)
     {
@@ -691,6 +693,27 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         Assert.Equal("/news?news=created-shown", createResponse.Headers.Location?.OriginalString);
         var item = Assert.Single(await _application!.Services.GetRequiredService<INewsService>().GetAllAsync());
         Assert.Equal(item.Id, Assert.Single(_playbackCommands.ShownNews).Id);
+    }
+
+    [Fact]
+    public async Task Authenticated_news_stop_actions_target_separate_channels()
+    {
+        using var client = _application!.GetTestClient();
+        var cookie = await LoginAsync(client);
+
+        using var tickerRequest = new HttpRequestMessage(HttpMethod.Post, "/api/news/stop-ticker");
+        tickerRequest.Headers.Add("Cookie", cookie);
+        using var tickerResponse = await client.SendAsync(tickerRequest);
+        Assert.Equal("/news?news=ticker-stopped", tickerResponse.Headers.Location?.OriginalString);
+        Assert.Equal(1, _playbackCommands.StopTickerCalls);
+        Assert.Equal(0, _playbackCommands.StopNewsCalls);
+
+        using var mainRequest = new HttpRequestMessage(HttpMethod.Post, "/api/news/stop");
+        mainRequest.Headers.Add("Cookie", cookie);
+        using var mainResponse = await client.SendAsync(mainRequest);
+        Assert.Equal("/news?news=stopped", mainResponse.Headers.Location?.OriginalString);
+        Assert.Equal(1, _playbackCommands.StopTickerCalls);
+        Assert.Equal(1, _playbackCommands.StopNewsCalls);
     }
 
     [Fact]
@@ -948,6 +971,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         public TaskCompletionSource Advanced { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<NewsItem> ShownNews { get; } = [];
         public int StopNewsCalls { get; private set; }
+        public int StopTickerCalls { get; private set; }
 
         public Task<QueueEntry> PlayNextAsync(int mediaId, TimeSpan? start = null, TimeSpan? duration = null, CancellationToken cancellationToken = default)
         {
@@ -1001,6 +1025,12 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         public Task StopNewsAsync(long? newsId = null, CancellationToken cancellationToken = default)
         {
             StopNewsCalls++;
+            return Task.CompletedTask;
+        }
+
+        public Task StopTickerAsync(CancellationToken cancellationToken = default)
+        {
+            StopTickerCalls++;
             return Task.CompletedTask;
         }
     }

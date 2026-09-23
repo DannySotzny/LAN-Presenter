@@ -118,11 +118,42 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
         await page.WaitForFunctionAsync("document.querySelector('#presenter-video').currentTime === 7");
         Assert.Equal(0.35, await page.EvalOnSelectorAsync<double>("#presenter-video", "video => video.volume"), 2);
 
-        await AssertNewsModeAsync(page, gateway, NewsMode.Ticker, "presenter-news-ticker", splitActive: false);
+        await gateway.ShowTickerAsync(new NewsItem
+        {
+            Id = 1,
+            Title = "Ticker title",
+            Text = "Ticker text",
+            Mode = NewsMode.Ticker,
+            Permanent = true
+        });
+        await page.WaitForFunctionAsync("document.querySelector('#presenter-ticker').dataset.newsId === '1'");
+        Assert.False(await page.Locator("#presenter-ticker").EvaluateAsync<bool>("ticker => ticker.classList.contains('presenter-media-hidden')"));
+        Assert.False(await page.Locator("#presenter-video").EvaluateAsync<bool>("video => video.classList.contains('presenter-media-hidden')"));
         await AssertNewsModeAsync(page, gateway, NewsMode.SplitScreen, "presenter-news-splitscreen", splitActive: true);
+        Assert.Equal("Ticker title", await page.TextContentAsync("#presenter-ticker-title"));
+        Assert.True(await page.EvaluateAsync<bool>("""
+            () => {
+                const ticker = document.querySelector('#presenter-ticker');
+                const news = document.querySelector('#presenter-news');
+                return ticker.getBoundingClientRect().bottom === window.innerHeight &&
+                    Number(getComputedStyle(ticker).zIndex) > Number(getComputedStyle(news).zIndex) &&
+                    parseFloat(getComputedStyle(news).paddingBottom) > parseFloat(getComputedStyle(news).paddingTop);
+            }
+            """));
         await AssertNewsModeAsync(page, gateway, NewsMode.Fullscreen, "presenter-news-fullscreen", splitActive: false);
+        Assert.Equal("Ticker title", await page.TextContentAsync("#presenter-ticker-title"));
+        Assert.True(await page.EvaluateAsync<bool>("""
+            () => parseFloat(getComputedStyle(document.querySelector('#presenter-news')).paddingBottom) >
+                parseFloat(getComputedStyle(document.querySelector('#presenter-news')).paddingTop)
+            """));
         await gateway.HideNewsAsync();
         await page.WaitForFunctionAsync("document.querySelector('#presenter-news').classList.contains('presenter-media-hidden')");
+        Assert.False(await page.Locator("#presenter-ticker").EvaluateAsync<bool>("ticker => ticker.classList.contains('presenter-media-hidden')"));
+        await AssertNewsModeAsync(page, gateway, NewsMode.SplitScreen, "presenter-news-splitscreen", splitActive: true);
+        await gateway.HideTickerAsync();
+        await page.WaitForFunctionAsync("document.querySelector('#presenter-ticker').classList.contains('presenter-media-hidden')");
+        Assert.False(await page.Locator("#presenter-news").EvaluateAsync<bool>("news => news.classList.contains('presenter-media-hidden')"));
+        await gateway.HideNewsAsync();
 
         await page.EvaluateAsync("window.__presenterSockets.at(-1).close()");
         await page.WaitForFunctionAsync("window.__presenterSockets.length >= 2", null, new PageWaitForFunctionOptions { Timeout = 10_000 });
@@ -380,6 +411,9 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
             throw new NotSupportedException();
 
         public Task StopNewsAsync(long? newsId = null, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task StopTickerAsync(CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }
 

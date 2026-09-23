@@ -174,7 +174,7 @@ public sealed class PlaybackOrchestratorTests
     }
 
     [Fact]
-    public async Task Fullscreen_news_pauses_video_and_restores_suspended_ticker()
+    public async Task Fullscreen_news_restores_split_screen_without_hiding_ticker()
     {
         var calls = new List<string>();
         var settings = new StubSettingsService();
@@ -208,19 +208,30 @@ public sealed class PlaybackOrchestratorTests
             Permanent = true,
             Priority = 10
         };
+        var split = new NewsItem
+        {
+            Id = 3,
+            Title = "50:50",
+            Text = "Aufstellung",
+            Mode = NewsMode.SplitScreen,
+            Permanent = true,
+            Priority = 1
+        };
 
         await orchestrator.ShowNewsAsync(ticker);
+        await orchestrator.ShowNewsAsync(split);
         await orchestrator.ShowNewsAsync(fullscreen);
         await orchestrator.StopNewsAsync(fullscreen.Id);
 
         Assert.Equal(
             [
-                "presenter:news:1:Ticker",
+                "presenter:ticker:1",
+                "presenter:news:3:SplitScreen",
                 "presenter:pause",
                 "presenter:news:2:Fullscreen",
                 "presenter:hide-news",
                 "presenter:play",
-                "presenter:news:1:Ticker"
+                "presenter:news:3:SplitScreen"
             ],
             calls);
     }
@@ -252,13 +263,13 @@ public sealed class PlaybackOrchestratorTests
             Mode = NewsMode.Ticker,
             Duration = TimeSpan.FromMilliseconds(25)
         });
-        await presenter.NewsHidden.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await presenter.TickerHidden.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
-        Assert.Equal(["presenter:news:3:Ticker", "presenter:hide-news"], calls);
+        Assert.Equal(["presenter:ticker:3", "presenter:hide-ticker"], calls);
     }
 
     [Fact]
-    public async Task Expired_suspended_news_is_not_restored_after_fullscreen()
+    public async Task Stopping_ticker_while_fullscreen_leaves_fullscreen_visible()
     {
         var calls = new List<string>();
         var settings = new StubSettingsService();
@@ -282,8 +293,81 @@ public sealed class PlaybackOrchestratorTests
         await orchestrator.StopNewsAsync(ticker.Id);
         await orchestrator.StopNewsAsync(fullscreen.Id);
 
-        Assert.Equal(1, calls.Count(call => call == "presenter:news:10:Ticker"));
+        Assert.Equal(1, calls.Count(call => call == "presenter:ticker:10"));
+        Assert.Equal(1, calls.Count(call => call == "presenter:hide-ticker"));
         Assert.Equal("presenter:play", calls[^1]);
+    }
+
+    [Fact]
+    public async Task Ticker_timeout_does_not_end_split_screen_news()
+    {
+        var calls = new List<string>();
+        var settings = new StubSettingsService();
+        var presenter = new RecordingPresenter(calls);
+        var orchestrator = new PlaybackOrchestrator(
+            new PlaybackController(),
+            new RecordingBrowser(calls),
+            presenter,
+            settings,
+            new RecordingPowerManagement(calls),
+            new PlaybackQueueService(
+                new EmptyPlaybackStore(),
+                new EmptyMediaLibrary(),
+                settings,
+                new MediaSegmentPlanner(new ZeroRandomSource()),
+                TimeProvider.System));
+
+        await orchestrator.ShowNewsAsync(new NewsItem
+        {
+            Id = 20, Title = "Ticker", Text = "Text", Mode = NewsMode.Ticker,
+            Duration = TimeSpan.FromMilliseconds(25)
+        });
+        await orchestrator.ShowNewsAsync(new NewsItem
+        {
+            Id = 21, Title = "50:50", Text = "Text", Mode = NewsMode.SplitScreen,
+            Permanent = true
+        });
+        await presenter.TickerHidden.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(["presenter:ticker:20", "presenter:news:21:SplitScreen", "presenter:hide-ticker"], calls);
+        await orchestrator.StopNewsAsync();
+        Assert.Equal("presenter:hide-news", calls[^1]);
+    }
+
+    [Fact]
+    public async Task Main_news_timeout_does_not_end_ticker()
+    {
+        var calls = new List<string>();
+        var settings = new StubSettingsService();
+        var presenter = new RecordingPresenter(calls);
+        var orchestrator = new PlaybackOrchestrator(
+            new PlaybackController(),
+            new RecordingBrowser(calls),
+            presenter,
+            settings,
+            new RecordingPowerManagement(calls),
+            new PlaybackQueueService(
+                new EmptyPlaybackStore(),
+                new EmptyMediaLibrary(),
+                settings,
+                new MediaSegmentPlanner(new ZeroRandomSource()),
+                TimeProvider.System));
+
+        await orchestrator.ShowNewsAsync(new NewsItem
+        {
+            Id = 30, Title = "Ticker", Text = "Text", Mode = NewsMode.Ticker,
+            Permanent = true
+        });
+        await orchestrator.ShowNewsAsync(new NewsItem
+        {
+            Id = 31, Title = "50:50", Text = "Text", Mode = NewsMode.SplitScreen,
+            Duration = TimeSpan.FromMilliseconds(25)
+        });
+        await presenter.NewsHidden.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(["presenter:ticker:30", "presenter:news:31:SplitScreen", "presenter:hide-news"], calls);
+        await orchestrator.StopTickerAsync();
+        Assert.Equal("presenter:hide-ticker", calls[^1]);
     }
 
     private sealed class StubSettingsService : IPresenterSettingsService
@@ -309,6 +393,7 @@ public sealed class PlaybackOrchestratorTests
     private sealed class RecordingPresenter(List<string> calls) : IPresenterGateway
     {
         public TaskCompletionSource NewsHidden { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource TickerHidden { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<bool> AutoPlayFlags { get; } = [];
         public Task LoadLocalVideoAsync(int mediaId, TimeSpan? start, TimeSpan? end, bool autoPlay, CancellationToken cancellationToken = default)
         {
@@ -336,6 +421,17 @@ public sealed class PlaybackOrchestratorTests
         {
             calls.Add("presenter:hide-news");
             NewsHidden.TrySetResult();
+            return Task.CompletedTask;
+        }
+        public Task ShowTickerAsync(NewsItem item, CancellationToken cancellationToken = default)
+        {
+            calls.Add($"presenter:ticker:{item.Id}");
+            return Task.CompletedTask;
+        }
+        public Task HideTickerAsync(CancellationToken cancellationToken = default)
+        {
+            calls.Add("presenter:hide-ticker");
+            TickerHidden.TrySetResult();
             return Task.CompletedTask;
         }
     }

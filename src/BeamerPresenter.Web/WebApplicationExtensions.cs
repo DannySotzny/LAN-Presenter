@@ -61,6 +61,7 @@ public static class WebApplicationExtensions
         app.MapPost("/api/news/create", (Delegate)CreateNewsAsync).RequireAuthorization();
         app.MapPost("/api/news/show", (Delegate)ShowNewsAsync).RequireAuthorization();
         app.MapPost("/api/news/stop", (Delegate)StopNewsAsync).RequireAuthorization();
+        app.MapPost("/api/news/stop-ticker", (Delegate)StopTickerAsync).RequireAuthorization();
         app.MapPost("/api/news/delete", (Delegate)DeleteNewsAsync).RequireAuthorization();
         app.MapPost("/api/presenter/activate", (Delegate)ActivatePresenterAsync).RequireAuthorization();
         app.MapPost("/api/presenter/pause", (Delegate)PausePresenterAsync).RequireAuthorization();
@@ -453,6 +454,14 @@ public static class WebApplicationExtensions
     {
         await commands.StopNewsAsync(cancellationToken: cancellationToken);
         return Results.Redirect($"{NewsPath}?news=stopped");
+    }
+
+    private static async Task<IResult> StopTickerAsync(
+        INewsCommandService commands,
+        CancellationToken cancellationToken)
+    {
+        await commands.StopTickerAsync(cancellationToken);
+        return Results.Redirect($"{NewsPath}?news=ticker-stopped");
     }
 
     private static async Task<IResult> DeleteNewsAsync(

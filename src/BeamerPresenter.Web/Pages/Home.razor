@@ -271,7 +271,11 @@
         }
         else if (NewsResult == "stopped")
         {
-            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die aktuelle News wurde beendet.</MudAlert>
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Die 50:50- oder Fullscreen-News wurde beendet.</MudAlert>
+        }
+        else if (NewsResult == "ticker-stopped")
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Der Ticker wurde beendet.</MudAlert>
         }
         else if (NewsResult == "deleted")
         {
@@ -286,11 +290,16 @@
         <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
             <div>
                 <MudText Typo="Typo.h5">News &amp; Einblendungen</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Secondary">Ticker, 50:50-Split-Screen oder priorisierte Fullscreen-Meldung</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Ticker unabhängig von Video, 50:50-Split-Screen und Fullscreen-Meldung</MudText>
             </div>
-            <form method="post" action="/api/news/stop">
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.StopCircle">Aktuelle News beenden</MudButton>
-            </form>
+            <MudStack Row="true" Spacing="2">
+                <form method="post" action="/api/news/stop-ticker">
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.StopCircle">Ticker beenden</MudButton>
+                </form>
+                <form method="post" action="/api/news/stop">
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.StopCircle">50:50-/Fullscreen-News beenden</MudButton>
+                </form>
+            </MudStack>
         </MudStack>
         <MudGrid Spacing="4">
             <MudItem xs="12" lg="5">

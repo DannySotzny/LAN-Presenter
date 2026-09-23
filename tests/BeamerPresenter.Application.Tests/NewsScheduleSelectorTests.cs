@@ -17,7 +17,8 @@ public sealed class NewsScheduleSelectorTests
             ],
             Now);
 
-        Assert.Equal(2, result?.Id);
+        Assert.Equal(1, result.Ticker?.Id);
+        Assert.Equal(2, result.Main?.Id);
     }
 
     [Fact]
@@ -32,7 +33,23 @@ public sealed class NewsScheduleSelectorTests
             ],
             Now);
 
-        Assert.Equal(4, result?.Id);
+        Assert.Null(result.Ticker);
+        Assert.Equal(4, result.Main?.Id);
+    }
+
+    [Fact]
+    public void Selector_chooses_highest_priority_ticker_independently_of_main_news()
+    {
+        var result = NewsScheduleSelector.Select(
+            [
+                News(1, NewsMode.Ticker, 1, Now.AddMinutes(-1), Now.AddMinutes(10)),
+                News(2, NewsMode.Ticker, 5, Now.AddMinutes(-1), Now.AddMinutes(10)),
+                News(3, NewsMode.SplitScreen, 3, Now.AddMinutes(-1), Now.AddMinutes(10))
+            ],
+            Now);
+
+        Assert.Equal(2, result.Ticker?.Id);
+        Assert.Equal(3, result.Main?.Id);
     }
 
     private static NewsItem News(

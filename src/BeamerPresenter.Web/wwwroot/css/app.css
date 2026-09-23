@@ -922,6 +922,7 @@ body .mud-button-text-secondary {
 }
 
 .presenter-screen {
+    --presenter-ticker-height: clamp(5rem, 11vh, 9rem);
     position: fixed;
     z-index: 10000;
     inset: 0;
@@ -1023,26 +1024,42 @@ body .mud-button-text-secondary {
     font: 500 clamp(1.1rem, 1.8vw, 2rem)/1.45 system-ui, sans-serif;
 }
 
-.presenter-news-ticker {
+.ticker-active .presenter-news-fullscreen {
+    padding-bottom: calc(8vw + var(--presenter-ticker-height));
+}
+
+.ticker-active .presenter-news-splitscreen {
+    padding-bottom: calc(clamp(2rem, 5vw, 6rem) + var(--presenter-ticker-height));
+}
+
+.presenter-ticker {
+    position: absolute;
+    z-index: 6;
+    box-sizing: border-box;
+    overflow: hidden;
     right: 0;
     bottom: 0;
     left: 0;
     display: flex;
-    height: clamp(5rem, 11vh, 9rem);
+    height: var(--presenter-ticker-height);
     align-items: center;
     border-top: 2px solid var(--lan-cyan);
     background: rgba(3, 5, 14, .95);
     white-space: nowrap;
 }
 
-.presenter-news-ticker .presenter-news-title {
+.presenter-ticker p {
+    margin: 0;
+}
+
+.presenter-ticker-title {
     padding: 0 2rem;
     color: var(--lan-cyan);
     font: 800 clamp(1rem, 1.8vw, 1.8rem)/1 system-ui, sans-serif;
     text-transform: uppercase;
 }
 
-.presenter-news-ticker .presenter-news-text {
+.presenter-ticker-text {
     min-width: max-content;
     padding-left: 100%;
     font: 700 clamp(1.1rem, 2vw, 2rem)/1 system-ui, sans-serif;
