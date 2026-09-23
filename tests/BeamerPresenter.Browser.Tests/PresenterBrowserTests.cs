@@ -487,7 +487,7 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
             {
                 var sourcePath = Path.GetFullPath(Path.Combine(RepositoryRoot, relativePath));
                 var totalLines = await File.ReadAllLinesAsync(sourcePath);
-                report.Add($"SF:{relativePath}");
+                report.Add($"SF:{sourcePath.Replace('\\', '/')}");
                 var coveredCount = 0;
                 for (var line = 1; line <= totalLines.Length; line++)
                 {
