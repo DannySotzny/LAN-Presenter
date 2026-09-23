@@ -199,6 +199,8 @@ public sealed class PlaybackOrchestrator(
         ExecuteSerializedAsync(async () =>
         {
             ArgumentNullException.ThrowIfNull(item);
+            await EnsureDisplayActiveAsync(cancellationToken);
+
             if (item.Mode == NewsMode.Ticker)
             {
                 if (currentTicker is null || item.Priority >= currentTicker.Priority)
@@ -249,6 +251,28 @@ public sealed class PlaybackOrchestrator(
                 ScheduleNewsTimeout(item);
             }
         }, cancellationToken);
+
+    private async Task EnsureDisplayActiveAsync(CancellationToken cancellationToken)
+    {
+        if (playback.State != PresenterState.Stopped)
+        {
+            return;
+        }
+
+        var settings = await settingsService.GetAsync(cancellationToken);
+        try
+        {
+            await browser.StartAsync(cancellationToken);
+            await powerManagement.ApplyAsync(settings.PreventDisplaySleep, settings.PreventSystemSleep, cancellationToken);
+            playback.Activate();
+        }
+        catch
+        {
+            await powerManagement.ReleaseAsync(CancellationToken.None);
+            await browser.StopAsync(CancellationToken.None);
+            throw;
+        }
+    }
 
     public Task StopNewsAsync(long? newsId = null, CancellationToken cancellationToken = default) =>
         ExecuteSerializedAsync(async () =>

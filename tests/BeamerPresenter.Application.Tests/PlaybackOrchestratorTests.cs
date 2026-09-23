@@ -174,6 +174,36 @@ public sealed class PlaybackOrchestratorTests
     }
 
     [Fact]
+    public async Task Showing_ticker_from_stopped_starts_browser_before_sending_news()
+    {
+        var calls = new List<string>();
+        var settings = new StubSettingsService();
+        var playback = new PlaybackController();
+        var orchestrator = new PlaybackOrchestrator(
+            playback,
+            new RecordingBrowser(calls),
+            new RecordingPresenter(calls),
+            settings,
+            new RecordingPowerManagement(calls),
+            new PlaybackQueueService(
+                new EmptyPlaybackStore(),
+                new EmptyMediaLibrary(),
+                settings,
+                new MediaSegmentPlanner(new ZeroRandomSource()),
+                TimeProvider.System));
+
+        await orchestrator.ShowNewsAsync(new NewsItem
+        {
+            Id = 40, Title = "Ticker", Text = "Ohne Video", Mode = NewsMode.Ticker, Permanent = true
+        });
+
+        Assert.Equal(PresenterState.Active, playback.State);
+        Assert.Equal(
+            ["browser:start", "power:apply:display=True:system=True", "presenter:ticker:40"],
+            calls);
+    }
+
+    [Fact]
     public async Task Fullscreen_news_restores_split_screen_without_hiding_ticker()
     {
         var calls = new List<string>();
