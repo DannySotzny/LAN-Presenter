@@ -4,7 +4,7 @@
     <DataCollectors>
       <DataCollector friendlyName="XPlat Code Coverage">
         <Configuration>
-          <Format>cobertura</Format>
+          <Format>cobertura,opencover</Format>
           <Include>[BeamerPresenter.*]*</Include>
           <Exclude>[*.Tests]*</Exclude>
           <ExcludeByFile>**/Migrations/*.cs,**/*.g.cs,**/*.Designer.cs,**/PresenterForm.cs,**/Program.cs,**/*.razor,**/PresenterDbContextDesignFactory.cs</ExcludeByFile>

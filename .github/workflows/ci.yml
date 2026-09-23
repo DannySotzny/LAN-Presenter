@@ -8,20 +8,47 @@ on:
 jobs:
   build-and-test:
     runs-on: windows-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
       - run: dotnet tool restore
       - run: dotnet restore BeamerPresenterForLanParties.slnx --locked-mode
       - run: dotnet format BeamerPresenterForLanParties.slnx --verify-no-changes --no-restore
+      - name: Set up Java for SonarQube
+        if: github.event_name == 'push' && env.SONAR_TOKEN != ''
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Install SonarScanner for .NET
+        if: github.event_name == 'push' && env.SONAR_TOKEN != ''
+        run: dotnet tool install dotnet-sonarscanner --tool-path .sonar/scanner
+      - name: Begin SonarQube analysis
+        if: github.event_name == 'push' && env.SONAR_TOKEN != ''
+        shell: pwsh
+        run: >-
+          .sonar/scanner/dotnet-sonarscanner begin
+          /k:"sotzny-LAN-Presenter"
+          /d:sonar.host.url="$env:SONAR_HOST_URL"
+          /d:sonar.token="$env:SONAR_TOKEN"
+          /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
       - run: dotnet build BeamerPresenterForLanParties.slnx -c Release --no-restore
       - name: Install Chromium for presenter browser tests
         shell: pwsh
         run: pwsh tests/BeamerPresenter.Browser.Tests/bin/Release/net10.0/playwright.ps1 install chromium
       - name: Test with coverage
         run: dotnet test BeamerPresenterForLanParties.slnx -c Release --no-build --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory artifacts/TestResults
+      - name: Complete SonarQube analysis
+        if: github.event_name == 'push' && env.SONAR_TOKEN != ''
+        shell: pwsh
+        run: .sonar/scanner/dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
       - name: Enforce 80 percent line coverage
         shell: pwsh
         run: ./scripts/Assert-Coverage.ps1 -ResultsDirectory artifacts/TestResults -Threshold 80

@@ -1,119 +1,120 @@
 # Beamer Presenter for LAN-Parties
 
-Lokale Windows-Anwendung zur Steuerung von Videos auf einem Beamer bei LAN-Parties. Die Anwendung kombiniert eine WinForms-Tray-App mit einer im selben Prozess gestarteten ASP.NET-Core-Weboberfläche.
+[![CI](https://github.com/sotzny/LAN-Presenter/actions/workflows/ci.yml/badge.svg)](https://github.com/sotzny/LAN-Presenter/actions/workflows/ci.yml)
+[![Windows](https://img.shields.io/badge/platform-Windows%20x64-0078D4)](https://github.com/sotzny/LAN-Presenter)
 
-## Aktueller Stand
+**Videos für den Beamer automatisch abspielen und die Wiedergabe bequem vom Browser aus steuern.**
 
-Die Fundament-Stufe ist implementiert:
+Beamer Presenter ist eine Windows-Desktopanwendung für LAN-Parties und andere Veranstaltungen. Sie verwaltet eine lokale Videobibliothek, stellt daraus eine abwechslungsreiche Wiedergabe-Queue zusammen und zeigt die Clips im Chrome-Kioskmodus auf dem ausgewählten Beamer. Ein passwortgeschütztes Webinterface bietet die Steuerung und Verwaltung – am Rechner selbst oder auf einem Gerät im freigegebenen LAN.
 
-- WinForms-Status-/Einstellungsfenster mit vollständigem Tray-Menü für Aktivieren, Pausieren, Ausblenden und Stoppen sowie Liveanzeige von Presenter-, Chrome- und lokalem/LAN-Webstatus
-- Statusanzeige mit tatsächlicher Version, Buildzeit, Git-Commit und .NET-Runtime aus dem Buildartefakt
-- Single-Instance pro Windows-Benutzer: ein zweiter Start aktiviert über eine Named Pipe das Fenster der laufenden Instanz
-- optionaler Autostart ohne Administratorrechte über den benutzerbezogenen Windows-Run-Schlüssel
-- Windows-Monitorerkennung mit Friendly Name, DeviceName, Auflösung und Position; ein verschwundener Zielmonitor blockiert die Aktivierung bis zur bewussten Fallback-Auswahl
-- strukturiertes JSONL-Logging mit täglicher Rotation und 14 Tagen Aufbewahrung unter `%LOCALAPPDATA%\HouseOfLAN\Presenter\Logs`
-- Kestrel-Weboberfläche auf Port 8765, inklusive Health-Endpunkt und MudBlazor-Management-UI
-- menügeführte Verwaltungsoberfläche mit eigenen Bereichen für Dashboard (`/`), Wiedergabe (`/playback`), Mediathek (`/media`) und News (`/news`) statt einer langen Scroll-Seite
-- Passwortschutz per Cookie-Login; das Passwort wird ausschließlich in der Desktop-App gesetzt
-- standardmäßig ausschließlich an `127.0.0.1` gebundene Web UI; LAN-Bindung wird bewusst in der Desktop-App aktiviert und bleibt passwortgeschützt
-- PBKDF2-SHA512-Hash mit zufälligem Salt, kein Klartextpasswort
-- Upload unterstützter Videoformate über die geschützte Web UI
-- responsive MudBlazor-Medienbibliothek mit Suche, Statusfiltern, technischen Metadaten, letzter Wiedergabe, verwendeten Segmenten, Kennzahlen und klar erkennbaren Analyse-/Kompatibilitätsfehlern
-- persistentes Aktivieren/Deaktivieren einzelner Videos und erneute FFprobe-Analyse direkt aus der geschützten Medienbibliothek; deaktivierte oder zur Laufzeit fehlgeschlagene Medien werden nicht erneut eingeplant
-- anonyme, ID-basierte lokale Medienauslieferung mit HTTP-Range-Support und erneuter Pfadvalidierung gegen aktive Medienordner
-- abgebrochene Browser-Range-Anfragen beim Suchen oder Video-Wechsel werden kontrolliert als Client-Abbruch behandelt und beeinträchtigen den Presenter nicht
-- zusätzliche Loopback-Sperre für `/presenter`, `/media` und `/hubs/presenter`, sodass LAN-Teilnehmer weder Kiosk noch Mediendateien direkt abrufen können
-- dauerhaft geladene Fullscreen-Presenter-Seite mit dediziertem SignalR-Hub, Reconnect, lokalen Video-/Segmentkommandos und Status-/Heartbeat-Rückmeldungen
-- mehrere persistente Videoordner mit optional rekursiver Erfassung; der bisherige Einzelpfad wird automatisch migriert
-- Full Scan beim Start und Reconciliation alle 30 Minuten für neue, geänderte und fehlende lokale Videos
-- dynamische FileSystemWatcher für alle aktiven Medienordner; Ereignisse werden debounct und anschließend über denselben vollständigen Abgleich verarbeitet
-- automatische FFprobe-Erkennung mit echtem `-version`-Prozesscheck, manueller Pfadwahl und optionaler WinGet-Installation
-- FFprobe-Metadatenanalyse für Dauer, Container, Video-/Audio-Codec, Auflösung, Framerate und Audiokanäle mit getrenntem Analyse- und Browser-Wiedergabestatus
-- automatische, deduplizierte Analyse-Queue mit höchstens zwei parallelen FFprobe-Prozessen und Stabilitätsprüfung vor der Analyse großer Kopiervorgänge
-- lokale Auslieferung der MudBlazor-Assets für Debug, portable Ausgabe und Inno-Setup-Installation
-- SQLite-Persistenz unter `%LOCALAPPDATA%\HouseOfLAN\Presenter\Data\presenter.db`
-- versionierte EF-Core-Migrationen mit verlustfreier Übernahme vorhandener `EnsureCreated`-Datenbanken
-- konsistente tägliche SQLite-Sicherung über die SQLite-Backup-API mit atomarer Ablage und Aufbewahrung der letzten sieben Tage
-- getrennte lokale Verzeichnisse für Daten, Logs, Backups, Chrome-Profil und Tools
-- persistente Presenter-Optionen für Chrome-Pfad, Zielmonitor, Always-On-Top und Display-/System-Standby-Schutz
-- kontrollierter Chrome-Kiosk-Kindprozess mit separatem Profil, Autoplay-Policy, Zielmonitorpositionierung und Show/Hide/Stop-Steuerung
-- zentral serialisierte Presenter-Zustände, die Chrome, SignalR-Wiedergabe und Windows-Power-Requests gemeinsam aktivieren, pausieren, ausblenden und stoppen
-- deterministische Segmentplanung mit vollständiger Wiedergabe kurzer Videos, zufälligen 7- bis 10-Minuten-Ausschnitten langer Videos, Cooldowns und Ausschluss bereits tatsächlich gespielter Bereiche
-- persistente Queue- und Wiedergabehistorie mit konfigurierbaren Schwellenwerten, Segmentlängen, Cooldowns und Zielgröße
-- automatische Queue-Auffüllung im Hintergrund sowie priorisierte Aktionen für „Als Nächstes“ und „Sofort abspielen“, ohne manuelle Einträge zu überschreiben
-- geschützte MudBlazor-Queue-Verwaltung mit direktem „Als Nächstes“/„Sofort“, manueller Segmentwahl, Verschieben/Entfernen wartender Einträge und gezielter Neugenerierung der automatischen Einträge
-- sichtbare Wiedergabehistorie für lokale und YouTube-Segmente mit Status, tatsächlichem Zeitraum und bewusstem Zurücksetzen
-- Presenter-Ende und Wiedergabefehler schalten automatisch zum nächsten Eintrag weiter
-- sichere Normalisierung von YouTube-Watch-, Kurz- und Shorts-Links auf stabile `youtube:<video-id>`-Quellschlüssel
-- geschützte Normalisierung von YouTube-Links; „Metadaten laden“ startet für jeden gültigen Link den lokalen Download und zeigt nach der Analyse Dauer und lokale Vorschau
-- automatischer Download per `yt-dlp` (WinGet-ID `yt-dlp.yt-dlp`), maximal 1080p/5 GB als H.264/AAC-MP4; Status und vorgemerkte „Sofort“-/„Als Nächstes“-Aktionen bleiben für die laufende App-Sitzung erhalten
-- geprüfte Downloads werden in den ersten aktivierten Medienordner übernommen, von Scanner und FFprobe freigegeben und sieben Tage lang in der Mediathek als „Kürzlich geladen“ markiert
-- persistente YouTube-Queue- und Verlaufseinträge mit begrenzter Wiedergabezeit und fortlaufenden, nicht ständig am Anfang beginnenden Segmenten
-- YouTube-Wiedergabe über die offizielle IFrame Player API mit Dauer-/Positionsmeldungen, Fünf-Sekunden-Timeout und automatischem Fallback zum nächsten Queue-Eintrag
-- persistente, validierte News-Einträge für Ticker, 50:50-Split-Screen und Fullscreen mit Dauer/Permanent, Gültigkeitsfenster und Priorität
-- Presenter-News mit unabhängigem Ticker am unteren Rand, parallel zu Video, 50:50-Split oder Fullscreen; Fullscreen pausiert das Video und stellt danach Wiedergabe und verdrängte 50:50-News wieder her
-- geschützte MudBlazor-Newsverwaltung für Erstellen, Planen, sofortiges Anzeigen, Beenden und Löschen: „Speichern & jetzt anzeigen“ blendet eine neue News unmittelbar ein, „Nur speichern“ legt sie ausschließlich für eine spätere manuelle oder geplante Anzeige ab; Gültigkeitsfenster werden alle fünf Sekunden ausgewertet
-- Presenter-Watchdog für Chrome-, SignalR- und Heartbeat-Ausfälle im aktiven und pausierten Zustand, echte Topmost-Prüfung sowie einmaliges Reload und anschließendes Überspringen dauerhaft festhängender aktiver Wiedergaben
-- live aktualisiertes Management-Dashboard mit Presenter-/Browserstatus, aktuellem Titel und Position, FFprobe-/Scannerzustand sowie direkten Pause-, Resume-, Hide- und Stop-Befehlen
-- anonymer datensparsamer `/health`-Endpunkt und authentifizierte Detailzustände unter `/health/details` beziehungsweise `/api/status`
-- echter Chromium-E2E-Test für die Presenter-Seite mit Kestrel, SignalR, lokaler Wiedergabesteuerung, allen News-Modi, Reconnect sowie End-/Fehlerfortschritt
-- GitHub Actions für Build/Test und Release-Artefakte auf Git-Tags
+## Warum Beamer Presenter?
 
-Der automatisierbare Implementierungsumfang einschließlich Qualitäts- und Release-Härtung ist mit `v0.10.0` umgesetzt. Vor dem stabilen `v1.0.0`-Tag bleibt eine umgebungsabhängige Vor-Ort-Abnahme offen: Das Topmost-Verhalten muss gemäß AC-TOP-004 am echten Beamer zusammen mit der bereits vorhandenen konkurrierenden Präsentationssoftware geprüft werden. Bis diese Abnahme bewusst abgeschlossen ist, bleiben `v0.x`-Tags reine Git-Versionen ohne GitHub-Release.
+Bei einer Veranstaltung soll der Beamer Inhalte zeigen, ohne dass jemand fortlaufend Videos auswählen und weiterschalten muss. Beamer Presenter übernimmt diese Routine: Es findet Videos in den konfigurierten Ordnern, prüft ihre Abspielbarkeit und plant Clips automatisch ein. Lange Videos können in wechselnden Ausschnitten laufen; Verlauf und Segmentplanung helfen dabei, nicht immer dieselben Stellen zu zeigen.
 
-## Lokaler Start
+Die Wiedergabe lässt sich jederzeit pausieren, ausblenden, fortsetzen oder beenden. Für kurzfristige Ansagen können News als Lauftext, geteilter Bildschirm oder Vollbild eingeblendet werden.
+
+## Funktionen
+
+- **Automatische Video-Queue:** lokale Videos werden erkannt, analysiert und nach konfigurierbaren Regeln für die Wiedergabe eingeplant.
+- **Kontrolle über den Browser:** Queue, Verlauf, Bibliothek, News und Presenter-Zustand sind in getrennten Verwaltungsbereichen erreichbar.
+- **Gezielte Wiedergabe:** Clips manuell sofort starten, als Nächstes einreihen, verschieben oder aus der Queue entfernen.
+- **YouTube-Import:** gültige YouTube-Links werden lokal geladen und nach der Medienanalyse in die Queue übernommen. Ganze Videos oder ausgewählte Segmente sind möglich.
+- **News-Einblendungen:** Meldungen als Ticker, 50:50-Split-Screen oder Vollbild erstellen, planen, priorisieren und anzeigen.
+- **Beamer-Steuerung:** Chrome startet im Kioskmodus auf dem gewählten Monitor. Aktivieren, Pause, Ausblenden und Stop lassen sich zentral steuern.
+- **Übersicht und Wiederherstellung:** Dashboard mit Live-Status, Medienanalyse und Scannerzustand; automatische Erholung bei Browser- oder Wiedergabeproblemen.
+- **Lokale Datenhaltung:** Einstellungen, Bibliothek, Queue, Verlauf, Logs und Backups liegen im Benutzerprofil unter `%LOCALAPPDATA%\HouseOfLAN\Presenter`.
+
+Unterstützte lokale Videoformate: `.mp4`, `.m4v`, `.mkv`, `.webm`, `.avi` und `.mov`.
+
+## Voraussetzungen
+
+- Windows x64
+- Google Chrome
+- Für automatische Medienanalyse: FFprobe (FFmpeg). Die Anwendung kann eine vorhandene Installation finden; alternativ lässt sich der Pfad angeben oder FFmpeg über WinGet installieren.
+- Für den YouTube-Import wird `yt-dlp` benötigt. Die Anwendung verwaltet das benötigte Werkzeug und speichert geladene Videos im ersten aktiven Medienordner.
+
+## Installation und erster Start
+
+Die stabilen Releases veröffentlichen einen Installer und eine portable Ausgabe. Öffne [Releases](https://github.com/sotzny/LAN-Presenter/releases), lade eine der Dateien herunter und starte die Anwendung:
+
+- `HouseOfLAN-Presenter-<Version>-Setup.exe` – Installation ohne Administratorrechte
+- `HouseOfLAN-Presenter-<Version>-win-x64-portable.zip` – portable Ausgabe zum Entpacken und Starten
+
+Der Release-Workflow veröffentlicht stabile Versionen ab `v1.0.0`. Entwicklungs-Tags der Reihe `v0.x` erzeugen keinen GitHub-Release.
+
+Beim ersten Start:
+
+1. Einen oder mehrere Medienordner festlegen.
+2. Ein Web-Passwort setzen.
+3. Den Zielmonitor auswählen und bei Bedarf Chrome- oder FFprobe-Pfade konfigurieren.
+4. Die Weboberfläche auf dem lokalen Rechner unter [http://localhost:8765](http://localhost:8765) öffnen und anmelden.
+
+Aktiviere „Web UI im LAN freigeben“ in der Desktop-Anwendung, wenn du von einem anderen Gerät im Netzwerk steuern möchtest. Die Änderung wird nach einem Neustart wirksam; gegebenenfalls muss der Web-Port in der Windows-Firewall freigegeben werden.
+
+## Sicherheit und Netzwerk
+
+Die Weboberfläche bindet standardmäßig nur an `127.0.0.1`. Die LAN-Freigabe muss bewusst in der Desktop-Anwendung aktiviert werden. Verwaltungsseiten und Steuerbefehle erfordern ein Passwort und ein Anmelde-Cookie. Das Passwort wird mit PBKDF2-SHA512 und individuellem Salt gespeichert.
+
+Die Kioskseite des Beamers, der Presenter-Hub und die Medienauslieferung bleiben auf lokale Verbindungen beschränkt. Sie sind nicht für LAN-Teilnehmer freigegeben. Logs enthalten keine Passwörter, Cookies oder Request-Bodies.
+
+## Entwicklung
+
+Benötigt werden das .NET 10 SDK und unter Windows eine passende Entwicklungsumgebung für WinForms.
 
 ```powershell
+git clone https://github.com/sotzny/LAN-Presenter.git
+cd LAN-Presenter
+dotnet tool restore
+dotnet restore BeamerPresenterForLanParties.slnx --locked-mode
 dotnet build BeamerPresenterForLanParties.slnx -c Release
 dotnet run --project src/BeamerPresenter.App
 ```
 
-Beim ersten Start in der Desktop-App einen Videoordner und ein Web-Passwort festlegen. Dann ist die Web UI unter `http://localhost:8765` erreichbar. Für LAN-Zugriff zusätzlich „Web UI im LAN freigeben“ aktivieren, die Anwendung neu starten und den gewählten Port in der Windows-Firewall erlauben; dabei ein starkes Passwort verwenden. Die Kiosk- und Medienrouten bleiben unabhängig davon auf lokale Zugriffe beschränkt.
+Die Weboberfläche ist anschließend unter `http://localhost:8765` erreichbar. Einstellungen und Daten liegen im lokalen Benutzerprofil, nicht im Repository.
 
-Der authentifizierte Ablauf ist durch einen Integrationstest mit temporärer SQLite-Datenbank abgesichert. Er prüft den gültigen Login, das Auth-Cookie und das anschließende Rendering der Managementseite:
+## Tests und Qualitätssicherung
 
-```powershell
-dotnet test tests/BeamerPresenter.Web.Tests -c Release
-```
-
-Der Presenter-Browserablauf läuft mit Playwright gegen echtes Kestrel und Chromium. Nach Paketupdates oder auf einem neuen Entwicklungsrechner muss der zur festgeschriebenen Playwright-Version passende Browser einmal installiert werden:
+Die CI baut die Solution, prüft das Format, führt die Tests inklusive Browser-Tests mit Chromium aus und verlangt mindestens 80 Prozent Line Coverage.
 
 ```powershell
-dotnet build tests/BeamerPresenter.Browser.Tests -c Release
+# Browser-Tests benötigen Chromium; zuerst die Solution bauen und dann den Browser installieren.
+dotnet build BeamerPresenterForLanParties.slnx -c Release
 pwsh tests/BeamerPresenter.Browser.Tests/bin/Release/net10.0/playwright.ps1 install chromium
-dotnet test tests/BeamerPresenter.Browser.Tests -c Release --no-build
+
+# Gesamte Testsuite
+dotnet test BeamerPresenterForLanParties.slnx -c Release
 ```
 
-Die CI sammelt Coverage über alle Testprojekte, führt Mehrfachmessungen derselben Produktionszeile zusammen und bricht unter 80 Prozent Line Coverage ab. Generierte Migrationen sowie rein visuelle WinForms-/Razor- und Composition-Root-Dateien sind von dieser Metrik ausgenommen:
+Nach Änderungen an Paketversionen die Lockfiles aktualisieren:
 
 ```powershell
-$results = Join-Path $env:TEMP "beamer-presenter-coverage"
-dotnet test BeamerPresenterForLanParties.slnx -c Release --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory $results
-./scripts/Assert-Coverage.ps1 -ResultsDirectory $results -Threshold 80
+dotnet restore BeamerPresenterForLanParties.slnx --force-evaluate
 ```
 
-Paketversionen werden zentral in `Directory.Packages.props` gepflegt. Jedes Projekt besitzt ein eingechecktes `packages.lock.json`; CI und Release stellen ausschließlich im Locked Mode wieder her. Nach einer bewussten Paketänderung werden die Lockfiles lokal mit `dotnet restore BeamerPresenterForLanParties.slnx --force-evaluate` aktualisiert.
+## Architektur
 
-## Versionen und Changelog
+Die Anwendung besteht aus einer WinForms-Desktop-App und einer im selben Prozess gestarteten ASP.NET-Core-Weboberfläche. Die Desktop-App ist der Composition Root. Die Fachlogik ist in Domain und Application getrennt; Infrastructure stellt unter anderem SQLite-Persistenz und Medienanalyse bereit, Web enthält Oberfläche und HTTP-Endpunkte.
 
-`versionize` ist als lokales .NET-Tool in `dotnet-tools.json` festgeschrieben. Commit-Nachrichten nutzen Conventional Commits, beispielsweise `feat: add media scan` oder `fix: reject unsafe upload names`.
+```text
+src/
+├── BeamerPresenter.Domain         Modelle
+├── BeamerPresenter.Application    Fachlogik und Contracts
+├── BeamerPresenter.Infrastructure SQLite, Scanner und Medienwerkzeuge
+├── BeamerPresenter.Web            Management-UI, Presenter und Endpunkte
+└── BeamerPresenter.App            WinForms-Host und Composition Root
+```
+
+## Versionierung und Beiträge
+
+Das Projekt verwendet Conventional Commits. Versionen und Changelog werden mit dem festgeschriebenen `versionize`-Tool verwaltet:
 
 ```powershell
 dotnet tool restore
 dotnet versionize --workingDir src/BeamerPresenter.App --configDir ../..
 ```
 
-Der zweite Befehl versioniert die ausführbare App, wertet dabei aber die Conventional Commits des gesamten Repositorys aus. Er erzeugt/aktualisiert den Changelog, erstellt den Release-Commit und den Git-Tag `v<Version>`. Tags der Entwicklungsreihe `v0.x` bleiben reine Git-Versionen; der GitHub-Release-Workflow veröffentlicht erst stabile Versionen ab `v1.0.0`.
+Bitte vor einem Beitrag die Architektur- und Sicherheitsregeln in [AGENTS.md](AGENTS.md) beachten. Änderungen an Datenbankschemata erfolgen über EF-Core-Migrationen.
 
-## Release-Artefakte
+## Screenshots
 
-Ein stabiles Tag ab `v1.0.0`, beispielsweise `v1.2.0`, veröffentlicht zwei Downloads:
-
-- `HouseOfLAN-Presenter-1.2.0-Setup.exe` – Inno-Setup-Installer
-- `HouseOfLAN-Presenter-1.2.0-win-x64-portable.zip` – selbstenthaltende portable Variante
-
-Zum lokalen Bauen des Installers wird [Inno Setup](https://jrsoftware.org/isinfo.php) benötigt. Das Skript liegt in `installer/BeamerPresenter.iss`; `PublishDir` und `ArtifactDir` können für isolierte Validierung per `/D` überschrieben werden. Der stabile Tag-Workflow baut und veröffentlicht beide Artefakte, während `v0.x` weiterhin keinen GitHub-Release auslöst.
-
-## Architektur
-
-`Domain` enthält ausschließlich Modelle. `Application` enthält Contracts und Playback-Regeln. `Infrastructure` implementiert die SQLite-Persistenz. `Web` stellt die geschützte UI und HTTP-Endpunkte bereit. `App` ist der WinForms-Composition-Root und hostet Kestrel im gleichen Prozess.
+Screenshots der Verwaltungsoberfläche sind in dieser Repository-Version noch nicht als Dateien abgelegt. Die Seiten sind passwortgeschützt; für aussagekräftige Projektbilder sollten Dashboard, Queue und Mediathek mit bereinigten Beispieldaten aufgenommen und anschließend hier ergänzt werden.
