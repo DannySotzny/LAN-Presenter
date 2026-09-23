@@ -39,7 +39,7 @@ jobs:
           /d:sonar.host.url="$env:SONAR_HOST_URL"
           /d:sonar.token="$env:SONAR_TOKEN"
           /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
-          /d:sonar.javascript.lcov.reportPaths="artifacts/TestResults/lcov.info"
+          /d:sonar.javascript.lcov.reportPaths="artifacts/JavaScriptCoverage/lcov.info"
           /d:sonar.coverage.exclusions="**/Migrations/**,**/*.g.cs,**/*.Designer.cs,**/PresenterForm.cs,**/Program.cs,**/*.razor,**/PresenterDbContextDesignFactory.cs"
       - run: dotnet build BeamerPresenterForLanParties.slnx -c Release --no-restore
       - name: Install Chromium for presenter browser tests
@@ -47,7 +47,7 @@ jobs:
         run: pwsh tests/BeamerPresenter.Browser.Tests/bin/Release/net10.0/playwright.ps1 install chromium
       - name: Test with coverage
         env:
-          SONAR_JAVASCRIPT_LCOV: artifacts/TestResults/lcov.info
+          SONAR_JAVASCRIPT_LCOV: artifacts/JavaScriptCoverage/lcov.info
         run: dotnet test BeamerPresenterForLanParties.slnx -c Release --no-build --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory artifacts/TestResults
       - name: Complete SonarQube analysis
         if: github.event_name == 'push' && env.SONAR_TOKEN != ''

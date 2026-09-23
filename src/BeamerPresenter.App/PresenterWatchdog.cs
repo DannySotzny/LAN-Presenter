@@ -151,10 +151,6 @@ internal sealed class PresenterWatchdog(
         {
             await CheckAsync(cancellationToken);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
         catch (Exception exception)
         {
             logger.LogError(exception, "Presenter watchdog check failed");

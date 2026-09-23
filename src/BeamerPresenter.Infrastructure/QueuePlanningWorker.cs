@@ -26,10 +26,6 @@ internal sealed class QueuePlanningWorker(
         {
             await queue.EnsureMinimumAsync(cancellationToken);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
         catch (Exception exception)
         {
             logger.LogError(exception, "Playback queue planning failed");

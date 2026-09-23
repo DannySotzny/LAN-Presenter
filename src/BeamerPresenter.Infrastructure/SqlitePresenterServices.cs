@@ -259,10 +259,6 @@ internal sealed class PresenterBackupWorker(
         {
             await CreateBackupAsync(cancellationToken);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
         catch (Exception exception)
         {
             logger.LogError(exception, "Daily presenter database backup failed");

@@ -57,10 +57,6 @@ internal sealed class MediaFolderWatcher(
             {
                 await mediaScanner.ScanAllAsync(cancellationToken);
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
             catch (Exception exception)
             {
                 logger.LogError(exception, "Media reconciliation after a file-system event failed");
@@ -104,10 +100,6 @@ internal sealed class MediaFolderWatcher(
             }
 
             Volatile.Write(ref activeWatcherCount, watchers.Count);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return;
         }
         catch (Exception exception)
         {

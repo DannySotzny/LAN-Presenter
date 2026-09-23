@@ -406,7 +406,7 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
     {
         if (string.IsNullOrWhiteSpace(scriptUrl) || !Uri.TryCreate(scriptUrl, UriKind.Absolute, out var uri)) return null;
         var relativePath = uri.AbsolutePath.TrimStart('/');
-        if (relativePath.Contains("/", StringComparison.Ordinal))
+        if (relativePath.Contains('/'))
         {
             relativePath = relativePath[(relativePath.LastIndexOf('/') + 1)..];
         }

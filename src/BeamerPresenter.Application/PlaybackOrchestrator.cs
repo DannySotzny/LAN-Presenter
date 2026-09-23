@@ -387,15 +387,8 @@ public sealed class PlaybackOrchestrator(
 
     private async Task StopNewsAfterDelayAsync(long newsId, TimeSpan duration, CancellationToken cancellationToken)
     {
-        try
-        {
-            await Task.Delay(duration, cancellationToken);
-            await StopNewsAsync(newsId, CancellationToken.None);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
+        await Task.Delay(duration, cancellationToken);
+        await StopNewsAsync(newsId, CancellationToken.None);
     }
 
     private void CancelNewsTimeout()
