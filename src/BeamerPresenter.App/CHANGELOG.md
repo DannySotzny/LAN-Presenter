@@ -1,4 +1,11 @@
 Beamerpresenter.App Changelog
+<a name="0.13.0"></a>
+## [0.13.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.13.0) (2026-09-23)
+
+### Features
+
+* keep news ticker independent of other displays ([fba549b](https://www.github.com/DannySotzny/LAN-Presenter/commit/fba549b30b00a04228e8c75062de507ea588f6ea))
+
 <a name="0.12.0"></a>
 ## [0.12.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.12.0) (2026-09-23)
 
