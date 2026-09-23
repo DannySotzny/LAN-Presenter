@@ -97,6 +97,7 @@ public sealed class PresenterSettings
 public sealed class VideoAsset
 {
     public int Id { get; set; }
+    public string? YouTubeSourceKey { get; set; }
     public required string FileName { get; set; }
     public required string FullPath { get; set; }
     public long FileSize { get; set; }

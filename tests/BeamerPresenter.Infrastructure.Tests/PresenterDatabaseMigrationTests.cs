@@ -22,7 +22,9 @@ public sealed class PresenterDatabaseMigrationTests
 
             await using var connection = new SqliteConnection(PresenterDatabase.CreateConnectionString(dataDirectory));
             await connection.OpenAsync();
-            Assert.EndsWith("_AddVideoEnabled", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
+            Assert.EndsWith("_AddYouTubeDownloadSource", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
+            Assert.Equal("YouTubeSourceKey", await ReadScalarAsync(connection,
+                "SELECT name FROM pragma_table_info('Videos') WHERE name = 'YouTubeSourceKey';"));
             Assert.Equal("wal", await ReadScalarAsync(connection, "PRAGMA journal_mode;"));
             Assert.Equal("1", await ReadScalarAsync(connection, "PRAGMA foreign_keys;"));
         }
@@ -60,7 +62,9 @@ public sealed class PresenterDatabaseMigrationTests
 
             await using var connection = new SqliteConnection(PresenterDatabase.CreateConnectionString(dataDirectory));
             await connection.OpenAsync();
-            Assert.EndsWith("_AddVideoEnabled", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
+            Assert.EndsWith("_AddYouTubeDownloadSource", await ReadAppliedMigrationAsync(connection), StringComparison.Ordinal);
+            Assert.Equal("YouTubeSourceKey", await ReadScalarAsync(connection,
+                "SELECT name FROM pragma_table_info('Videos') WHERE name = 'YouTubeSourceKey';"));
             Assert.Equal("D:\\LAN\\Videos", await ReadScalarAsync(connection, "SELECT MediaFolder FROM Settings WHERE Id = 1;"));
             Assert.Equal("D:\\LAN\\Videos", await ReadScalarAsync(connection, "SELECT Path FROM MediaFolders LIMIT 1;"));
             Assert.Equal("1", await ReadScalarAsync(connection, "SELECT AlwaysOnTop FROM Settings WHERE Id = 1;"));

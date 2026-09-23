@@ -18,6 +18,19 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPresenterSettingsService, SqlitePresenterSettingsService>();
         services.AddSingleton<IMediaFolderService, SqliteMediaFolderService>();
         services.AddSingleton<IMediaLibraryService, SqliteMediaLibraryService>();
+        services.AddSingleton<IYouTubeMediaStore, SqliteYouTubeMediaStore>();
+        services.AddSingleton<IYouTubeDownloadTool>(provider => new YtDlpDownloadTool(
+            provider.GetRequiredService<IExternalProcessRunner>(),
+            toolsDirectory ?? Path.Combine(Directory.GetParent(Path.GetFullPath(dataDirectory))?.FullName ?? dataDirectory, "Tools")));
+        services.AddSingleton(provider => new YouTubeDownloadCoordinator(
+            provider.GetRequiredService<IYouTubeDownloadTool>(),
+            provider.GetRequiredService<IYouTubeMediaStore>(),
+            provider.GetRequiredService<IMediaFolderService>(),
+            provider.GetRequiredService<IMediaScanner>(),
+            provider.GetRequiredService<IFfprobeService>(),
+            provider.GetRequiredService<IPlaybackCommandService>(),
+            provider.GetRequiredService<IPresenterTelemetry>(),
+            dataDirectory));
         services.AddSingleton(new MediaPreviewService(dataDirectory));
         services.AddSingleton<IMediaPreviewService>(provider => provider.GetRequiredService<MediaPreviewService>());
         services.AddSingleton<IPlaybackStore, SqlitePlaybackStore>();

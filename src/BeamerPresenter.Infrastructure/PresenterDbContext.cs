@@ -29,6 +29,8 @@ public sealed class PresenterDbContext(DbContextOptions<PresenterDbContext> opti
         modelBuilder.Entity<PresenterSettings>().Property(x => x.TimeCooldownMinutes).HasDefaultValue(PresenterSettings.DefaultTimeCooldownMinutes);
         modelBuilder.Entity<PresenterSettings>().Property(x => x.QueueTargetLength).HasDefaultValue(PresenterSettings.DefaultQueueTargetLength);
         modelBuilder.Entity<VideoAsset>().HasIndex(x => x.FullPath).IsUnique();
+        modelBuilder.Entity<VideoAsset>().HasIndex(x => x.YouTubeSourceKey).IsUnique();
+        modelBuilder.Entity<VideoAsset>().Property(x => x.YouTubeSourceKey).HasMaxLength(19);
         modelBuilder.Entity<VideoAsset>().Property(x => x.FileName).HasMaxLength(260);
         modelBuilder.Entity<VideoAsset>().Property(x => x.FullPath).HasMaxLength(4096).UseCollation("NOCASE");
         modelBuilder.Entity<VideoAsset>().Property(x => x.Container).HasMaxLength(256);

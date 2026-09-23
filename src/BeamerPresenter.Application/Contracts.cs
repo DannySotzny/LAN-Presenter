@@ -51,6 +51,29 @@ public interface IMediaProbeQueue
     ValueTask QueueAsync(int mediaId, string fullPath, CancellationToken cancellationToken = default);
 }
 
+public interface IYouTubeMediaStore
+{
+    Task<VideoAsset?> GetBySourceKeyAsync(string sourceKey, CancellationToken cancellationToken = default);
+    Task<VideoAsset> RegisterDownloadedAsync(string sourceKey, string fullPath, CancellationToken cancellationToken = default);
+}
+
+public interface IYouTubeDownloadTool
+{
+    Task<string> DownloadAsync(string videoId, string stagingDirectory, Action<YouTubeDownloadPhase> reportPhase, CancellationToken cancellationToken);
+}
+
+public enum YouTubeDownloadPhase { NotStarted, Installing, Downloading, Analyzing, Ready, Failed }
+public enum YouTubeDownloadAction { Now, Next }
+public enum YouTubeDownloadMode { Automatic, Full, Custom }
+public sealed record YouTubeDownloadSnapshot(string VideoId, YouTubeDownloadPhase Phase, int? MediaId, string? Error);
+public sealed record YouTubeDownloadIntent(YouTubeDownloadAction Action, YouTubeDownloadMode Mode, TimeSpan? Start, TimeSpan? Duration, TimeSpan? MaximumDuration);
+
+public static class YouTubeDownloadLimits
+{
+    public const long MaximumBytes = 5L * 1024 * 1024 * 1024;
+    public static bool IsValidSize(long bytes) => bytes > 0 && bytes <= MaximumBytes;
+}
+
 public interface IMediaPreviewService
 {
     string? GetReadyPreviewPath(VideoAsset asset);

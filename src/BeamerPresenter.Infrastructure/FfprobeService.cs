@@ -50,6 +50,11 @@ internal sealed class ExternalProcessRunner : IExternalProcessRunner
             process.Kill(entireProcessTree: true);
             throw new TimeoutException($"Der Prozess '{executablePath}' hat das Zeitlimit überschritten.");
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            throw;
+        }
 
         return new ProcessExecutionResult(process.ExitCode, await standardOutput, await standardError);
     }
