@@ -107,6 +107,7 @@ internal sealed class MediaFolderWatcher(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            return;
         }
         catch (Exception exception)
         {

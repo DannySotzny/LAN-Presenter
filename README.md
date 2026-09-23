@@ -74,7 +74,7 @@ Die Weboberfläche ist anschließend unter `http://localhost:8765` erreichbar. E
 
 ## Tests und Qualitätssicherung
 
-Die CI baut die Solution, prüft das Format, führt die Tests inklusive Browser-Tests mit Chromium aus und verlangt mindestens 80 Prozent Line Coverage.
+Die CI baut die Solution, prüft das Format und führt die Tests inklusive Browser-Tests mit Chromium aus. Die Coverage-Grenze von 80 Prozent wird für Produktcode ermittelt: Coverlet misst C# und die Chromium-Browser-Tests schreiben Line Coverage für die ausgelieferten JavaScript-Dateien als LCOV. EF-Migrationen, generierte Dateien, der Composition Root, das WinForms-Formular und Razor-Markup sind von der zeilenbasierten Coverage ausgenommen; ihr Verhalten wird durch Migration-, Architektur-, Browser- und Route-Tests geprüft. SonarQube verwendet dieselben C#-Coverage-Ausnahmen und importiert zusätzlich den Browser-LCOV-Bericht.
 
 ```powershell
 # Browser-Tests benötigen Chromium; zuerst die Solution bauen und dann den Browser installieren.

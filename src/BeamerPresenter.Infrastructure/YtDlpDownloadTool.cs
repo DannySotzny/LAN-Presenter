@@ -5,6 +5,7 @@ namespace BeamerPresenter.Infrastructure;
 
 internal sealed class YtDlpDownloadTool(IExternalProcessRunner processRunner, string toolsDirectory, IEnumerable<string>? executableCandidates = null) : IYouTubeDownloadTool
 {
+    private const string ExecutableName = "yt-dlp.exe";
     private readonly SemaphoreSlim installGate = new(1, 1);
 
     public async Task<string> DownloadAsync(string videoId, string stagingDirectory, Action<YouTubeDownloadPhase> reportPhase, CancellationToken cancellationToken)
@@ -75,19 +76,26 @@ internal sealed class YtDlpDownloadTool(IExternalProcessRunner processRunner, st
         finally
         {
             await limit.CancelAsync();
-            try { await sizeMonitor; }
-            catch (OperationCanceledException) when (limit.IsCancellationRequested)
-            {
-                // The monitor is expected to stop when the download completes or reaches its limit.
-            }
+            await sizeMonitor;
         }
     }
 
     private static async Task MonitorDownloadSizeAsync(string stagingDirectory, CancellationTokenSource limit, Action onLimitReached)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-        while (await timer.WaitForNextTickAsync(limit.Token))
+        while (true)
         {
+            bool hasNextTick;
+            try
+            {
+                hasNextTick = await timer.WaitForNextTickAsync(limit.Token);
+            }
+            catch (OperationCanceledException) when (limit.IsCancellationRequested)
+            {
+                break;
+            }
+
+            if (!hasNextTick) break;
             long currentBytes;
             try
             {
@@ -115,7 +123,7 @@ internal sealed class YtDlpDownloadTool(IExternalProcessRunner processRunner, st
     private static void ThrowDownloadCancellation(bool sizeExceeded, CancellationToken cancellationToken)
     {
         if (sizeExceeded) throw new InvalidOperationException("Das Video überschreitet die Downloadgrenze von 5 GB.");
-        if (cancellationToken.IsCancellationRequested) throw new OperationCanceledException(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         throw new TimeoutException("Der YouTube-Download hat das Zeitlimit überschritten.");
     }
 
@@ -181,11 +189,11 @@ internal sealed class YtDlpDownloadTool(IExternalProcessRunner processRunner, st
         var pathVariable = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
         var candidates = executableCandidates ?? new[]
         {
-            Path.Combine(toolsDirectory, "yt-dlp.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WinGet", "Links", "yt-dlp.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "chocolatey", "bin", "yt-dlp.exe")
+            Path.Combine(toolsDirectory, ExecutableName),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WinGet", "Links", ExecutableName),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "chocolatey", "bin", ExecutableName)
         }.Concat(pathVariable.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(path => Path.Combine(path, "yt-dlp.exe"))).Distinct(StringComparer.OrdinalIgnoreCase);
+            .Select(path => Path.Combine(path, ExecutableName))).Distinct(StringComparer.OrdinalIgnoreCase);
         foreach (var candidate in candidates.Where(File.Exists))
         {
             try
@@ -194,7 +202,11 @@ internal sealed class YtDlpDownloadTool(IExternalProcessRunner processRunner, st
                 if (result.ExitCode == 0) return candidate;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-            catch (Exception) { }
+            catch (Exception)
+            {
+                // A candidate can be present but broken; keep trying the next trusted location.
+                continue;
+            }
         }
         return null;
     }

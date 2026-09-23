@@ -261,6 +261,7 @@ internal sealed class PresenterBackupWorker(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            return;
         }
         catch (Exception exception)
         {

@@ -59,6 +59,7 @@ public sealed class NewsSchedulingWorker(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            return;
         }
         catch (Exception exception)
         {

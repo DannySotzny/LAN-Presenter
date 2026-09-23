@@ -111,6 +111,25 @@ public sealed class YouTubeDownloadCoordinatorTests
         }
     }
 
+    [Fact]
+    public async Task Shutting_down_during_download_cancels_work_and_removes_staged_video()
+    {
+        using var fixture = new Fixture();
+        fixture.Tool.Block = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var coordinator = fixture.CreateCoordinator();
+
+        await coordinator.StartAsync(Url);
+        await UntilAsync(() => fixture.Tool.Calls == 1);
+        await coordinator.DisposeAsync();
+
+        var snapshot = await coordinator.GetAsync(VideoId);
+        Assert.Equal(YouTubeDownloadPhase.Failed, snapshot.Phase);
+        Assert.Contains("beim Beenden der App abgebrochen", snapshot.Error);
+        Assert.Empty(Directory.Exists(fixture.DownloadDirectory)
+            ? Directory.GetFiles(fixture.DownloadDirectory, "*", SearchOption.AllDirectories)
+            : []);
+    }
+
     private static async Task UntilAsync(Func<bool> predicate)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -127,6 +146,7 @@ public sealed class YouTubeDownloadCoordinatorTests
     {
         private readonly string root = Path.Combine(Path.GetTempPath(), "PresenterYouTubeCoordinator", Guid.NewGuid().ToString("N"));
         public string MediaDirectory { get; }
+        public string DownloadDirectory => Path.Combine(root, "Data");
         public FakeTool Tool { get; } = new();
         public FakeStore Store { get; } = new();
         public FakeProbe Probe { get; } = new();

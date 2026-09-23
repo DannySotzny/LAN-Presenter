@@ -4,6 +4,30 @@ namespace BeamerPresenter.Infrastructure.Tests;
 
 public sealed class YtDlpDownloadToolTests
 {
+    [Theory]
+    [InlineData("")]
+    [InlineData("too-short")]
+    [InlineData("../escape___")]
+    public async Task Invalid_video_identity_never_reaches_external_downloader(string videoId)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PresenterYtDlpTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var executable = Path.Combine(root, "yt-dlp.exe");
+            var runner = new RecordingRunner(executable);
+            var tool = new YtDlpDownloadTool(runner, root, [executable]);
+            var staging = Path.Combine(root, "staging");
+
+            await Assert.ThrowsAsync<ArgumentException>(() =>
+                tool.DownloadAsync(videoId, staging, _ => { }, CancellationToken.None));
+
+            Assert.Empty(runner.Calls);
+            Assert.False(Directory.Exists(staging));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     [Fact]
     public async Task Missing_tool_is_installed_by_exact_winget_id_and_verified()
     {

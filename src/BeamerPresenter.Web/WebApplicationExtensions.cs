@@ -18,6 +18,7 @@ public static class WebApplicationExtensions
     private const string NewsPath = "/news";
     private const string PlaybackPath = "/playback";
     private const int ClientClosedRequestStatusCode = 499;
+    private const string DurationField = "duration";
 
     public static IServiceCollection AddPresenterWebUi(this IServiceCollection services)
     {
@@ -353,7 +354,7 @@ public static class WebApplicationExtensions
         try
         {
             var start = ParseOptionalTime(form["start"].ToString());
-            var duration = ParseOptionalTime(form["duration"].ToString());
+            var duration = ParseOptionalTime(form[DurationField].ToString());
             await command(mediaId, start, duration);
             return Results.Redirect($"{PlaybackPath}?queue=success");
         }
@@ -374,7 +375,7 @@ public static class WebApplicationExtensions
         {
             var reference = YouTubeUrlParser.Parse(form["url"].ToString());
             var start = ParseOptionalTime(form["start"].ToString());
-            var duration = ParseOptionalTime(form["duration"].ToString());
+            var duration = ParseOptionalTime(form[DurationField].ToString());
             var maximumDuration = ParseOptionalTime(form["maximumDuration"].ToString());
             var modeValue = form["playbackMode"].ToString();
             var mode = ParseYouTubePlaybackMode(modeValue, start, duration, maximumDuration);
@@ -431,7 +432,7 @@ public static class WebApplicationExtensions
                 Title = form["title"].ToString().Trim(),
                 Text = form["text"].ToString().Trim(),
                 Mode = mode,
-                Duration = ParseOptionalTime(form["duration"].ToString()),
+                Duration = ParseOptionalTime(form[DurationField].ToString()),
                 Permanent = form.ContainsKey("permanent"),
                 ValidFrom = ParseOptionalDateTime(form["validFrom"].ToString()),
                 ValidUntil = ParseOptionalDateTime(form["validUntil"].ToString()),
@@ -601,7 +602,7 @@ public static class WebApplicationExtensions
                 !Enum.IsDefined(mode))
                 throw new ArgumentException("Die Wiedergabeaktion ist ungültig.");
             var intent = new YouTubeDownloadIntent(action, mode,
-                ParseOptionalTime(form["start"].ToString()), ParseOptionalTime(form["duration"].ToString()),
+                ParseOptionalTime(form["start"].ToString()), ParseOptionalTime(form[DurationField].ToString()),
                 ParseOptionalTime(form["maximumDuration"].ToString()));
             return Results.Ok(ToDownloadResponse(await downloads.SetIntentAsync(videoId, intent, cancellationToken)));
         }

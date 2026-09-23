@@ -28,6 +28,7 @@ internal sealed class QueuePlanningWorker(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            return;
         }
         catch (Exception exception)
         {

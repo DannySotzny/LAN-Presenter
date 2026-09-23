@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using BeamerPresenter.Application;
 using BeamerPresenter.Domain;
 using BeamerPresenter.Infrastructure;
@@ -18,6 +19,8 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
 {
     private const string TestPassword = "browser-test-password";
     private readonly string _dataDirectory = Path.Combine(Path.GetTempPath(), "BeamerPresenter.BrowserTests", Guid.NewGuid().ToString("N"));
+    private static readonly ConcurrentDictionary<string, ConcurrentDictionary<int, byte>> JavaScriptLineHits = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly SemaphoreSlim CoverageFileGate = new(1, 1);
     private readonly RecordingPlaybackCommands _playbackCommands = new();
     private readonly RecordingNewsDisplayState _newsDisplayState = new();
     private WebApplication? _application;
@@ -68,12 +71,25 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
     public async Task Management_uses_clickable_menu_routes_instead_of_one_long_page()
     {
         await using var context = await _browser!.NewContextAsync();
-        var page = await context.NewPageAsync();
+        await using var coverage = new BrowserCoverageCapture(context);
+        await context.RouteAsync("**/api/status", route => route.FulfillAsync(new RouteFulfillOptions
+        {
+            Status = 200,
+            ContentType = "application/json",
+            Body = """{"presenterState":"coverage-state","browserConnected":true,"currentTitle":"coverage-title","position":"00:01:02","duration":"00:05:00","ffprobeAvailable":true,"mediaScannerRunning":false,"mediaScannerError":null}"""
+        }));
+        var page = await coverage.NewPageAsync();
 
         await page.GotoAsync($"{_baseAddress}/login");
         await page.FillAsync("#password", TestPassword);
         await page.Locator("form[action='/account/login'] button[type='submit']").ClickAsync();
         await page.WaitForURLAsync($"{_baseAddress}/");
+        await WaitForTextAsync(page, "#dashboard-presenter-state", "coverage-state");
+        Assert.Equal("Browser: Verbunden", await page.TextContentAsync("#dashboard-browser-state"));
+        Assert.Equal("coverage-title", await page.TextContentAsync("#dashboard-current-title"));
+        Assert.Equal("00:01:02 / 00:05:00", await page.TextContentAsync("#dashboard-position"));
+        Assert.Equal("OK", await page.TextContentAsync("#dashboard-ffprobe"));
+        Assert.Equal("Bereit", await page.TextContentAsync("#dashboard-scanner"));
 
         Assert.Equal(4, await page.Locator(".management-nav a").CountAsync());
         Assert.True(await page.GetByText("AKTUELLE WIEDERGABE", new() { Exact = true }).IsVisibleAsync());
@@ -90,6 +106,13 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
         await page.GetByRole(AriaRole.Link, new() { Name = "News", Exact = true }).ClickAsync();
         await page.WaitForURLAsync($"{_baseAddress}/news");
         Assert.True(await page.GetByText("News & Einblendungen", new() { Exact = true }).IsVisibleAsync());
+
+        await page.GotoAsync($"{_baseAddress}/");
+        await page.AddScriptTagAsync(new PageAddScriptTagOptions
+        {
+            Url = $"{_baseAddress}/_content/BeamerPresenter.Web/js/dashboard.js"
+        });
+        await WaitForTextAsync(page, "#dashboard-presenter-state", "coverage-state");
     }
 
     [Fact]
@@ -104,7 +127,8 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
             Permanent = true
         });
         await using var context = await _browser!.NewContextAsync();
-        var page = await context.NewPageAsync();
+        await using var coverage = new BrowserCoverageCapture(context);
+        var page = await coverage.NewPageAsync();
 
         await page.GotoAsync($"{_baseAddress}/presenter");
         await page.WaitForFunctionAsync("document.querySelector('#presenter-ticker').dataset.newsId === '99'");
@@ -127,7 +151,8 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
     {
         await using var context = await _browser!.NewContextAsync();
         await context.AddInitScriptAsync(MediaAndSocketTestDoubles);
-        var page = await context.NewPageAsync();
+        await using var coverage = new BrowserCoverageCapture(context);
+        var page = await coverage.NewPageAsync();
 
         await page.GotoAsync($"{_baseAddress}/presenter");
         await WaitForTextAsync(page, "#presenter-status", "Verbunden");
@@ -209,6 +234,7 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
     public async Task YouTube_metadata_always_downloads_single_video_and_queues_local_next()
     {
         await using var context = await _browser!.NewContextAsync();
+        await using var coverage = new BrowserCoverageCapture(context);
         var phase = "downloading";
         string? intentBody = null;
         string? startBody = null;
@@ -228,7 +254,7 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
             var body = $$"""{"videoId":"Es7F0h1DKGs","phase":"{{phase}}","mediaId":{{mediaId}},"error":null,"durationSeconds":319}""";
             await route.FulfillAsync(new RouteFulfillOptions { Status = 200, ContentType = "application/json", Body = body });
         });
-        var page = await context.NewPageAsync();
+        var page = await coverage.NewPageAsync();
         await page.GotoAsync($"{_baseAddress}/login");
         await page.FillAsync("#password", TestPassword);
         await page.Locator("form[action='/account/login'] button[type='submit']").ClickAsync();
@@ -252,6 +278,7 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
     public async Task YouTube_play_now_without_metadata_click_still_starts_local_download()
     {
         await using var context = await _browser!.NewContextAsync();
+        await using var coverage = new BrowserCoverageCapture(context);
         var requests = new List<string>();
         await context.RouteAsync("**/api/youtube/download**", async route =>
         {
@@ -263,7 +290,7 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
                 Body = """{"videoId":"Es7F0h1DKGs","phase":"downloading","mediaId":null,"error":null,"durationSeconds":null}"""
             });
         });
-        var page = await context.NewPageAsync();
+        var page = await coverage.NewPageAsync();
         await page.GotoAsync($"{_baseAddress}/login");
         await page.FillAsync("#password", TestPassword);
         await page.Locator("form[action='/account/login'] button[type='submit']").ClickAsync();
@@ -307,7 +334,8 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
         }
 
         await using var context = await _browser!.NewContextAsync();
-        var page = await context.NewPageAsync();
+        await using var coverage = new BrowserCoverageCapture(context);
+        var page = await coverage.NewPageAsync();
         await page.SetViewportSizeAsync(1920, 1080);
         await page.GotoAsync($"{_baseAddress}/login");
         await page.FillAsync("#password", TestPassword);
@@ -325,6 +353,8 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        await WriteJavaScriptCoverageAsync();
+
         if (_browser is not null)
         {
             await _browser.DisposeAsync();
@@ -342,6 +372,220 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
             SqliteConnection.ClearAllPools();
             Directory.Delete(_dataDirectory, recursive: true);
         }
+    }
+
+    private static async Task CollectJavaScriptCoverageAsync(ICDPSession cdp)
+    {
+        var response = await cdp.SendAsync("Profiler.takePreciseCoverage");
+        if (response is not { } coverage || !coverage.TryGetProperty("result", out var scripts)) return;
+
+        foreach (var script in scripts.EnumerateArray())
+        {
+            var scriptUrl = script.GetProperty("url").GetString() ?? string.Empty;
+            var sourcePath = GetTrackedScriptPath(scriptUrl);
+            if (sourcePath is null) continue;
+
+            var source = await File.ReadAllTextAsync(sourcePath);
+            var hits = JavaScriptLineHits.GetOrAdd(GetRelativeScriptPath(sourcePath),
+                _ => new ConcurrentDictionary<int, byte>());
+            var coverageRanges = new List<(int Start, int End, int Count)>();
+            foreach (var function in script.GetProperty("functions").EnumerateArray())
+            {
+                foreach (var range in function.GetProperty("ranges").EnumerateArray())
+                {
+                    coverageRanges.Add((range.GetProperty("startOffset").GetInt32(),
+                        range.GetProperty("endOffset").GetInt32(), range.GetProperty("count").GetInt32()));
+                }
+            }
+
+            AddCoveredLines(source, coverageRanges, hits);
+        }
+    }
+
+    private static string? GetTrackedScriptPath(string? scriptUrl)
+    {
+        if (string.IsNullOrWhiteSpace(scriptUrl) || !Uri.TryCreate(scriptUrl, UriKind.Absolute, out var uri)) return null;
+        var relativePath = uri.AbsolutePath.TrimStart('/');
+        if (relativePath.Contains("/", StringComparison.Ordinal))
+        {
+            relativePath = relativePath[(relativePath.LastIndexOf('/') + 1)..];
+        }
+
+        var projectPath = relativePath switch
+        {
+            "dashboard.js" => "src/BeamerPresenter.Web/wwwroot/js/dashboard.js",
+            "media-previews.js" => "src/BeamerPresenter.Web/wwwroot/js/media-previews.js",
+            "presenter.js" => "src/BeamerPresenter.Web/wwwroot/js/presenter.js",
+            "youtube-management.js" => "src/BeamerPresenter.Web/wwwroot/js/youtube-management.js",
+            _ => null
+        };
+        if (projectPath is null) return null;
+
+        var fullPath = Path.GetFullPath(Path.Combine(RepositoryRoot, projectPath));
+        return File.Exists(fullPath) ? fullPath : null;
+    }
+
+    private static string GetRelativeScriptPath(string fullPath) =>
+        Path.GetRelativePath(RepositoryRoot, fullPath).Replace('\\', '/');
+
+    private static string RepositoryRoot
+    {
+        get
+        {
+            for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+            {
+                if (Directory.Exists(Path.Combine(directory.FullName, "src")) &&
+                    (File.Exists(Path.Combine(directory.FullName, ".git")) || Directory.Exists(Path.Combine(directory.FullName, ".git"))))
+                {
+                    return directory.FullName;
+                }
+            }
+
+            throw new DirectoryNotFoundException("Could not locate the repository root for JavaScript coverage.");
+        }
+    }
+
+    private static void AddCoveredLines(string source, IReadOnlyList<(int Start, int End, int Count)> ranges,
+        ConcurrentDictionary<int, byte> hits)
+    {
+        var lines = source.Split('\n');
+        var lineStartOffset = 0;
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var lineEndOffset = lineStartOffset + lines[index].Length + (index < lines.Length - 1 ? 1 : 0);
+            for (var offset = lineStartOffset; offset < lineEndOffset && offset < source.Length; offset++)
+            {
+                if (char.IsWhiteSpace(source[offset])) continue;
+                var mostSpecific = ranges
+                    .Where(range => offset >= range.Start && offset < range.End)
+                    .OrderBy(range => range.End - range.Start)
+                    .FirstOrDefault();
+                if (mostSpecific.End > mostSpecific.Start && mostSpecific.Count > 0)
+                {
+                    hits.TryAdd(index + 1, 0);
+                    break;
+                }
+            }
+
+            lineStartOffset = lineEndOffset;
+            if (lineStartOffset >= source.Length) break;
+        }
+    }
+
+    private static async Task WriteJavaScriptCoverageAsync()
+    {
+        var outputPath = Environment.GetEnvironmentVariable("SONAR_JAVASCRIPT_LCOV");
+        if (string.IsNullOrWhiteSpace(outputPath) || JavaScriptLineHits.IsEmpty) return;
+
+        await CoverageFileGate.WaitAsync();
+        try
+        {
+            var resolvedPath = Path.GetFullPath(outputPath, RepositoryRoot);
+            Directory.CreateDirectory(Path.GetDirectoryName(resolvedPath)!);
+            var report = new List<string>();
+            foreach (var (relativePath, coveredLines) in JavaScriptLineHits.OrderBy(item => item.Key, StringComparer.Ordinal))
+            {
+                var sourcePath = Path.GetFullPath(Path.Combine(RepositoryRoot, relativePath));
+                var totalLines = await File.ReadAllLinesAsync(sourcePath);
+                report.Add($"SF:{relativePath}");
+                var coveredCount = 0;
+                for (var line = 1; line <= totalLines.Length; line++)
+                {
+                    var hits = coveredLines.ContainsKey(line) ? 1 : 0;
+                    coveredCount += hits;
+                    report.Add($"DA:{line},{hits}");
+                }
+
+                report.Add($"LF:{totalLines.Length}");
+                report.Add($"LH:{coveredCount}");
+                report.Add("end_of_record");
+            }
+
+            await File.WriteAllLinesAsync(resolvedPath, report);
+        }
+        finally
+        {
+            CoverageFileGate.Release();
+        }
+    }
+
+    private sealed class BrowserCoverageCapture(IBrowserContext context) : IAsyncDisposable
+    {
+        private readonly List<ICDPSession> sessions = [];
+        private readonly List<Task> collectors = [];
+        private readonly CancellationTokenSource stopping = new();
+
+        public async Task<IPage> NewPageAsync()
+        {
+            var page = await context.NewPageAsync();
+            var cdp = await context.NewCDPSessionAsync(page);
+            await cdp.SendAsync("Profiler.enable");
+            await cdp.SendAsync("Profiler.startPreciseCoverage", new Dictionary<string, object>
+            {
+                ["callCount"] = false,
+                ["detailed"] = true
+            });
+            sessions.Add(cdp);
+            collectors.Add(PollJavaScriptCoverageAsync(cdp, stopping.Token));
+            return page;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await stopping.CancelAsync();
+            try
+            {
+                await Task.WhenAll(collectors);
+            }
+            catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+            {
+                // Each page collector is expected to stop with its test context.
+            }
+
+            foreach (var session in sessions)
+            {
+                try
+                {
+                    await CollectJavaScriptCoverageAsync(session);
+                }
+                catch (PlaywrightException exception) when (IsTargetClosed(exception))
+                {
+                    // The periodic collector already captured this page before its context closed.
+                }
+                finally
+                {
+                    try
+                    {
+                        await session.DetachAsync();
+                    }
+                    catch (PlaywrightException exception) when (IsTargetClosed(exception))
+                    {
+                        // Chromium detaches CDP sessions when a page closes.
+                    }
+                }
+            }
+
+            stopping.Dispose();
+        }
+
+        private static async Task PollJavaScriptCoverageAsync(ICDPSession session, CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+                try
+                {
+                    await CollectJavaScriptCoverageAsync(session);
+                }
+                catch (PlaywrightException exception) when (IsTargetClosed(exception))
+                {
+                    return;
+                }
+            }
+        }
+
+        private static bool IsTargetClosed(PlaywrightException exception) =>
+            exception.Message.Contains("Target page, context or browser has been closed", StringComparison.Ordinal);
     }
 
     private async Task WaitForTelemetryAsync(string expectedStatus)

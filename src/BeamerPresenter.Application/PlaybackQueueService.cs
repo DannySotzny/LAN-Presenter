@@ -25,10 +25,7 @@ public sealed class PlaybackQueueService(
     public Task MoveAsync(long queueEntryId, int offset, CancellationToken cancellationToken = default) =>
         ExecuteSerializedAsync(async () =>
         {
-            if (offset is not (-1 or 1))
-            {
-                throw new ArgumentOutOfRangeException(nameof(offset), "Die Queue kann nur um genau eine Position verschoben werden.");
-            }
+            ValidateMoveOffset(offset);
 
             var pending = (await store.GetQueueAsync(cancellationToken))
                 .Where(entry => entry.Status == QueueEntryStatus.Pending)
@@ -497,6 +494,15 @@ public sealed class PlaybackQueueService(
     {
         if (value < minimum) return minimum;
         return value > maximum ? maximum : value;
+    }
+
+    private static void ValidateMoveOffset(int offset)
+    {
+        if (offset is not (-1 or 1))
+        {
+            throw new ArgumentOutOfRangeException(nameof(offset), offset,
+                "Die Queue kann nur um genau eine Position verschoben werden.");
+        }
     }
 
     private async Task ExecuteSerializedAsync(Func<Task> command, CancellationToken cancellationToken)

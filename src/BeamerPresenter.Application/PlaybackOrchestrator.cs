@@ -394,6 +394,7 @@ public sealed class PlaybackOrchestrator(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            return;
         }
     }
 

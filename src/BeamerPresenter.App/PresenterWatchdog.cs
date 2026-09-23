@@ -153,6 +153,7 @@ internal sealed class PresenterWatchdog(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            return;
         }
         catch (Exception exception)
         {

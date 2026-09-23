@@ -49,7 +49,10 @@
             if (!element.classList.contains('is-ready') || reducedMotion.matches) return;
             let frame = 0;
             const count = Number(element.dataset.previewCount) || 1;
-            timer = setInterval(() => showFrame(element, frame = (frame + 1) % count), 450);
+            timer = setInterval(() => {
+                frame = (frame + 1) % count;
+                showFrame(element, frame);
+            }, 450);
         });
         element.addEventListener('mouseleave', stop);
     }

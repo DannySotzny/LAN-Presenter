@@ -66,6 +66,7 @@ internal sealed class FfprobeService(
     ILogger<FfprobeService> logger,
     string toolsDirectory) : IFfprobeService
 {
+    private const string ExecutableName = "ffprobe.exe";
     private static readonly TimeSpan ValidationTimeout = TimeSpan.FromSeconds(10);
 
     public async Task<FfprobeAvailability> CheckAvailabilityAsync(CancellationToken cancellationToken = default)
@@ -155,17 +156,17 @@ internal sealed class FfprobeService(
         var candidates = new List<string?>
         {
             configuredPath,
-            Path.Combine(toolsDirectory, "ffprobe.exe")
+            Path.Combine(toolsDirectory, ExecutableName)
         };
         var pathVariable = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
         candidates.AddRange(pathVariable.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(path => Path.Combine(path, "ffprobe.exe")));
+            .Select(path => Path.Combine(path, ExecutableName)));
         candidates.AddRange(
         [
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WinGet", "Links", "ffprobe.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "ffmpeg", "bin", "ffprobe.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "ffmpeg", "bin", "ffprobe.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "chocolatey", "bin", "ffprobe.exe")
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WinGet", "Links", ExecutableName),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "ffmpeg", "bin", ExecutableName),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "ffmpeg", "bin", ExecutableName),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "chocolatey", "bin", ExecutableName)
         ]);
 
         return candidates

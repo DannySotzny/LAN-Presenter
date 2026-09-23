@@ -176,7 +176,7 @@ public sealed class YouTubeDownloadCoordinator(
         }
     }
 
-    private async Task<string> PublishDownloadedFileAsync(string folder, string safePath, string videoId, CancellationToken cancellationToken)
+    private static async Task<string> PublishDownloadedFileAsync(string folder, string safePath, string videoId, CancellationToken cancellationToken)
     {
         var publishedPath = MakeUniqueDestination(folder, videoId);
         var temporaryPath = Path.Combine(folder, $".YouTube-{videoId}-{Guid.NewGuid():N}.download");
@@ -317,7 +317,10 @@ public sealed class YouTubeDownloadCoordinator(
     {
         await lifetime.CancelAsync();
         try { await Task.WhenAll(jobs.Values.Select(job => job.Work ?? Task.CompletedTask)); }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+            if (!lifetime.IsCancellationRequested) throw;
+        }
         lifetime.Dispose();
         downloadGate.Dispose();
     }
