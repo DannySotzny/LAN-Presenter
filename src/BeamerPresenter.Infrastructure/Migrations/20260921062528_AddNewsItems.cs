@@ -8,6 +8,8 @@ namespace BeamerPresenter.Infrastructure.Migrations
     /// <inheritdoc />
     public partial class AddNewsItems : Migration
     {
+        private static readonly string[] ValidityPriorityColumns = ["ValidFrom", "ValidUntil", "Priority"];
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -35,7 +37,7 @@ namespace BeamerPresenter.Infrastructure.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_NewsItems_ValidFrom_ValidUntil_Priority",
                 table: "NewsItems",
-                columns: new[] { "ValidFrom", "ValidUntil", "Priority" });
+                columns: ValidityPriorityColumns);
         }
 
         /// <inheritdoc />

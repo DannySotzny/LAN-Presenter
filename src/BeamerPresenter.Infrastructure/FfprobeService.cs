@@ -87,7 +87,10 @@ internal sealed class FfprobeService(
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                logger.LogDebug(exception, "FFprobe candidate {FfprobePath} could not be validated", candidate);
+                if (logger.IsEnabled(LogLevel.Debug))
+                {
+                    logger.LogDebug(exception, "FFprobe candidate {FfprobePath} could not be validated", candidate);
+                }
             }
         }
 

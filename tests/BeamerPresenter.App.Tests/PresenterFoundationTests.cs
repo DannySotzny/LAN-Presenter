@@ -7,6 +7,21 @@ namespace BeamerPresenter.App.Tests;
 public sealed class PresenterFoundationTests
 {
     [Fact]
+    public void Windows_monitor_service_reads_monitor_identity_and_friendly_names()
+    {
+        var monitors = new WindowsMonitorService().GetAll();
+
+        Assert.NotEmpty(monitors);
+        Assert.All(monitors, monitor =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(monitor.DeviceName));
+            Assert.False(string.IsNullOrWhiteSpace(monitor.FriendlyName));
+            Assert.True(monitor.Width > 0);
+            Assert.True(monitor.Height > 0);
+        });
+    }
+
+    [Fact]
     public void Presenter_paths_create_the_expected_local_directories()
     {
         var testRoot = CreateTestRoot();

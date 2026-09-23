@@ -109,8 +109,9 @@ internal sealed class SingleInstanceCoordinator : IDisposable
         {
             _listenerTask?.GetAwaiter().GetResult();
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (_stopping.IsCancellationRequested)
         {
+            _listenerTask = null;
         }
 
         _stopping.Dispose();

@@ -7,6 +7,8 @@ namespace BeamerPresenter.Infrastructure.Migrations
     /// <inheritdoc />
     public partial class AddExternalPlaybackHistory : Migration
     {
+        private static readonly string[] ExternalHistoryIndexColumns = ["ExternalSourceKey", "StartedUtc"];
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -28,7 +30,7 @@ namespace BeamerPresenter.Infrastructure.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_PlaybackHistory_ExternalSourceKey_StartedUtc",
                 table: "PlaybackHistory",
-                columns: new[] { "ExternalSourceKey", "StartedUtc" });
+                columns: ExternalHistoryIndexColumns);
         }
 
         /// <inheritdoc />

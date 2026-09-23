@@ -645,7 +645,7 @@ else if (IsMedia)
 
     private bool MatchesSearch(VideoAsset video)
     {
-        var search = Search!.Trim();
+        var search = Search?.Trim() ?? string.Empty;
         return video.FileName.Contains(search, StringComparison.OrdinalIgnoreCase)
             || (video.VideoCodec?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
             || (video.AudioCodec?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)

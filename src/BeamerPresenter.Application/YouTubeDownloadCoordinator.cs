@@ -9,8 +9,7 @@ public sealed class YouTubeDownloadCoordinator(
     IMediaFolderService mediaFolders,
     IMediaScanner mediaScanner,
     IFfprobeService ffprobe,
-    IPlaybackCommandService playback,
-    IPresenterTelemetry telemetry,
+    YouTubeDownloadPlaybackContext playbackContext,
     string dataDirectory) : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, DownloadJob> jobs = new(StringComparer.Ordinal);
@@ -267,9 +266,10 @@ public sealed class YouTubeDownloadCoordinator(
                     ?? throw new InvalidOperationException("Das heruntergeladene Video wurde nicht gefunden.");
                 var (start, duration) = ResolveSegment(intent, asset);
                 if (intent.Action == YouTubeDownloadAction.Now)
-                    await playback.PlayNowAsync(mediaId, telemetry.Current.Position, start, duration, cancellationToken);
+                    await playbackContext.Commands.PlayNowAsync(
+                        mediaId, playbackContext.Telemetry.Current.Position, start, duration, cancellationToken);
                 else
-                    await playback.PlayNextAsync(mediaId, start, duration, cancellationToken);
+                    await playbackContext.Commands.PlayNextAsync(mediaId, start, duration, cancellationToken);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {

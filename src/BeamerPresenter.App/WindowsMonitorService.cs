@@ -3,7 +3,7 @@ using BeamerPresenter.Application;
 
 namespace BeamerPresenter.App;
 
-internal sealed class WindowsMonitorService : IMonitorService
+internal sealed partial class WindowsMonitorService : IMonitorService
 {
     public IReadOnlyList<DisplayMonitor> GetAll() => Screen.AllScreens
         .Select(screen => new DisplayMonitor(
@@ -19,49 +19,41 @@ internal sealed class WindowsMonitorService : IMonitorService
         .ThenBy(monitor => monitor.Y)
         .ToList();
 
-    private static string GetFriendlyName(string deviceName)
+    private static unsafe string GetFriendlyName(string deviceName)
     {
         var displayDevice = DisplayDevice.Create();
-        return EnumDisplayDevices(deviceName, 0, ref displayDevice, 0)
-            && !string.IsNullOrWhiteSpace(displayDevice.DeviceString)
-                ? displayDevice.DeviceString
-                : deviceName;
+        if (!EnumDisplayDevices(deviceName, 0, ref displayDevice, 0))
+        {
+            return deviceName;
+        }
+
+        char* deviceString = displayDevice.DeviceString;
+        var friendlyName = new string(deviceString);
+        return string.IsNullOrWhiteSpace(friendlyName) ? deviceName : friendlyName;
     }
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    [LibraryImport("user32.dll", EntryPoint = "EnumDisplayDevicesW", StringMarshalling = StringMarshalling.Utf16)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool EnumDisplayDevices(
+    private static partial bool EnumDisplayDevices(
         string? device,
         uint deviceNumber,
         ref DisplayDevice displayDevice,
         uint flags);
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct DisplayDevice
+    [StructLayout(LayoutKind.Sequential)]
+    private unsafe struct DisplayDevice
     {
         public int Size;
-
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
-        public string DeviceName;
-
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
-        public string DeviceString;
+        public fixed char DeviceName[32];
+        public fixed char DeviceString[128];
 
         public int StateFlags;
-
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
-        public string DeviceId;
-
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
-        public string DeviceKey;
+        public fixed char DeviceId[128];
+        public fixed char DeviceKey[128];
 
         public static DisplayDevice Create() => new()
         {
-            Size = Marshal.SizeOf<DisplayDevice>(),
-            DeviceName = string.Empty,
-            DeviceString = string.Empty,
-            DeviceId = string.Empty,
-            DeviceKey = string.Empty
+            Size = Marshal.SizeOf<DisplayDevice>()
         };
     }
 }

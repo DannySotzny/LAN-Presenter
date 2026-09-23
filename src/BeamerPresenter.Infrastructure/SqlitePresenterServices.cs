@@ -22,14 +22,16 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IYouTubeDownloadTool>(provider => new YtDlpDownloadTool(
             provider.GetRequiredService<IExternalProcessRunner>(),
             toolsDirectory ?? Path.Combine(Directory.GetParent(Path.GetFullPath(dataDirectory))?.FullName ?? dataDirectory, "Tools")));
+        services.AddSingleton(provider => new YouTubeDownloadPlaybackContext(
+            provider.GetRequiredService<IPlaybackCommandService>(),
+            provider.GetRequiredService<IPresenterTelemetry>()));
         services.AddSingleton(provider => new YouTubeDownloadCoordinator(
             provider.GetRequiredService<IYouTubeDownloadTool>(),
             provider.GetRequiredService<IYouTubeMediaStore>(),
             provider.GetRequiredService<IMediaFolderService>(),
             provider.GetRequiredService<IMediaScanner>(),
             provider.GetRequiredService<IFfprobeService>(),
-            provider.GetRequiredService<IPlaybackCommandService>(),
-            provider.GetRequiredService<IPresenterTelemetry>(),
+            provider.GetRequiredService<YouTubeDownloadPlaybackContext>(),
             dataDirectory));
         services.AddSingleton(new MediaPreviewService(dataDirectory));
         services.AddSingleton<IMediaPreviewService>(provider => provider.GetRequiredService<MediaPreviewService>());

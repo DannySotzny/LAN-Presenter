@@ -64,7 +64,10 @@ internal sealed class ChromeBrowserController(
             process = processLauncher.Start(chromePath, BuildArguments(profileDirectory, presenterUrl));
             var windowHandle = await WaitForWindowAsync(process, cancellationToken);
             windowController.Place(windowHandle, monitor, settings.AlwaysOnTop);
-            logger.LogInformation("Chrome kiosk started on {MonitorDeviceName}", monitor.DeviceName);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Chrome kiosk started on {MonitorDeviceName}", monitor.DeviceName);
+            }
         }
         catch
         {
@@ -292,7 +295,7 @@ internal sealed class ChromeProcessLauncher : IChromeProcessLauncher
     }
 }
 
-internal sealed class ChromeWindowController : IChromeWindowController
+internal sealed partial class ChromeWindowController : IChromeWindowController
 {
     private const int ExtendedWindowStyle = -20;
     private const long TopmostWindowStyle = 0x00000008L;
@@ -302,6 +305,7 @@ internal sealed class ChromeWindowController : IChromeWindowController
 
     public void Place(nint windowHandle, DisplayMonitor monitor, bool topmost)
     {
+        EnsureWindowHandle(windowHandle);
         if (!SetWindowPos(
                 windowHandle,
                 topmost ? Topmost : NotTopmost,
@@ -315,19 +319,40 @@ internal sealed class ChromeWindowController : IChromeWindowController
         }
     }
 
-    public void Restore(nint windowHandle) => ShowWindowAsync(windowHandle, 9);
-    public void Minimize(nint windowHandle) => ShowWindowAsync(windowHandle, 6);
-    public bool IsTopmost(nint windowHandle) =>
-        (GetWindowLongPtr(windowHandle, ExtendedWindowStyle).ToInt64() & TopmostWindowStyle) != 0;
+    public void Restore(nint windowHandle)
+    {
+        EnsureWindowHandle(windowHandle);
+        ShowWindowAsync(windowHandle, 9);
+    }
 
-    [DllImport("user32.dll", SetLastError = true)]
+    public void Minimize(nint windowHandle)
+    {
+        EnsureWindowHandle(windowHandle);
+        ShowWindowAsync(windowHandle, 6);
+    }
+
+    public bool IsTopmost(nint windowHandle)
+    {
+        EnsureWindowHandle(windowHandle);
+        return (GetWindowLongPtr(windowHandle, ExtendedWindowStyle).ToInt64() & TopmostWindowStyle) != 0;
+    }
+
+    private static void EnsureWindowHandle(nint windowHandle)
+    {
+        if (windowHandle == 0)
+        {
+            throw new ArgumentException("Ein gültiges Chrome-Fensterhandle ist erforderlich.", nameof(windowHandle));
+        }
+    }
+
+    [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetWindowPos(nint windowHandle, nint insertAfter, int x, int y, int width, int height, uint flags);
+    private static partial bool SetWindowPos(nint windowHandle, nint insertAfter, int x, int y, int width, int height, uint flags);
 
-    [DllImport("user32.dll")]
+    [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool ShowWindowAsync(nint windowHandle, int command);
+    private static partial bool ShowWindowAsync(nint windowHandle, int command);
 
-    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
-    private static extern nint GetWindowLongPtr(nint windowHandle, int index);
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+    private static partial nint GetWindowLongPtr(nint windowHandle, int index);
 }

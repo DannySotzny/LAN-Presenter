@@ -139,12 +139,15 @@ internal sealed class SqliteMediaScanner(
             await mediaProbeQueue.QueueAsync(asset.Id, asset.FullPath, cancellationToken);
         }
 
-        logger.LogInformation(
-            "Media reconciliation completed: {Added} added, {Updated} updated, {Missing} missing, {Unchanged} unchanged",
-            added,
-            updated,
-            missing,
-            unchanged);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation(
+                "Media reconciliation completed: {Added} added, {Updated} updated, {Missing} missing, {Unchanged} unchanged",
+                added,
+                updated,
+                missing,
+                unchanged);
+        }
         return new MediaScanResult(added, updated, missing, unchanged);
     }
 
@@ -180,6 +183,7 @@ internal sealed class MediaReconciliationWorker(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            return;
         }
         catch (Exception exception)
         {

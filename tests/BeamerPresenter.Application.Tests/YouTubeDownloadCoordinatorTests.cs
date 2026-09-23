@@ -56,6 +56,100 @@ public sealed class YouTubeDownloadCoordinatorTests
         Assert.Equal(added, fixture.Store.Asset.AddedAtUtc);
     }
 
+    [Theory]
+    [InlineData(true, true, true, MediaPlaybackStatus.Supported, YouTubeDownloadPhase.Ready)]
+    [InlineData(false, true, true, MediaPlaybackStatus.Supported, YouTubeDownloadPhase.NotStarted)]
+    [InlineData(true, false, true, MediaPlaybackStatus.Supported, YouTubeDownloadPhase.NotStarted)]
+    [InlineData(true, true, false, MediaPlaybackStatus.Supported, YouTubeDownloadPhase.NotStarted)]
+    [InlineData(true, true, true, MediaPlaybackStatus.Unsupported, YouTubeDownloadPhase.NotStarted)]
+    public async Task Download_status_is_ready_only_for_available_enabled_playable_file(
+        bool available, bool enabled, bool fileExists, MediaPlaybackStatus playbackStatus, YouTubeDownloadPhase expectedPhase)
+    {
+        using var fixture = new Fixture();
+        var path = Path.Combine(fixture.MediaDirectory, "existing.mp4");
+        await File.WriteAllBytesAsync(path, [1, 2, 3]);
+        fixture.Store.Asset = Fixture.MakeAsset(path, DateTimeOffset.UtcNow);
+        if (!fileExists) File.Delete(path);
+        fixture.Store.Asset.IsAvailable = available;
+        fixture.Store.Asset.Enabled = enabled;
+        fixture.Store.Asset.PlaybackStatus = playbackStatus;
+        await using var coordinator = fixture.CreateCoordinator();
+
+        var snapshot = await coordinator.GetAsync(VideoId);
+
+        Assert.Equal(expectedPhase, snapshot.Phase);
+        Assert.Equal(expectedPhase == YouTubeDownloadPhase.Ready ? fixture.Store.Asset.Id : null, snapshot.MediaId);
+    }
+
+    [Fact]
+    public async Task Missing_destination_folder_fails_before_downloader_runs()
+    {
+        using var fixture = new Fixture();
+        fixture.Folders.Folders.Clear();
+        await using var coordinator = fixture.CreateCoordinator();
+
+        await coordinator.StartAsync(Url);
+        await UntilAsync(async () => (await coordinator.GetAsync(VideoId)).Phase == YouTubeDownloadPhase.Failed);
+
+        Assert.Contains("verfügbaren Videoordner", (await coordinator.GetAsync(VideoId)).Error);
+        Assert.Equal(0, fixture.Tool.Calls);
+        Assert.False(Directory.Exists(fixture.DownloadDirectory));
+    }
+
+    [Fact]
+    public async Task Download_keeps_existing_same_named_media_and_publishes_to_a_unique_path()
+    {
+        using var fixture = new Fixture();
+        var existingPath = Path.Combine(fixture.MediaDirectory, $"YouTube-{VideoId}.mp4");
+        await File.WriteAllTextAsync(existingPath, "existing user media");
+        await using var coordinator = fixture.CreateCoordinator();
+
+        await coordinator.StartAsync(Url);
+        await UntilAsync(async () => (await coordinator.GetAsync(VideoId)).Phase == YouTubeDownloadPhase.Ready);
+
+        Assert.Equal("existing user media", await File.ReadAllTextAsync(existingPath));
+        Assert.NotEqual(existingPath, fixture.Store.Asset!.FullPath);
+        Assert.True(File.Exists(fixture.Store.Asset.FullPath));
+        Assert.Equal(2, Directory.GetFiles(fixture.MediaDirectory, "*.mp4").Length);
+    }
+
+    [Fact]
+    public async Task Next_intent_applies_custom_segment_after_download_analysis()
+    {
+        using var fixture = new Fixture();
+        fixture.Tool.Block = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var coordinator = fixture.CreateCoordinator();
+
+        await coordinator.SetIntentAsync(VideoId, new YouTubeDownloadIntent(YouTubeDownloadAction.Next,
+            YouTubeDownloadMode.Custom, TimeSpan.FromSeconds(12), TimeSpan.FromSeconds(17), null));
+        await UntilAsync(() => fixture.Tool.Calls == 1);
+        fixture.Tool.Block.SetResult();
+        await UntilAsync(async () => (await coordinator.GetAsync(VideoId)).Phase == YouTubeDownloadPhase.Ready);
+
+        Assert.Equal(1, fixture.Playback.NextCalls);
+        Assert.Equal(0, fixture.Playback.NowCalls);
+        Assert.Equal(TimeSpan.FromSeconds(12), fixture.Playback.LastStart);
+        Assert.Equal(TimeSpan.FromSeconds(17), fixture.Playback.LastDuration);
+    }
+
+    [Fact]
+    public async Task Failed_download_can_be_retried_without_reusing_failed_snapshot()
+    {
+        using var fixture = new Fixture();
+        fixture.Tool.ReturnOutsidePath = true;
+        await using var coordinator = fixture.CreateCoordinator();
+
+        await coordinator.StartAsync(Url);
+        await UntilAsync(async () => (await coordinator.GetAsync(VideoId)).Phase == YouTubeDownloadPhase.Failed);
+        fixture.Tool.ReturnOutsidePath = false;
+        var retry = await coordinator.StartAsync(Url);
+        await UntilAsync(async () => (await coordinator.GetAsync(VideoId)).Phase == YouTubeDownloadPhase.Ready);
+
+        Assert.NotEqual(YouTubeDownloadPhase.Failed, retry.Phase);
+        Assert.Equal(2, fixture.Tool.Calls);
+        Assert.Single(Directory.GetFiles(fixture.MediaDirectory, "*.mp4"));
+    }
+
     [Fact]
     public async Task Missing_source_file_is_downloaded_again_and_published_only_after_probe_approval()
     {
@@ -156,10 +250,14 @@ public sealed class YouTubeDownloadCoordinatorTests
         {
             MediaDirectory = Path.Combine(root, "Media");
             Directory.CreateDirectory(MediaDirectory);
+            Folders = new FakeFolders(MediaDirectory);
         }
 
-        public YouTubeDownloadCoordinator CreateCoordinator() => new(Tool, Store,
-            new FakeFolders(MediaDirectory), new FakeScanner(), Probe, Playback, new FakeTelemetry(), Path.Combine(root, "Data"));
+        public FakeFolders Folders { get; }
+
+        public YouTubeDownloadCoordinator CreateCoordinator() => new(Tool, Store, Folders,
+            new FakeScanner(), Probe, new YouTubeDownloadPlaybackContext(Playback, new FakeTelemetry()),
+            Path.Combine(root, "Data"));
 
         public static VideoAsset MakeAsset(string path, DateTimeOffset added) => new()
         {
@@ -223,8 +321,9 @@ public sealed class YouTubeDownloadCoordinatorTests
 
     private sealed class FakeFolders(string path) : IMediaFolderService
     {
+        public List<MediaFolder> Folders { get; } = [new MediaFolder { Id = 1, Path = path }];
         public Task<IReadOnlyList<MediaFolder>> GetAllAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<MediaFolder>>([new MediaFolder { Id = 1, Path = path }]);
+            Task.FromResult<IReadOnlyList<MediaFolder>>(Folders);
         public Task<MediaFolder> AddAsync(string path, bool includeSubdirectories, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task RemoveAsync(int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
@@ -257,17 +356,27 @@ public sealed class YouTubeDownloadCoordinatorTests
     private sealed class FakePlayback : IPlaybackCommandService
     {
         public int NowCalls;
+        public int NextCalls;
         public int? LastMediaId;
+        public TimeSpan? LastStart;
         public TimeSpan? LastDuration;
         public Task<QueueEntry> PlayNowAsync(int mediaId, TimeSpan? currentPosition, TimeSpan? start = null,
             TimeSpan? duration = null, CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref NowCalls);
             LastMediaId = mediaId;
+            LastStart = start;
             LastDuration = duration;
             return Task.FromResult(new QueueEntry());
         }
-        public Task<QueueEntry> PlayNextAsync(int mediaId, TimeSpan? start = null, TimeSpan? duration = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<QueueEntry> PlayNextAsync(int mediaId, TimeSpan? start = null, TimeSpan? duration = null, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref NextCalls);
+            LastMediaId = mediaId;
+            LastStart = start;
+            LastDuration = duration;
+            return Task.FromResult(new QueueEntry());
+        }
         public Task<QueueEntry> PlayYouTubeNextAsync(string url, TimeSpan? start = null, TimeSpan? duration = null, TimeSpan? maximumDuration = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<QueueEntry> PlayYouTubeNowAsync(string url, TimeSpan? currentPosition, TimeSpan? start = null, TimeSpan? duration = null, TimeSpan? maximumDuration = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task PrioritizeQueuedAsync(long queueEntryId, CancellationToken cancellationToken = default) => throw new NotSupportedException();

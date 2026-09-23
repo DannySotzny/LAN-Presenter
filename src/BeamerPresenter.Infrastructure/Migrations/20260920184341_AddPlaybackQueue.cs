@@ -8,6 +8,9 @@ namespace BeamerPresenter.Infrastructure.Migrations
     /// <inheritdoc />
     public partial class AddPlaybackQueue : Migration
     {
+        private static readonly string[] PlaybackHistoryIndexColumns = ["MediaId", "StartedUtc"];
+        private static readonly string[] QueueStatusIndexColumns = ["Status", "SortOrder"];
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -102,12 +105,12 @@ namespace BeamerPresenter.Infrastructure.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_PlaybackHistory_MediaId_StartedUtc",
                 table: "PlaybackHistory",
-                columns: new[] { "MediaId", "StartedUtc" });
+                columns: PlaybackHistoryIndexColumns);
 
             migrationBuilder.CreateIndex(
                 name: "IX_QueueEntries_Status_SortOrder",
                 table: "QueueEntries",
-                columns: new[] { "Status", "SortOrder" });
+                columns: QueueStatusIndexColumns);
         }
 
         /// <inheritdoc />

@@ -8,6 +8,18 @@ namespace BeamerPresenter.App.Tests;
 public sealed class ChromeBrowserControllerTests
 {
     [Fact]
+    public void Chrome_window_operations_reject_a_missing_native_window_handle()
+    {
+        var windows = new ChromeWindowController();
+        var monitor = new DisplayMonitor("DISPLAY1", "Test monitor", 0, 0, 1920, 1080, true);
+
+        Assert.Throws<ArgumentException>(() => windows.Place(0, monitor, topmost: true));
+        Assert.Throws<ArgumentException>(() => windows.Restore(0));
+        Assert.Throws<ArgumentException>(() => windows.Minimize(0));
+        Assert.Throws<ArgumentException>(() => windows.IsTopmost(0));
+    }
+
+    [Fact]
     public async Task Controller_starts_kiosk_on_configured_monitor_and_controls_window()
     {
         var testRoot = Path.Combine(Path.GetTempPath(), "BeamerPresenter.Tests", Guid.NewGuid().ToString("N"));

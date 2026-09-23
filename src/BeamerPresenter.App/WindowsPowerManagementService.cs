@@ -4,7 +4,7 @@ using BeamerPresenter.Application;
 
 namespace BeamerPresenter.App;
 
-internal sealed class WindowsPowerManagementService : IPowerManagementService, IDisposable
+internal sealed partial class WindowsPowerManagementService : IPowerManagementService, IDisposable
 {
     private const string Kernel32Library = "kernel32.dll";
     private const uint SimpleReasonString = 0x1;
@@ -130,18 +130,18 @@ internal sealed class WindowsPowerManagementService : IPowerManagementService, I
         public nint ReasonDescriptionPointer;
     }
 
-    [DllImport(Kernel32Library, SetLastError = true)]
-    private static extern nint PowerCreateRequest(ref ReasonContext context);
+    [LibraryImport(Kernel32Library, SetLastError = true)]
+    private static partial nint PowerCreateRequest(ref ReasonContext context);
 
-    [DllImport(Kernel32Library, SetLastError = true)]
+    [LibraryImport(Kernel32Library, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool PowerSetRequest(nint powerRequest, PowerRequestType requestType);
+    private static partial bool PowerSetRequest(nint powerRequest, PowerRequestType requestType);
 
-    [DllImport(Kernel32Library, SetLastError = true)]
+    [LibraryImport(Kernel32Library, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool PowerClearRequest(nint powerRequest, PowerRequestType requestType);
+    private static partial bool PowerClearRequest(nint powerRequest, PowerRequestType requestType);
 
-    [DllImport(Kernel32Library, SetLastError = true)]
+    [LibraryImport(Kernel32Library, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CloseHandle(nint handle);
+    private static partial bool CloseHandle(nint handle);
 }

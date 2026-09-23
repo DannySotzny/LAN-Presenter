@@ -49,7 +49,7 @@ internal static class Program
         catch (Exception exception)
         {
             Log.Fatal(exception, "Presenter terminated unexpectedly");
-            throw;
+            throw new InvalidOperationException("Der Presenter wurde unerwartet beendet.", exception);
         }
         finally
         {

@@ -48,7 +48,7 @@ internal sealed class PresenterForm : Form
     private bool _allowExit;
     private bool _configuredMonitorMissing;
     private bool _statusRefreshInProgress;
-    private string _localWebUrl = "http://localhost:8765";
+    private string _localWebUrl = new UriBuilder(Uri.UriSchemeHttp, "localhost", 8765).Uri.AbsoluteUri;
 
     public PresenterForm(WebApplication host, bool startMinimized = false)
     {
@@ -88,7 +88,7 @@ internal sealed class PresenterForm : Form
     }
 
     protected override void Dispose(bool disposing) { if (disposing) { _statusTimer.Dispose(); _notifyIcon.Dispose(); } base.Dispose(disposing); }
-    private Control CreateContent()
+    private TableLayoutPanel CreateContent()
     {
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(18), ColumnCount = 2, RowCount = 22, AutoScroll = true };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32)); root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 68));
@@ -99,7 +99,7 @@ internal sealed class PresenterForm : Form
         root.Controls.Add(new Label { AutoSize = true, Text = "Port- und Netzwerkänderungen gelten nach einem Neustart." }, 1, 21); return root;
     }
     private static void AddRow(TableLayoutPanel panel, int row, string label, Control input) { panel.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, row); panel.Controls.Add(input, 1, row); }
-    private Control CreateMediaFolderControl()
+    private TableLayoutPanel CreateMediaFolderControl()
     {
         var add = new Button { Text = "Hinzufügen", AutoSize = true };
         add.Click += async (_, _) => await AddMediaFolderAsync();
@@ -114,7 +114,7 @@ internal sealed class PresenterForm : Form
         panel.Controls.Add(actions, 0, 1);
         return panel;
     }
-    private Control CreateFfprobePathControl()
+    private TableLayoutPanel CreateFfprobePathControl()
     {
         var select = new Button { Text = "Auswählen", AutoSize = true };
         select.Click += (_, _) => SelectFfprobePath();
@@ -125,7 +125,7 @@ internal sealed class PresenterForm : Form
         panel.Controls.Add(select, 1, 0);
         return panel;
     }
-    private Control CreateChromePathControl()
+    private TableLayoutPanel CreateChromePathControl()
     {
         var select = new Button { Text = "Auswählen", AutoSize = true };
         select.Click += (_, _) => SelectChromePath();
@@ -136,7 +136,7 @@ internal sealed class PresenterForm : Form
         panel.Controls.Add(select, 1, 0);
         return panel;
     }
-    private Control CreatePresenterOptionsControl()
+    private FlowLayoutPanel CreatePresenterOptionsControl()
     {
         var panel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
         panel.Controls.Add(_alwaysOnTop);
@@ -145,7 +145,7 @@ internal sealed class PresenterForm : Form
         panel.Controls.Add(_preventSystemSleep);
         return panel;
     }
-    private Control CreateFfprobeStatusControl()
+    private FlowLayoutPanel CreateFfprobeStatusControl()
     {
         var check = new Button { Text = "Erneut prüfen", AutoSize = true };
         check.Click += async (_, _) => await RefreshFfprobeStatusAsync();

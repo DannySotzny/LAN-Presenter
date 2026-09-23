@@ -195,6 +195,10 @@ public interface IPlaybackCommandService
     Task<QueueEntry?> AdvanceAsync(TimeSpan? actualPosition, bool successful = true, CancellationToken cancellationToken = default);
 }
 
+public sealed record YouTubeDownloadPlaybackContext(
+    IPlaybackCommandService Commands,
+    IPresenterTelemetry Telemetry);
+
 public interface IPresenterControlService
 {
     Task ActivateAsync(CancellationToken cancellationToken = default);

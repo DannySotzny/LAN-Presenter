@@ -49,8 +49,15 @@ internal sealed class MediaFolderWatcher(
         {
             _ = changeSignal;
             await Task.Delay(DebouncePeriod, cancellationToken);
+            var coalescedSignals = 0;
             while (changes.Reader.TryRead(out _))
             {
+                coalescedSignals++;
+            }
+
+            if (coalescedSignals > 0)
+            {
+                logger.LogDebug("Coalesced {ChangeCount} media watcher signals before reconciliation", coalescedSignals);
             }
 
             try
