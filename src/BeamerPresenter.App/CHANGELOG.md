@@ -1,4 +1,13 @@
 Beamerpresenter.App Changelog
+<a name="0.12.0"></a>
+## [0.12.0](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.12.0) (2026-09-23)
+
+### Features
+
+* add asynchronous media previews ([ecf2b78](https://www.github.com/DannySotzny/LAN-Presenter/commit/ecf2b786cd5d6d7219242692c43bea48c9e46f15))
+* import blocked YouTube videos with yt-dlp ([c4d0281](https://www.github.com/DannySotzny/LAN-Presenter/commit/c4d0281705340e0575eb543cae00f19067bbce9f))
+* queue local playback after blocked YouTube embeds ([26c7788](https://www.github.com/DannySotzny/LAN-Presenter/commit/26c77887b240c603ec3187286790dfb1d36b3d63))
+
 <a name="0.11.1"></a>
 ## [0.11.1](https://www.github.com/DannySotzny/LAN-Presenter/releases/tag/v0.11.1) (2026-09-22)
 
