@@ -206,52 +206,72 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task YouTube_embedding_error_starts_download_and_remembers_play_now()
+    public async Task YouTube_metadata_always_downloads_single_video_and_queues_local_next()
     {
         await using var context = await _browser!.NewContextAsync();
         var phase = "downloading";
         string? intentBody = null;
+        string? startBody = null;
         var downloadRequests = new List<string>();
         await context.RouteAsync("**/api/youtube/download**", async route =>
         {
             downloadRequests.Add(route.Request.Url + " " + route.Request.Method + " " + route.Request.PostData);
+            if (route.Request.Url.EndsWith("/api/youtube/download", StringComparison.Ordinal) && route.Request.Method == "POST")
+            {
+                startBody = route.Request.PostData;
+            }
             if (route.Request.Url.EndsWith("/intent", StringComparison.Ordinal))
             {
                 intentBody = route.Request.PostData;
             }
-            var body = $$"""{"videoId":"M7lc1UVf-VE","phase":"{{phase}}","mediaId":null,"error":null}""";
+            var mediaId = phase == "ready" ? "43" : "null";
+            var body = $$"""{"videoId":"Es7F0h1DKGs","phase":"{{phase}}","mediaId":{{mediaId}},"error":null,"durationSeconds":319}""";
             await route.FulfillAsync(new RouteFulfillOptions { Status = 200, ContentType = "application/json", Body = body });
         });
-        await context.AddInitScriptAsync("""
-            window.YT = {
-                Player: class {
-                    constructor(element, options) {
-                        setTimeout(() => options.events.onReady({ target: this }), 0);
-                        setTimeout(() => options.events.onError({ data: 150 }), 400);
-                    }
-                    getDuration() { return 90; }
-                    destroy() {}
-                }
-            };
-            """);
         var page = await context.NewPageAsync();
         await page.GotoAsync($"{_baseAddress}/login");
         await page.FillAsync("#password", TestPassword);
         await page.Locator("form[action='/account/login'] button[type='submit']").ClickAsync();
         await page.GotoAsync($"{_baseAddress}/playback");
-        await page.FillAsync("#youtube-url", "https://youtu.be/M7lc1UVf-VE");
+        await page.FillAsync("#youtube-url", "https://www.youtube.com/watch?v=Es7F0h1DKGs&list=RDEs7F0h1DKGs&start_radio=1");
         await page.ClickAsync("#youtube-load-metadata");
-        await WaitForTextAsync(page, "#youtube-metadata-status", "Video erkannt");
         await WaitForTextAsync(page, "#youtube-metadata-status", "Video wird lokal geladen");
-        Assert.False(await page.Locator(".youtube-actions button").Last.IsDisabledAsync());
-        await page.Locator(".youtube-actions button").Last.ClickAsync();
+        Assert.Contains("url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DEs7F0h1DKGs", startBody);
+        Assert.Null(await page.QuerySelectorAsync("#youtube-iframe-api"));
+        await page.Locator(".youtube-actions button").First.ClickAsync();
         await page.WaitForFunctionAsync("document.querySelector('#youtube-metadata-status').textContent.includes('vorgemerkt')");
-        Assert.True(intentBody?.Contains("action=now", StringComparison.Ordinal) == true,
+        Assert.True(intentBody?.Contains("action=next", StringComparison.Ordinal) == true,
             string.Join(" | ", downloadRequests));
         phase = "ready";
         await WaitForTextAsync(page, "#youtube-metadata-status", "Mediathek bereit");
-        await page.FillAsync("#youtube-url", "https://youtu.be/dQw4w9WgXcQ");
-        Assert.False(await page.Locator(".youtube-actions button").Last.IsDisabledAsync());
+        Assert.Equal("Dauer: 00:05:19", await page.Locator("#youtube-duration").InnerTextAsync());
+        Assert.EndsWith("/media/43", await page.Locator("#youtube-preview video").GetAttributeAsync("src"));
+    }
+
+    [Fact]
+    public async Task YouTube_play_now_without_metadata_click_still_starts_local_download()
+    {
+        await using var context = await _browser!.NewContextAsync();
+        var requests = new List<string>();
+        await context.RouteAsync("**/api/youtube/download**", async route =>
+        {
+            requests.Add(route.Request.Url + " " + route.Request.Method + " " + route.Request.PostData);
+            await route.FulfillAsync(new RouteFulfillOptions { Status = 200, ContentType = "application/json",
+                Body = """{"videoId":"Es7F0h1DKGs","phase":"downloading","mediaId":null,"error":null,"durationSeconds":null}""" });
+        });
+        var page = await context.NewPageAsync();
+        await page.GotoAsync($"{_baseAddress}/login");
+        await page.FillAsync("#password", TestPassword);
+        await page.Locator("form[action='/account/login'] button[type='submit']").ClickAsync();
+        await page.GotoAsync($"{_baseAddress}/playback");
+        await page.FillAsync("#youtube-url", "https://www.youtube.com/watch?v=Es7F0h1DKGs&list=RDEs7F0h1DKGs&start_radio=1");
+        await page.Locator(".youtube-actions button").Last.ClickAsync();
+        await page.WaitForFunctionAsync("document.querySelector('#youtube-metadata-status').textContent.includes('vorgemerkt')");
+
+        Assert.Contains(requests, item => item.Contains("/api/youtube/download POST", StringComparison.Ordinal) &&
+            item.Contains("Es7F0h1DKGs", StringComparison.Ordinal));
+        Assert.Contains(requests, item => item.Contains("/intent POST", StringComparison.Ordinal) &&
+            item.Contains("action=now", StringComparison.Ordinal));
     }
 
     [Fact]

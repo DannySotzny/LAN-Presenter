@@ -315,10 +315,9 @@ public static class WebApplicationExtensions
 
     private static async Task<IResult> PlayYouTubeNextAsync(
         HttpContext context,
-        IPlaybackCommandService playback,
+        YouTubeDownloadCoordinator downloads,
         CancellationToken cancellationToken) =>
-        await ExecuteYouTubeCommandAsync(context, (url, start, duration, maximumDuration) =>
-            playback.PlayYouTubeNextAsync(url, start, duration, maximumDuration, cancellationToken));
+        await ExecuteYouTubeCommandAsync(context, downloads, YouTubeDownloadAction.Next, cancellationToken);
 
     private static IResult GetYouTubeReference(string? url)
     {
@@ -337,16 +336,9 @@ public static class WebApplicationExtensions
 
     private static async Task<IResult> PlayYouTubeNowAsync(
         HttpContext context,
-        IPlaybackCommandService playback,
-        PresenterConnectionState presenterState,
-        CancellationToken cancellationToken)
-    {
-        TimeSpan? currentPosition = presenterState.LatestReport.PositionSeconds is >= 0
-            ? TimeSpan.FromSeconds(presenterState.LatestReport.PositionSeconds.Value)
-            : null;
-        return await ExecuteYouTubeCommandAsync(context, (url, start, duration, maximumDuration) =>
-            playback.PlayYouTubeNowAsync(url, currentPosition, start, duration, maximumDuration, cancellationToken));
-    }
+        YouTubeDownloadCoordinator downloads,
+        CancellationToken cancellationToken) =>
+        await ExecuteYouTubeCommandAsync(context, downloads, YouTubeDownloadAction.Now, cancellationToken);
 
     private static async Task<IResult> ExecuteQueueCommandAsync(
         HttpContext context,
@@ -373,16 +365,28 @@ public static class WebApplicationExtensions
 
     private static async Task<IResult> ExecuteYouTubeCommandAsync(
         HttpContext context,
-        Func<string, TimeSpan?, TimeSpan?, TimeSpan?, Task<QueueEntry>> command)
+        YouTubeDownloadCoordinator downloads,
+        YouTubeDownloadAction action,
+        CancellationToken cancellationToken)
     {
         var form = await context.Request.ReadFormAsync(context.RequestAborted);
         try
         {
+            var reference = YouTubeUrlParser.Parse(form["url"].ToString());
             var start = ParseOptionalTime(form["start"].ToString());
             var duration = ParseOptionalTime(form["duration"].ToString());
             var maximumDuration = ParseOptionalTime(form["maximumDuration"].ToString());
-            await command(form["url"].ToString(), start, duration, maximumDuration);
-            return Results.Redirect($"{PlaybackPath}?youtube=success");
+            var modeValue = form["playbackMode"].ToString();
+            var mode = modeValue.Length == 0
+                ? start.HasValue || duration.HasValue ? YouTubeDownloadMode.Custom
+                    : maximumDuration.HasValue ? YouTubeDownloadMode.Automatic : YouTubeDownloadMode.Full
+                : Enum.TryParse<YouTubeDownloadMode>(modeValue, true, out var selected) && Enum.IsDefined(selected)
+                    ? selected : throw new FormatException("Der Wiedergabemodus ist ungültig.");
+            var snapshot = await downloads.SetIntentAsync(reference.VideoId,
+                new YouTubeDownloadIntent(action, mode, start, duration, maximumDuration), cancellationToken);
+            if (snapshot.Error is not null)
+                throw new InvalidOperationException(snapshot.Error);
+            return Results.Redirect($"{PlaybackPath}?youtube={(snapshot.Phase == YouTubeDownloadPhase.Ready ? "success" : "downloading")}");
         }
         catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FormatException)
         {
@@ -595,7 +599,8 @@ public static class WebApplicationExtensions
         snapshot.VideoId,
         Phase = snapshot.Phase.ToString().ToLowerInvariant(),
         snapshot.MediaId,
-        snapshot.Error
+        snapshot.Error,
+        DurationSeconds = snapshot.Duration?.TotalSeconds
     };
 
     private static async Task<IResult> GetMediaPreviewAsync(

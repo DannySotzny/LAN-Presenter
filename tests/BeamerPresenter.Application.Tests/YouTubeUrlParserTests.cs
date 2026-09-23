@@ -18,6 +18,15 @@ public sealed class YouTubeUrlParserTests
         Assert.Equal("https://www.youtube.com/watch?v=dQw4w9WgXcQ", parsed.CanonicalUrl);
     }
 
+    [Fact]
+    public void Playlist_and_radio_parameters_do_not_change_the_selected_video()
+    {
+        var reference = YouTubeUrlParser.Parse("https://www.youtube.com/watch?v=Es7F0h1DKGs&list=RDEs7F0h1DKGs&start_radio=1");
+
+        Assert.Equal("Es7F0h1DKGs", reference.VideoId);
+        Assert.Equal("https://www.youtube.com/watch?v=Es7F0h1DKGs", reference.CanonicalUrl);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

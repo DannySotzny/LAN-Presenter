@@ -65,7 +65,7 @@ public interface IYouTubeDownloadTool
 public enum YouTubeDownloadPhase { NotStarted, Installing, Downloading, Analyzing, Ready, Failed }
 public enum YouTubeDownloadAction { Now, Next }
 public enum YouTubeDownloadMode { Automatic, Full, Custom }
-public sealed record YouTubeDownloadSnapshot(string VideoId, YouTubeDownloadPhase Phase, int? MediaId, string? Error);
+public sealed record YouTubeDownloadSnapshot(string VideoId, YouTubeDownloadPhase Phase, int? MediaId, string? Error, TimeSpan? Duration = null);
 public sealed record YouTubeDownloadIntent(YouTubeDownloadAction Action, YouTubeDownloadMode Mode, TimeSpan? Start, TimeSpan? Duration, TimeSpan? MaximumDuration);
 
 public static class YouTubeDownloadLimits

@@ -45,8 +45,8 @@ Die Fundament-Stufe ist implementiert:
 - sichtbare Wiedergabehistorie für lokale und YouTube-Segmente mit Status, tatsächlichem Zeitraum und bewusstem Zurücksetzen
 - Presenter-Ende und Wiedergabefehler schalten automatisch zum nächsten Eintrag weiter
 - sichere Normalisierung von YouTube-Watch-, Kurz- und Shorts-Links auf stabile `youtube:<video-id>`-Quellschlüssel
-- geschützter YouTube-Metadatencheck über die offizielle IFrame Player API mit sichtbarer Dauer, Vorschau und Auswahl zwischen vollständiger, begrenzter und eigener Segmentwiedergabe
-- bei YouTube-Einbettungsfehler 101/150 automatischer lokaler Download per `yt-dlp` (WinGet-ID `yt-dlp.yt-dlp`), maximal 1080p/5 GB als H.264/AAC-MP4; Status und vorgemerkte „Sofort“-/„Als Nächstes“-Aktionen bleiben für die laufende App-Sitzung erhalten
+- geschützte Normalisierung von YouTube-Links; „Metadaten laden“ startet für jeden gültigen Link den lokalen Download und zeigt nach der Analyse Dauer und lokale Vorschau
+- automatischer Download per `yt-dlp` (WinGet-ID `yt-dlp.yt-dlp`), maximal 1080p/5 GB als H.264/AAC-MP4; Status und vorgemerkte „Sofort“-/„Als Nächstes“-Aktionen bleiben für die laufende App-Sitzung erhalten
 - geprüfte Downloads werden in den ersten aktivierten Medienordner übernommen, von Scanner und FFprobe freigegeben und sieben Tage lang in der Mediathek als „Kürzlich geladen“ markiert
 - persistente YouTube-Queue- und Verlaufseinträge mit begrenzter Wiedergabezeit und fortlaufenden, nicht ständig am Anfang beginnenden Segmenten
 - YouTube-Wiedergabe über die offizielle IFrame Player API mit Dauer-/Positionsmeldungen, Fünf-Sekunden-Timeout und automatischem Fallback zum nächsten Queue-Eintrag

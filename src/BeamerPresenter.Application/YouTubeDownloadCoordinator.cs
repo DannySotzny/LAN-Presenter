@@ -46,7 +46,7 @@ public sealed class YouTubeDownloadCoordinator(
         if (jobs.TryGetValue(reference.VideoId, out var job)) return job.Snapshot;
         var existing = await mediaStore.GetBySourceKeyAsync(reference.SourceKey, cancellationToken);
         return existing is { IsAvailable: true, Enabled: true, PlaybackStatus: MediaPlaybackStatus.Supported } && File.Exists(existing.FullPath)
-            ? new YouTubeDownloadSnapshot(videoId, YouTubeDownloadPhase.Ready, existing.Id, null)
+            ? new YouTubeDownloadSnapshot(videoId, YouTubeDownloadPhase.Ready, existing.Id, null, existing.Duration)
             : new YouTubeDownloadSnapshot(videoId, YouTubeDownloadPhase.NotStarted, null, null);
     }
 
@@ -79,7 +79,7 @@ public sealed class YouTubeDownloadCoordinator(
             var existing = await mediaStore.GetBySourceKeyAsync(sourceKey, cancellationToken);
             if (existing is { IsAvailable: true, Enabled: true, PlaybackStatus: MediaPlaybackStatus.Supported } && File.Exists(existing.FullPath))
             {
-                job.SetSnapshot(YouTubeDownloadPhase.Ready, existing.Id);
+                job.SetSnapshot(YouTubeDownloadPhase.Ready, existing.Id, duration: existing.Duration);
                 await FlushIntentAsync(job, cancellationToken);
                 return;
             }
@@ -141,7 +141,7 @@ public sealed class YouTubeDownloadCoordinator(
                 var analyzed = await mediaStore.GetBySourceKeyAsync(sourceKey, wait.Token);
                 if (analyzed?.ProbeStatus == MediaProbeStatus.Valid && analyzed.PlaybackStatus == MediaPlaybackStatus.Supported)
                 {
-                    job.SetSnapshot(YouTubeDownloadPhase.Ready, asset.Id);
+                    job.SetSnapshot(YouTubeDownloadPhase.Ready, asset.Id, duration: analyzed.Duration);
                     await FlushIntentAsync(job, cancellationToken);
                     return;
                 }
@@ -200,7 +200,7 @@ public sealed class YouTubeDownloadCoordinator(
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                job.SetSnapshot(YouTubeDownloadPhase.Ready, mediaId, exception.Message);
+                job.SetSnapshot(YouTubeDownloadPhase.Ready, mediaId, exception.Message, duration: job.Snapshot.Duration);
             }
         }
         finally
@@ -258,7 +258,7 @@ public sealed class YouTubeDownloadCoordinator(
         public YouTubeDownloadIntent? Intent { get; set; }
         public Task? Work { get; set; }
         public YouTubeDownloadSnapshot Snapshot => Volatile.Read(ref snapshot);
-        public void SetSnapshot(YouTubeDownloadPhase phase, int? mediaId = null, string? error = null) =>
-            Volatile.Write(ref snapshot, new YouTubeDownloadSnapshot(VideoId, phase, mediaId, error));
+        public void SetSnapshot(YouTubeDownloadPhase phase, int? mediaId = null, string? error = null, TimeSpan? duration = null) =>
+            Volatile.Write(ref snapshot, new YouTubeDownloadSnapshot(VideoId, phase, mediaId, error, duration));
     }
 }

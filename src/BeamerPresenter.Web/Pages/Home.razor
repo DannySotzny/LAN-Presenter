@@ -119,7 +119,11 @@
         }
         @if (YouTubeResult == "success")
         {
-            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Das YouTube-Video wurde normalisiert und in die Queue aufgenommen.</MudAlert>
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled">Das lokal gespeicherte Video wurde in die Queue aufgenommen.</MudAlert>
+        }
+        else if (YouTubeResult == "downloading")
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Filled">Das Video wird lokal geladen und danach automatisch eingereiht.</MudAlert>
         }
         else if (YouTubeResult == "error")
         {
@@ -131,7 +135,7 @@
             <MudItem xs="12" md="4">
                 <div class="panel-icon youtube-icon"><MudIcon Icon="@Icons.Custom.Brands.YouTube" Size="Size.Large" /></div>
                 <MudText Typo="Typo.h5" Class="mt-3">YouTube einreihen</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">Watch-, Kurz- und Shorts-Links werden normalisiert. Bei Netz- oder Playerfehlern läuft die lokale Queue weiter.</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">Jeder gültige YouTube-Link wird lokal geladen. „Sofort“ und „Als Nächstes“ warten auf die Medienanalyse.</MudText>
             </MudItem>
             <MudItem xs="12" md="8">
                 <form method="post" class="youtube-form" id="youtube-management-form">

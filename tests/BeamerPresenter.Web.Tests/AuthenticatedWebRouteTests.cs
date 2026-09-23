@@ -22,6 +22,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
     private const string TestPassword = "integration-test-password";
     private readonly string _dataDirectory = Path.Combine(Path.GetTempPath(), "BeamerPresenter.Tests", Guid.NewGuid().ToString("N"));
     private readonly RecordingPlaybackCommands _playbackCommands = new();
+    private readonly BlockingYouTubeDownloadTool _youTubeDownloads = new();
     private readonly RecordingPresenterControls _presenterControls = new();
     private WebApplication? _application;
 
@@ -33,6 +34,7 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         });
         builder.WebHost.UseTestServer();
         builder.Services.AddPresenterInfrastructure(_dataDirectory);
+        builder.Services.AddSingleton<IYouTubeDownloadTool>(_youTubeDownloads);
         builder.Services.AddPresenterWebUi();
         builder.Services.AddSingleton<IPlaybackCommandService>(_playbackCommands);
         builder.Services.AddSingleton<INewsCommandService>(_playbackCommands);
@@ -560,15 +562,18 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Authenticated_youtube_action_passes_bounded_playback_request()
+    public async Task Authenticated_youtube_action_queues_local_download_instead_of_external_playback()
     {
         using var client = _application!.GetTestClient();
         var cookie = await LoginAsync(client);
+        var mediaPath = Path.Combine(_dataDirectory, "Media");
+        Directory.CreateDirectory(mediaPath);
+        await _application!.Services.GetRequiredService<IMediaFolderService>().AddAsync(mediaPath, false);
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/youtube/next")
         {
             Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["url"] = "https://youtu.be/dQw4w9WgXcQ",
+                ["url"] = "https://www.youtube.com/watch?v=Es7F0h1DKGs&list=RDEs7F0h1DKGs&start_radio=1",
                 ["maximumDuration"] = "00:10:00"
             })
         };
@@ -577,10 +582,9 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         using var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal("/playback?youtube=success", response.Headers.Location?.OriginalString);
-        var command = Assert.Single(_playbackCommands.YouTubeNextCalls);
-        Assert.Equal("https://youtu.be/dQw4w9WgXcQ", command.Url);
-        Assert.Equal(TimeSpan.FromMinutes(10), command.MaximumDuration);
+        Assert.Equal("/playback?youtube=downloading", response.Headers.Location?.OriginalString);
+        Assert.Equal("Es7F0h1DKGs", await _youTubeDownloads.Started.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Empty(_playbackCommands.YouTubeNextCalls);
     }
 
     [Fact]
@@ -1068,6 +1072,20 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
         public Task<IReadOnlyList<MediaFolder>> GetAllAsync(CancellationToken cancellationToken = default) => throw new InvalidOperationException("Die Ordnerabfrage darf bei einem Request-Abbruch nicht erfolgen.");
         public Task<MediaFolder> AddAsync(string path, bool includeSubdirectories, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task RemoveAsync(int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class BlockingYouTubeDownloadTool : IYouTubeDownloadTool
+    {
+        public TaskCompletionSource<string> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<string> DownloadAsync(string videoId, string stagingDirectory,
+            Action<YouTubeDownloadPhase> reportPhase, CancellationToken cancellationToken)
+        {
+            Started.TrySetResult(videoId);
+            reportPhase(YouTubeDownloadPhase.Downloading);
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("Der Testdownload darf nicht fertig werden.");
+        }
     }
 
     private sealed record QueueCommand(int MediaId, TimeSpan? Start, TimeSpan? Duration);
