@@ -10,6 +10,7 @@
 @inject BeamerPresenter.Application.INewsService NewsService
 @inject BeamerPresenter.Application.PlaybackController Playback
 @inject BeamerPresenter.Web.PresenterDashboardService Dashboard
+@inject TimeProvider Clock
 @inject NavigationManager Navigation
 
 <MudStack Spacing="4">
@@ -441,6 +442,10 @@
                                     </div>
                                     <div class="media-name-cell">
                                         <MudText Typo="Typo.body2">@context.FileName</MudText>
+                                        @if (IsRecentlyLoaded(context))
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Kürzlich geladen</MudChip>
+                                        }
                                         <MudText Typo="Typo.caption" Color="Color.Secondary">@(context.IsAvailable ? FormatResolution(context) : "Datei nicht verfügbar")</MudText>
                                     </div>
                                 </MudStack>
@@ -580,6 +585,8 @@ else if (IsMedia)
     private int ReadyCount => _videos.Count(video => video.Enabled && video.IsAvailable && video.PlaybackStatus == MediaPlaybackStatus.Supported);
     private int PendingCount => _videos.Count(video => video.Enabled && video.IsAvailable && video.ProbeStatus == MediaProbeStatus.Unknown);
     private int ProblemCount => _videos.Count(video => video.Enabled && (!video.IsAvailable || video.ProbeStatus is MediaProbeStatus.Invalid or MediaProbeStatus.Missing || video.PlaybackStatus == MediaPlaybackStatus.Unsupported));
+    private bool IsRecentlyLoaded(VideoAsset video) => video.IsAvailable &&
+        Clock.GetUtcNow() >= video.AddedAtUtc && Clock.GetUtcNow() - video.AddedAtUtc < TimeSpan.FromDays(7);
     private static int PreviewFrameCount(VideoAsset video) => video.Duration is { } duration && duration > TimeSpan.Zero
         ? (int)Math.Clamp(Math.Ceiling(duration.TotalSeconds / 5), 1, 24)
         : 1;

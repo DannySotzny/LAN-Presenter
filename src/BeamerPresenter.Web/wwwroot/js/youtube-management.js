@@ -21,6 +21,30 @@
     let youtubeApiPromise = null;
     let player = null;
     let durationSeconds = null;
+    let playerError = null;
+    let metadataGeneration = 0;
+    let downloadVideoId = null;
+    let downloadPoll = null;
+    let pendingAction = null;
+    const actionButtons = form.querySelectorAll(".youtube-actions button");
+
+    const playerErrorMessage = code => {
+        switch (code) {
+            case 100: return "Dieses YouTube-Video ist nicht verfügbar oder privat.";
+            case 101:
+            case 150: return "Der Videoanbieter erlaubt keine Wiedergabe außerhalb von YouTube.";
+            case 153: return "YouTube konnte die Einbettung nicht zuordnen (Fehler 153).";
+            default: return `YouTube Player Fehler ${code}: Die Wiedergabe ist nicht verfügbar.`;
+        }
+    };
+
+    const showPlayerError = code => {
+        playerError = playerErrorMessage(code);
+        fullMode.disabled = true;
+        status.textContent = playerError;
+        status.className = "error";
+        actionButtons.forEach(button => { button.disabled = code !== 101 && code !== 150; });
+    };
 
     const formatDuration = value => {
         const totalSeconds = Math.max(0, Math.floor(value));
@@ -51,9 +75,17 @@
     };
 
     const resetMetadata = () => {
+        metadataGeneration += 1;
+        if (downloadPoll) window.clearInterval(downloadPoll);
+        downloadPoll = null;
+        downloadVideoId = null;
+        pendingAction = null;
         destroyPlayer();
         durationSeconds = null;
+        playerError = null;
+        loadButton.disabled = false;
         fullMode.disabled = true;
+        actionButtons.forEach(button => { button.disabled = false; });
         if (selectedMode() === "full") {
             form.querySelector('input[name="playbackMode"][value="automatic"]').checked = true;
         }
@@ -61,6 +93,79 @@
         status.className = "";
         durationLabel.textContent = "Dauer: –";
         updateMode();
+    };
+
+    const phaseText = {
+        installing: "yt-dlp wird eingerichtet …",
+        downloading: "Video wird lokal geladen …",
+        analyzing: "Video wird analysiert …",
+        ready: "Video ist in der Mediathek bereit.",
+        failed: "Download fehlgeschlagen."
+    };
+
+    const showDownload = snapshot => {
+        const phase = String(snapshot.phase || "").toLowerCase();
+        if (phase === "ready" && downloadPoll) {
+            window.clearInterval(downloadPoll);
+            downloadPoll = null;
+        }
+        if (phase === "failed" && downloadPoll) {
+            window.clearInterval(downloadPoll);
+            downloadPoll = null;
+        }
+        const note = pendingAction && phase === "ready"
+            ? (pendingAction === "Sofort" ? " Lokale Wiedergabe wurde gestartet." : " Lokale Wiedergabe wurde als Nächstes eingereiht.")
+            : pendingAction && phase !== "failed" ? ` ${pendingAction} ist vorgemerkt.` : "";
+        status.textContent = snapshot.error || `${phaseText[phase] || "Download wird vorbereitet …"}${note}`;
+        status.className = phase === "failed" || snapshot.error ? "error" : phase === "ready" ? "success" : "loading";
+        if (phase === "failed") actionButtons.forEach(button => { button.disabled = true; });
+        if (phase === "ready") {
+            fullMode.disabled = false;
+            durationLabel.textContent = "Dauer: lokal analysiert";
+        }
+    };
+
+    const pollDownload = async (videoId, generation) => {
+        if (generation !== metadataGeneration) return;
+        try {
+            const response = await fetch(`/api/youtube/download/${encodeURIComponent(videoId)}`, {
+                credentials: "same-origin", cache: "no-store", headers: { Accept: "application/json" }
+            });
+            if (!response.ok) throw new Error("Downloadstatus konnte nicht geladen werden.");
+            if (generation === metadataGeneration) showDownload(await response.json());
+        } catch (error) {
+            if (generation === metadataGeneration) {
+                status.textContent = error.message;
+                status.className = "error";
+            }
+        }
+    };
+
+    const startDownload = async (reference, generation) => {
+        if (generation !== metadataGeneration) return;
+        downloadVideoId = reference.videoId;
+        status.textContent = "Einbettung gesperrt. Lokaler Download wird vorbereitet …";
+        status.className = "loading";
+        try {
+            const response = await fetch("/api/youtube/download", {
+                method: "POST", credentials: "same-origin",
+                headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+                body: new URLSearchParams({ url: reference.canonicalUrl })
+            });
+            const snapshot = await response.json();
+            if (!response.ok) throw new Error(snapshot.error || "Der Download konnte nicht gestartet werden.");
+            if (generation !== metadataGeneration) return;
+            showDownload(snapshot);
+            downloadPoll = window.setInterval(() => { void pollDownload(reference.videoId, generation); }, 1000);
+            await pollDownload(reference.videoId, generation);
+        } catch (error) {
+            if (generation === metadataGeneration) {
+                downloadVideoId = null;
+                status.textContent = error.message;
+                status.className = "error";
+                actionButtons.forEach(button => { button.disabled = true; });
+            }
+        }
     };
 
     const ensureYouTubeApi = () => {
@@ -110,7 +215,8 @@
         check();
     });
 
-    const createMetadataPlayer = (yt, videoId) => new Promise((resolve, reject) => {
+    const createMetadataPlayer = (yt, reference) => new Promise((resolve, reject) => {
+        const generation = metadataGeneration;
         preview.hidden = false;
         const host = document.createElement("div");
         preview.appendChild(host);
@@ -118,14 +224,15 @@
         player = new yt.Player(host, {
             width: "100%",
             height: "220",
-            videoId,
+            videoId: reference.videoId,
             playerVars: { autoplay: 0, controls: 1, modestbranding: 1, rel: 0 },
             events: {
                 onReady: async event => {
                     try {
                         const value = await waitForDuration(event.target);
                         window.clearTimeout(timeout);
-                        resolve(value);
+                        if (generation === metadataGeneration) resolve(value);
+                        else reject(new Error("Die Metadatenanfrage wurde ersetzt."));
                     } catch (error) {
                         window.clearTimeout(timeout);
                         reject(error);
@@ -133,7 +240,11 @@
                 },
                 onError: event => {
                     window.clearTimeout(timeout);
-                    reject(new Error(`YouTube Player Fehler ${event.data}`));
+                    if (generation === metadataGeneration) {
+                        showPlayerError(event.data);
+                        if (event.data === 101 || event.data === 150) void startDownload(reference, generation);
+                    }
+                    reject(new Error(playerErrorMessage(event.data)));
                 }
             }
         });
@@ -141,6 +252,7 @@
 
     const loadMetadata = async () => {
         resetMetadata();
+        const generation = metadataGeneration;
         loadButton.disabled = true;
         status.textContent = "Video und Dauer werden geprüft …";
         status.className = "loading";
@@ -156,18 +268,22 @@
             }
             const reference = await response.json();
             const yt = await ensureYouTubeApi();
-            durationSeconds = await createMetadataPlayer(yt, reference.videoId);
+            durationSeconds = await createMetadataPlayer(yt, reference);
+            if (generation !== metadataGeneration) return;
+            if (playerError) return;
             fullMode.disabled = false;
             status.textContent = `✓ Video erkannt (${reference.videoId})`;
             status.className = "success";
             durationLabel.textContent = `Dauer: ${formatDuration(durationSeconds)}`;
         } catch (error) {
+            if (generation !== metadataGeneration) return;
+            if (playerError) return;
             destroyPlayer();
             status.textContent = error instanceof Error ? error.message : "YouTube-Metadaten sind nicht verfügbar";
             status.className = "error";
             durationLabel.textContent = "Dauer: nicht verfügbar – maximale Laufzeit verwenden";
         } finally {
-            loadButton.disabled = false;
+            if (generation === metadataGeneration) loadButton.disabled = false;
         }
     };
 
@@ -175,8 +291,12 @@
         if (event.target?.name === "playbackMode") updateMode();
     });
     form.addEventListener("submit", event => {
+        if (playerError && !downloadVideoId) {
+            event.preventDefault();
+            return;
+        }
         const mode = selectedMode();
-        if (mode === "full") {
+        if (mode === "full" && !downloadVideoId) {
             if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
                 event.preventDefault();
                 status.textContent = "Bitte zuerst die YouTube-Metadaten laden.";
@@ -193,6 +313,27 @@
         } else {
             maximumInput.value = "";
         }
+        if (!downloadVideoId) return;
+        event.preventDefault();
+        const action = event.submitter?.formAction?.endsWith("/now") ? "now" : "next";
+        const actionLabel = action === "now" ? "Sofort" : "Als Nächstes";
+        const data = new URLSearchParams({ action, mode, start: startInput.value,
+            duration: durationInput.value, maximumDuration: maximumInput.value });
+        void (async () => {
+            try {
+                const response = await fetch(`/api/youtube/download/${encodeURIComponent(downloadVideoId)}/intent`, {
+                    method: "POST", credentials: "same-origin",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }, body: data
+                });
+                const snapshot = await response.json();
+                if (!response.ok) throw new Error(snapshot.error || "Die Wiedergabe konnte nicht vorgemerkt werden.");
+                pendingAction = actionLabel;
+                showDownload(snapshot);
+            } catch (error) {
+                status.textContent = error.message;
+                status.className = "error";
+            }
+        })();
     });
     urlInput.addEventListener("input", resetMetadata);
     loadButton.addEventListener("click", loadMetadata);

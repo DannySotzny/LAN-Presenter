@@ -537,6 +537,8 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
     [InlineData("/api/queue/regenerate")]
     [InlineData("/api/history/clear")]
     [InlineData("/api/youtube/now")]
+    [InlineData("/api/youtube/download")]
+    [InlineData("/api/youtube/download/dQw4w9WgXcQ/intent")]
     [InlineData("/api/news/show")]
     [InlineData("/api/news/delete")]
     public async Task Management_actions_reject_unauthenticated_requests(string endpoint)
@@ -610,6 +612,27 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal("/login", response.Headers.Location?.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task YouTube_download_status_requires_authentication_and_valid_video_id()
+    {
+        using var client = _application!.GetTestClient();
+        using var anonymous = await client.GetAsync("/api/youtube/download/dQw4w9WgXcQ");
+        Assert.Equal(HttpStatusCode.Redirect, anonymous.StatusCode);
+        Assert.Equal("/login", anonymous.Headers.Location?.AbsolutePath);
+
+        var cookie = await LoginAsync(client);
+        using var valid = new HttpRequestMessage(HttpMethod.Get, "/api/youtube/download/dQw4w9WgXcQ");
+        valid.Headers.Add("Cookie", cookie);
+        using var ready = await client.SendAsync(valid);
+        Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
+        Assert.Contains("notStarted", await ready.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+        using var invalid = new HttpRequestMessage(HttpMethod.Get, "/api/youtube/download/invalid");
+        invalid.Headers.Add("Cookie", cookie);
+        using var rejected = await client.SendAsync(invalid);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
     }
 
     [Fact]

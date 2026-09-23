@@ -53,6 +53,9 @@ public static class WebApplicationExtensions
         app.MapPost("/api/queue/regenerate", (Delegate)RegenerateQueueAsync).RequireAuthorization();
         app.MapPost("/api/history/clear", (Delegate)ClearHistoryAsync).RequireAuthorization();
         app.MapGet("/api/youtube/reference", (Delegate)GetYouTubeReference).RequireAuthorization();
+        app.MapPost("/api/youtube/download", (Delegate)StartYouTubeDownloadAsync).RequireAuthorization();
+        app.MapGet("/api/youtube/download/{videoId}", (Delegate)GetYouTubeDownloadAsync).RequireAuthorization();
+        app.MapPost("/api/youtube/download/{videoId}/intent", (Delegate)SetYouTubeDownloadIntentAsync).RequireAuthorization();
         app.MapPost("/api/youtube/next", (Delegate)PlayYouTubeNextAsync).RequireAuthorization();
         app.MapPost("/api/youtube/now", (Delegate)PlayYouTubeNowAsync).RequireAuthorization();
         app.MapPost("/api/news/create", (Delegate)CreateNewsAsync).RequireAuthorization();
@@ -533,6 +536,58 @@ public static class WebApplicationExtensions
             return Results.StatusCode(ClientClosedRequestStatusCode);
         }
     }
+
+    private static async Task<IResult> StartYouTubeDownloadAsync(
+        HttpContext context, YouTubeDownloadCoordinator downloads, CancellationToken cancellationToken)
+    {
+        var form = await context.Request.ReadFormAsync(cancellationToken);
+        try
+        {
+            return Results.Ok(ToDownloadResponse(await downloads.StartAsync(form["url"].ToString(), cancellationToken)));
+        }
+        catch (Exception exception) when (exception is ArgumentException or FormatException)
+        {
+            return Results.BadRequest(new { error = exception.Message });
+        }
+    }
+
+    private static async Task<IResult> GetYouTubeDownloadAsync(
+        string videoId, YouTubeDownloadCoordinator downloads, CancellationToken cancellationToken)
+    {
+        try { return Results.Ok(ToDownloadResponse(await downloads.GetAsync(videoId, cancellationToken))); }
+        catch (Exception exception) when (exception is ArgumentException or FormatException)
+        { return Results.BadRequest(new { error = exception.Message }); }
+    }
+
+    private static async Task<IResult> SetYouTubeDownloadIntentAsync(
+        string videoId, HttpContext context, YouTubeDownloadCoordinator downloads, CancellationToken cancellationToken)
+    {
+        var form = await context.Request.ReadFormAsync(cancellationToken);
+        try
+        {
+            if (!Enum.TryParse<YouTubeDownloadAction>(form["action"], true, out var action) ||
+                !Enum.IsDefined(action) ||
+                !Enum.TryParse<YouTubeDownloadMode>(form["mode"], true, out var mode) ||
+                !Enum.IsDefined(mode))
+                throw new ArgumentException("Die Wiedergabeaktion ist ungültig.");
+            var intent = new YouTubeDownloadIntent(action, mode,
+                ParseOptionalTime(form["start"].ToString()), ParseOptionalTime(form["duration"].ToString()),
+                ParseOptionalTime(form["maximumDuration"].ToString()));
+            return Results.Ok(ToDownloadResponse(await downloads.SetIntentAsync(videoId, intent, cancellationToken)));
+        }
+        catch (Exception exception) when (exception is ArgumentException or FormatException or InvalidOperationException)
+        {
+            return Results.BadRequest(new { error = exception.Message });
+        }
+    }
+
+    private static object ToDownloadResponse(YouTubeDownloadSnapshot snapshot) => new
+    {
+        snapshot.VideoId,
+        Phase = snapshot.Phase.ToString().ToLowerInvariant(),
+        snapshot.MediaId,
+        snapshot.Error
+    };
 
     private static async Task<IResult> GetMediaPreviewAsync(
         int mediaId,

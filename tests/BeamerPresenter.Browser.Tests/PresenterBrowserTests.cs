@@ -142,6 +142,89 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
         Assert.Contains(_playbackCommands.AdvanceCalls, call => !call.Successful);
     }
 
+    [Fact]
+    public async Task YouTube_embedding_error_starts_download_and_remembers_play_now()
+    {
+        await using var context = await _browser!.NewContextAsync();
+        var phase = "downloading";
+        string? intentBody = null;
+        var downloadRequests = new List<string>();
+        await context.RouteAsync("**/api/youtube/download**", async route =>
+        {
+            downloadRequests.Add(route.Request.Url + " " + route.Request.Method + " " + route.Request.PostData);
+            if (route.Request.Url.EndsWith("/intent", StringComparison.Ordinal))
+            {
+                intentBody = route.Request.PostData;
+            }
+            var body = $$"""{"videoId":"M7lc1UVf-VE","phase":"{{phase}}","mediaId":null,"error":null}""";
+            await route.FulfillAsync(new RouteFulfillOptions { Status = 200, ContentType = "application/json", Body = body });
+        });
+        await context.AddInitScriptAsync("""
+            window.YT = {
+                Player: class {
+                    constructor(element, options) {
+                        setTimeout(() => options.events.onReady({ target: this }), 0);
+                        setTimeout(() => options.events.onError({ data: 150 }), 400);
+                    }
+                    getDuration() { return 90; }
+                    destroy() {}
+                }
+            };
+            """);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync($"{_baseAddress}/login");
+        await page.FillAsync("#password", TestPassword);
+        await page.Locator("form[action='/account/login'] button[type='submit']").ClickAsync();
+        await page.GotoAsync($"{_baseAddress}/playback");
+        await page.FillAsync("#youtube-url", "https://youtu.be/M7lc1UVf-VE");
+        await page.ClickAsync("#youtube-load-metadata");
+        await WaitForTextAsync(page, "#youtube-metadata-status", "Video erkannt");
+        await WaitForTextAsync(page, "#youtube-metadata-status", "Video wird lokal geladen");
+        Assert.False(await page.Locator(".youtube-actions button").Last.IsDisabledAsync());
+        await page.Locator(".youtube-actions button").Last.ClickAsync();
+        await page.WaitForFunctionAsync("document.querySelector('#youtube-metadata-status').textContent.includes('vorgemerkt')");
+        Assert.True(intentBody?.Contains("action=now", StringComparison.Ordinal) == true,
+            string.Join(" | ", downloadRequests));
+        phase = "ready";
+        await WaitForTextAsync(page, "#youtube-metadata-status", "Mediathek bereit");
+        await page.FillAsync("#youtube-url", "https://youtu.be/dQw4w9WgXcQ");
+        Assert.False(await page.Locator(".youtube-actions button").Last.IsDisabledAsync());
+    }
+
+    [Fact]
+    public async Task Media_library_shows_recently_loaded_badge_for_seven_days()
+    {
+        var factory = _application!.Services.GetRequiredService<IDbContextFactory<PresenterDbContext>>();
+        await using (var database = await factory.CreateDbContextAsync())
+        {
+            database.Videos.AddRange(
+                new VideoAsset
+                {
+                    FileName = "recent-video.mp4", FullPath = Path.Combine(_dataDirectory, "recent-video.mp4"),
+                    AddedAtUtc = DateTimeOffset.UtcNow.AddDays(-6), IsAvailable = true,
+                    ProbeStatus = MediaProbeStatus.Valid, PlaybackStatus = MediaPlaybackStatus.Supported
+                },
+                new VideoAsset
+                {
+                    FileName = "old-video.mp4", FullPath = Path.Combine(_dataDirectory, "old-video.mp4"),
+                    AddedAtUtc = DateTimeOffset.UtcNow.AddDays(-8), IsAvailable = true,
+                    ProbeStatus = MediaProbeStatus.Valid, PlaybackStatus = MediaPlaybackStatus.Supported
+                });
+            await database.SaveChangesAsync();
+        }
+
+        await using var context = await _browser!.NewContextAsync();
+        var page = await context.NewPageAsync();
+        await page.GotoAsync($"{_baseAddress}/login");
+        await page.FillAsync("#password", TestPassword);
+        await page.Locator("form[action='/account/login'] button[type='submit']").ClickAsync();
+        await page.GotoAsync($"{_baseAddress}/media");
+
+        Assert.Equal(1, await page.GetByText("Kürzlich geladen").CountAsync());
+        Assert.Equal(1, await page.Locator("tr").Filter(new LocatorFilterOptions { HasText = "recent-video.mp4" })
+            .GetByText("Kürzlich geladen").CountAsync());
+    }
+
     public async Task DisposeAsync()
     {
         if (_browser is not null)
