@@ -108,8 +108,14 @@ public sealed class PresenterFoundationTests
     {
         var service = new WindowsPowerManagementService();
 
-        await service.ReleaseAsync();
-        await service.ReleaseAsync();
+        var firstRelease = service.ReleaseAsync();
+        Assert.True(firstRelease.IsCompletedSuccessfully);
+        await firstRelease;
+
+        var secondRelease = service.ReleaseAsync();
+        Assert.True(secondRelease.IsCompletedSuccessfully);
+        await secondRelease;
+
         service.Dispose();
         service.Dispose();
     }
@@ -119,8 +125,13 @@ public sealed class PresenterFoundationTests
     {
         using var service = new WindowsPowerManagementService();
 
-        await service.ApplyAsync(preventDisplaySleep: true, preventSystemSleep: true);
-        await service.ReleaseAsync();
+        var apply = service.ApplyAsync(preventDisplaySleep: true, preventSystemSleep: true);
+        Assert.True(apply.IsCompletedSuccessfully);
+        await apply;
+
+        var release = service.ReleaseAsync();
+        Assert.True(release.IsCompletedSuccessfully);
+        await release;
     }
 
     [Fact]

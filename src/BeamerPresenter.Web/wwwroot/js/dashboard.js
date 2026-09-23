@@ -11,8 +11,9 @@
 
     const formatClock = value => {
         if (!value) return "--:--:--";
-        const match = String(value).match(/(?:\d+\.)?(\d{2}:\d{2}:\d{2})/);
-        return match ? match[1] : String(value);
+        const text = String(value);
+        const match = /\d{2}:\d{2}:\d{2}/.exec(text);
+        return match ? match[0] : text;
     };
 
     const refresh = async () => {
@@ -29,7 +30,9 @@
             elements.title.textContent = status.currentTitle || "–";
             elements.position.textContent = `${formatClock(status.position)} / ${formatClock(status.duration)}`;
             elements.ffprobe.textContent = status.ffprobeAvailable ? "OK" : "Nicht verfügbar";
-            elements.scanner.textContent = status.mediaScannerRunning ? "Läuft" : status.mediaScannerError ? "Fehler" : "Bereit";
+            if (status.mediaScannerRunning) elements.scanner.textContent = "Läuft";
+            else if (status.mediaScannerError) elements.scanner.textContent = "Fehler";
+            else elements.scanner.textContent = "Bereit";
         } catch {
             elements.browser.textContent = "Browser: Status nicht erreichbar";
         }

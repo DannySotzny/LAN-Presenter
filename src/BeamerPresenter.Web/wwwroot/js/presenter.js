@@ -180,7 +180,7 @@
     };
     const hideNews = () => {
         news.className = "presenter-news presenter-media-hidden";
-        news.removeAttribute("data-news-id");
+        delete news.dataset.newsId;
         presenterRoot.classList.remove("news-split-active");
     };
     const showTicker = (id, title, text) => {
@@ -192,40 +192,43 @@
     };
     const hideTicker = () => {
         ticker.classList.add("presenter-media-hidden");
-        ticker.removeAttribute("data-news-id");
+        delete ticker.dataset.newsId;
         presenterRoot.classList.remove("ticker-active");
     };
-    const handleInvocation = async (message) => {
+    const invocationHandlers = {
+        loadlocalvideo: args => loadLocalVideo(args[0], args[1], args[2], args[3]),
+        loadyoutubevideo: args => loadYouTubeVideo(args[0], args[1], args[2], args[3]),
+        play: async () => {
+            if (activeSource === "youtube") youtubePlayer?.playVideo?.();
+            else await video.play();
+        },
+        pause: () => {
+            if (activeSource === "youtube") youtubePlayer?.pauseVideo?.();
+            else video.pause();
+        },
+        stop: () => stopPlayback(),
+        seek: args => {
+            if (!Number.isFinite(args[0])) return;
+            const position = Math.max(0, args[0]);
+            if (activeSource === "youtube") youtubePlayer?.seekTo?.(position, true);
+            else video.currentTime = position;
+        },
+        setvolume: args => {
+            if (!Number.isFinite(args[0])) return;
+            const volume = Math.max(0, Math.min(1, args[0]));
+            if (activeSource === "youtube") youtubePlayer?.setVolume?.(volume * 100);
+            else video.volume = volume;
+        },
+        shownews: args => showNews(args[0], args[1], args[2], args[3]),
+        hidenews: () => hideNews(),
+        showticker: args => showTicker(args[0], args[1], args[2]),
+        hideticker: () => hideTicker()
+    };
+
+    const handleInvocation = async message => {
         const target = String(message.target || "").toLowerCase();
         const args = message.arguments || [];
-        switch (target) {
-            case "loadlocalvideo": await loadLocalVideo(args[0], args[1], args[2], args[3]); break;
-            case "loadyoutubevideo": await loadYouTubeVideo(args[0], args[1], args[2], args[3]); break;
-            case "play":
-                if (activeSource === "youtube") youtubePlayer?.playVideo?.(); else await video.play();
-                break;
-            case "pause":
-                if (activeSource === "youtube") youtubePlayer?.pauseVideo?.(); else video.pause();
-                break;
-            case "stop": stopPlayback(); break;
-            case "seek":
-                if (Number.isFinite(args[0])) {
-                    if (activeSource === "youtube") youtubePlayer?.seekTo?.(Math.max(0, args[0]), true);
-                    else video.currentTime = Math.max(0, args[0]);
-                }
-                break;
-            case "setvolume":
-                if (Number.isFinite(args[0])) {
-                    const volume = Math.max(0, Math.min(1, args[0]));
-                    if (activeSource === "youtube") youtubePlayer?.setVolume?.(volume * 100);
-                    else video.volume = volume;
-                }
-                break;
-            case "shownews": showNews(args[0], args[1], args[2], args[3]); break;
-            case "hidenews": hideNews(); break;
-            case "showticker": showTicker(args[0], args[1], args[2]); break;
-            case "hideticker": hideTicker(); break;
-        }
+        await invocationHandlers[target]?.(args);
     };
     const handleMessages = async (payload) => {
         for (const record of payload.split(recordSeparator)) {

@@ -201,8 +201,11 @@ public sealed class MediaSegmentPlanner
         }
     }
 
-    private static TimeSpan Clamp(TimeSpan value, TimeSpan minimum, TimeSpan maximum) =>
-        value < minimum ? minimum : value > maximum ? maximum : value;
+    private static TimeSpan Clamp(TimeSpan value, TimeSpan minimum, TimeSpan maximum)
+    {
+        if (value < minimum) return minimum;
+        return value > maximum ? maximum : value;
+    }
 
     private sealed record Candidate(VideoAsset Asset, IReadOnlyList<TimeRange> FreeRanges);
 

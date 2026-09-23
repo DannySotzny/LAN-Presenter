@@ -20,28 +20,7 @@ public static partial class YouTubeUrlParser
             return false;
         }
 
-        var host = uri.IdnHost.TrimEnd('.');
-        string? videoId = null;
-        if (host.Equals("youtu.be", StringComparison.OrdinalIgnoreCase))
-        {
-            var parts = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            videoId = parts.Length == 1 ? parts[0] : null;
-        }
-        else if (IsYouTubeHost(host))
-        {
-            if (uri.AbsolutePath.Equals("/watch", StringComparison.OrdinalIgnoreCase))
-            {
-                videoId = ParseQueryValue(uri.Query, "v");
-            }
-            else
-            {
-                var parts = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length == 2 && parts[0].Equals("shorts", StringComparison.OrdinalIgnoreCase))
-                {
-                    videoId = parts[1];
-                }
-            }
-        }
+        var videoId = ExtractVideoId(uri);
 
         if (videoId is null || !VideoIdPattern().IsMatch(videoId))
         {
@@ -65,6 +44,31 @@ public static partial class YouTubeUrlParser
     private static bool IsYouTubeHost(string host) =>
         host.Equals("youtube.com", StringComparison.OrdinalIgnoreCase) ||
         host.EndsWith(".youtube.com", StringComparison.OrdinalIgnoreCase);
+
+    private static string? ExtractVideoId(Uri uri)
+    {
+        var host = uri.IdnHost.TrimEnd('.');
+        if (host.Equals("youtu.be", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length == 1 ? parts[0] : null;
+        }
+
+        if (!IsYouTubeHost(host))
+        {
+            return null;
+        }
+
+        if (uri.AbsolutePath.Equals("/watch", StringComparison.OrdinalIgnoreCase))
+        {
+            return ParseQueryValue(uri.Query, "v");
+        }
+
+        var pathParts = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return pathParts.Length == 2 && pathParts[0].Equals("shorts", StringComparison.OrdinalIgnoreCase)
+            ? pathParts[1]
+            : null;
+    }
 
     private static string? ParseQueryValue(string query, string requestedName)
     {

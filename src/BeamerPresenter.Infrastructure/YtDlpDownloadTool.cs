@@ -9,16 +9,37 @@ internal sealed class YtDlpDownloadTool(IExternalProcessRunner processRunner, st
 
     public async Task<string> DownloadAsync(string videoId, string stagingDirectory, Action<YouTubeDownloadPhase> reportPhase, CancellationToken cancellationToken)
     {
-        if (videoId.Length != 11 || videoId.Any(character => !char.IsAsciiLetterOrDigit(character) && character is not ('_' or '-')))
-        {
-            throw new ArgumentException("Die YouTube-Video-ID ist ungültig.", nameof(videoId));
-        }
-
+        ValidateVideoId(videoId);
         var executable = await EnsureAvailableAsync(cancellationToken);
         reportPhase(YouTubeDownloadPhase.Downloading);
         Directory.CreateDirectory(stagingDirectory);
         var arguments = BuildArguments(videoId, stagingDirectory);
-        using var process = new Process
+        using var process = StartProcess(executable, arguments);
+
+        var output = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var errors = process.StandardError.ReadToEndAsync(cancellationToken);
+        await WaitForDownloadAsync(process, stagingDirectory, cancellationToken);
+        _ = await output;
+        _ = await errors;
+        EnsureSuccessfulExit(process.ExitCode);
+
+        var file = Directory.EnumerateFiles(stagingDirectory, "*.mp4", SearchOption.TopDirectoryOnly).SingleOrDefault()
+            ?? throw new InvalidOperationException("yt-dlp hat keine MP4-Datei erzeugt.");
+        EnsureValidDownloadedFile(file);
+        return file;
+    }
+
+    private static void ValidateVideoId(string videoId)
+    {
+        if (videoId.Length != 11 || videoId.Any(character => !char.IsAsciiLetterOrDigit(character) && character is not ('_' or '-')))
+        {
+            throw new ArgumentException("Die YouTube-Video-ID ist ungültig.", nameof(videoId));
+        }
+    }
+
+    private static Process StartProcess(string executable, IReadOnlyList<string> arguments)
+    {
+        var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
@@ -30,32 +51,17 @@ internal sealed class YtDlpDownloadTool(IExternalProcessRunner processRunner, st
             }
         };
         foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
-        if (!process.Start()) throw new InvalidOperationException("yt-dlp konnte nicht gestartet werden.");
+        if (process.Start()) return process;
+        process.Dispose();
+        throw new InvalidOperationException("yt-dlp konnte nicht gestartet werden.");
+    }
 
-        var output = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var errors = process.StandardError.ReadToEndAsync(cancellationToken);
-        var sizeExceeded = false;
+    private static async Task WaitForDownloadAsync(Process process, string stagingDirectory, CancellationToken cancellationToken)
+    {
+        var sizeExceeded = 0;
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         limit.CancelAfter(TimeSpan.FromHours(2));
-        var sizeMonitor = Task.Run(async () =>
-        {
-            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-            while (await timer.WaitForNextTickAsync(limit.Token))
-            {
-                long currentBytes;
-                try
-                {
-                    currentBytes = Directory.EnumerateFiles(stagingDirectory, "*", SearchOption.AllDirectories)
-                    .Sum(path => new FileInfo(path).Length);
-                }
-                catch (IOException) { continue; }
-                catch (UnauthorizedAccessException) { continue; }
-                if (currentBytes <= YouTubeDownloadLimits.MaximumBytes) continue;
-                sizeExceeded = true;
-                await limit.CancelAsync();
-                break;
-            }
-        }, CancellationToken.None);
+        var sizeMonitor = MonitorDownloadSizeAsync(stagingDirectory, limit, () => Interlocked.Exchange(ref sizeExceeded, 1));
         try
         {
             await process.WaitForExitAsync(limit.Token);
@@ -64,32 +70,70 @@ internal sealed class YtDlpDownloadTool(IExternalProcessRunner processRunner, st
         {
             if (!process.HasExited) process.Kill(entireProcessTree: true);
             await process.WaitForExitAsync(CancellationToken.None);
-            if (sizeExceeded) throw new InvalidOperationException("Das Video überschreitet die Downloadgrenze von 5 GB.");
-            if (cancellationToken.IsCancellationRequested) throw;
-            throw new TimeoutException("Der YouTube-Download hat das Zeitlimit überschritten.");
+            ThrowDownloadCancellation(Volatile.Read(ref sizeExceeded) != 0, cancellationToken);
         }
         finally
         {
             await limit.CancelAsync();
             try { await sizeMonitor; }
-            catch (OperationCanceledException) when (limit.IsCancellationRequested) { }
+            catch (OperationCanceledException) when (limit.IsCancellationRequested)
+            {
+                // The monitor is expected to stop when the download completes or reaches its limit.
+            }
         }
+    }
 
-        _ = await output;
-        _ = await errors;
-        if (process.ExitCode != 0)
+    private static async Task MonitorDownloadSizeAsync(string stagingDirectory, CancellationTokenSource limit, Action onLimitReached)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        while (await timer.WaitForNextTickAsync(limit.Token))
         {
-            throw new InvalidOperationException($"yt-dlp konnte das Video nicht laden (Code {process.ExitCode}).");
-        }
+            long currentBytes;
+            try
+            {
+                currentBytes = Directory.EnumerateFiles(stagingDirectory, "*", SearchOption.AllDirectories)
+                    .Sum(path => new FileInfo(path).Length);
+            }
+            catch (IOException)
+            {
+                // yt-dlp may be creating, moving, or removing a file during this snapshot.
+                continue;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // A transient access denial should not stop the download monitor.
+                continue;
+            }
 
-        var file = Directory.EnumerateFiles(stagingDirectory, "*.mp4", SearchOption.TopDirectoryOnly).SingleOrDefault()
-            ?? throw new InvalidOperationException("yt-dlp hat keine MP4-Datei erzeugt.");
+            if (currentBytes <= YouTubeDownloadLimits.MaximumBytes) continue;
+            onLimitReached();
+            await limit.CancelAsync();
+            return;
+        }
+    }
+
+    private static void ThrowDownloadCancellation(bool sizeExceeded, CancellationToken cancellationToken)
+    {
+        if (sizeExceeded) throw new InvalidOperationException("Das Video überschreitet die Downloadgrenze von 5 GB.");
+        if (cancellationToken.IsCancellationRequested) throw new OperationCanceledException(cancellationToken);
+        throw new TimeoutException("Der YouTube-Download hat das Zeitlimit überschritten.");
+    }
+
+    private static void EnsureSuccessfulExit(int exitCode)
+    {
+        if (exitCode != 0)
+        {
+            throw new InvalidOperationException($"yt-dlp konnte das Video nicht laden (Code {exitCode}).");
+        }
+    }
+
+    private static void EnsureValidDownloadedFile(string file)
+    {
         var size = new FileInfo(file).Length;
         if (!YouTubeDownloadLimits.IsValidSize(size))
         {
             throw new InvalidOperationException("Die heruntergeladene Datei ist leer oder größer als 5 GB.");
         }
-        return file;
     }
 
     internal static IReadOnlyList<string> BuildArguments(string videoId, string stagingDirectory) =>

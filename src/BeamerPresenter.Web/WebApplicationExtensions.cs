@@ -377,21 +377,38 @@ public static class WebApplicationExtensions
             var duration = ParseOptionalTime(form["duration"].ToString());
             var maximumDuration = ParseOptionalTime(form["maximumDuration"].ToString());
             var modeValue = form["playbackMode"].ToString();
-            var mode = modeValue.Length == 0
-                ? start.HasValue || duration.HasValue ? YouTubeDownloadMode.Custom
-                    : maximumDuration.HasValue ? YouTubeDownloadMode.Automatic : YouTubeDownloadMode.Full
-                : Enum.TryParse<YouTubeDownloadMode>(modeValue, true, out var selected) && Enum.IsDefined(selected)
-                    ? selected : throw new FormatException("Der Wiedergabemodus ist ungültig.");
+            var mode = ParseYouTubePlaybackMode(modeValue, start, duration, maximumDuration);
             var snapshot = await downloads.SetIntentAsync(reference.VideoId,
                 new YouTubeDownloadIntent(action, mode, start, duration, maximumDuration), cancellationToken);
             if (snapshot.Error is not null)
                 throw new InvalidOperationException(snapshot.Error);
-            return Results.Redirect($"{PlaybackPath}?youtube={(snapshot.Phase == YouTubeDownloadPhase.Ready ? "success" : "downloading")}");
+            var result = snapshot.Phase == YouTubeDownloadPhase.Ready ? "success" : "downloading";
+            return Results.Redirect($"{PlaybackPath}?youtube={result}");
         }
         catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FormatException)
         {
             return Results.Redirect($"{PlaybackPath}?youtube=error&message={Uri.EscapeDataString(exception.Message)}");
         }
+    }
+
+    private static YouTubeDownloadMode ParseYouTubePlaybackMode(
+        string modeValue,
+        TimeSpan? start,
+        TimeSpan? duration,
+        TimeSpan? maximumDuration)
+    {
+        if (modeValue.Length != 0)
+        {
+            if (Enum.TryParse<YouTubeDownloadMode>(modeValue, true, out var selected) && Enum.IsDefined(selected))
+            {
+                return selected;
+            }
+
+            throw new FormatException("Der Wiedergabemodus ist ungültig.");
+        }
+
+        if (start.HasValue || duration.HasValue) return YouTubeDownloadMode.Custom;
+        return maximumDuration.HasValue ? YouTubeDownloadMode.Automatic : YouTubeDownloadMode.Full;
     }
 
     private static async Task<IResult> CreateNewsAsync(

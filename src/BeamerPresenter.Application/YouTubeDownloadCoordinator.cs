@@ -66,92 +66,12 @@ public sealed class YouTubeDownloadCoordinator(
 
     private async Task RunAsync(DownloadJob job, CancellationToken cancellationToken)
     {
-        string? stagingDirectory = null;
-        string? publishedPath = null;
-        var published = false;
-        var registered = false;
-        var gateHeld = false;
+        var work = new DownloadWork();
         try
         {
             await downloadGate.WaitAsync(cancellationToken);
-            gateHeld = true;
-            var sourceKey = $"youtube:{job.VideoId}";
-            var existing = await mediaStore.GetBySourceKeyAsync(sourceKey, cancellationToken);
-            if (existing is { IsAvailable: true, Enabled: true, PlaybackStatus: MediaPlaybackStatus.Supported } && File.Exists(existing.FullPath))
-            {
-                job.SetSnapshot(YouTubeDownloadPhase.Ready, existing.Id, duration: existing.Duration);
-                await FlushIntentAsync(job, cancellationToken);
-                return;
-            }
-
-            var destination = (await mediaFolders.GetAllAsync(cancellationToken)).FirstOrDefault(folder => folder.Enabled && Directory.Exists(folder.Path))
-                ?? throw new InvalidOperationException("Bitte zuerst einen verfügbaren Videoordner in der Desktop-App festlegen.");
-            if ((File.GetAttributes(destination.Path) & FileAttributes.ReparsePoint) != 0)
-                throw new InvalidOperationException("Der Videoordner ist eine Umleitung und kann nicht gescannt werden.");
-            stagingDirectory = Path.Combine(downloadRoot, job.VideoId, Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(stagingDirectory);
-            job.SetSnapshot(YouTubeDownloadPhase.Installing);
-            var downloadedPath = await downloadTool.DownloadAsync(job.VideoId, stagingDirectory,
-                phase => job.SetSnapshot(phase), cancellationToken);
-            var safePath = Path.GetFullPath(downloadedPath);
-            if (!string.Equals(Path.GetDirectoryName(safePath), Path.GetFullPath(stagingDirectory), StringComparison.OrdinalIgnoreCase) ||
-                !safePath.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
-                !File.Exists(safePath) || (File.GetAttributes(safePath) & FileAttributes.ReparsePoint) != 0)
-            {
-                throw new InvalidOperationException("Der Downloader lieferte einen ungültigen Dateipfad.");
-            }
-            if (!YouTubeDownloadLimits.IsValidSize(new FileInfo(safePath).Length))
-                throw new InvalidOperationException("Die Videodatei ist leer oder größer als 5 GB.");
-
-            job.SetSnapshot(YouTubeDownloadPhase.Analyzing);
-            var probe = await ffprobe.ProbeAsync(safePath, cancellationToken);
-            if (probe.ProbeStatus != MediaProbeStatus.Valid || probe.PlaybackStatus != MediaPlaybackStatus.Supported || probe.Duration is null or { Ticks: <= 0 })
-            {
-                throw new InvalidOperationException(probe.Error ?? "Das heruntergeladene Video ist im Presenter nicht abspielbar.");
-            }
-
-            publishedPath = MakeUniqueDestination(destination.Path, job.VideoId);
-            var temporaryPath = Path.Combine(destination.Path, $".YouTube-{job.VideoId}-{Guid.NewGuid():N}.download");
-            try
-            {
-                await using (var source = new FileStream(safePath, FileMode.Open, FileAccess.Read, FileShare.Read, 128 * 1024, true))
-                await using (var target = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 128 * 1024, true))
-                {
-                    await source.CopyToAsync(target, cancellationToken);
-                }
-                if (!YouTubeDownloadLimits.IsValidSize(new FileInfo(temporaryPath).Length))
-                {
-                    throw new InvalidOperationException("Die Videodatei ist leer oder größer als 5 GB.");
-                }
-                File.Move(temporaryPath, publishedPath);
-                published = true;
-            }
-            finally
-            {
-                if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
-            }
-
-            await mediaScanner.ScanAllAsync(cancellationToken);
-            var asset = await mediaStore.RegisterDownloadedAsync(sourceKey, publishedPath, cancellationToken);
-            registered = true;
-            using var wait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            wait.CancelAfter(TimeSpan.FromMinutes(3));
-            while (true)
-            {
-                var analyzed = await mediaStore.GetBySourceKeyAsync(sourceKey, wait.Token);
-                if (analyzed?.ProbeStatus == MediaProbeStatus.Valid && analyzed.PlaybackStatus == MediaPlaybackStatus.Supported)
-                {
-                    job.SetSnapshot(YouTubeDownloadPhase.Ready, asset.Id, duration: analyzed.Duration);
-                    await FlushIntentAsync(job, cancellationToken);
-                    return;
-                }
-                if (analyzed?.ProbeStatus is MediaProbeStatus.Invalid or MediaProbeStatus.Missing or MediaProbeStatus.Unsupported ||
-                    analyzed?.PlaybackStatus == MediaPlaybackStatus.Unsupported)
-                {
-                    throw new InvalidOperationException(analyzed.ProbeError ?? "Die Medienanalyse hat das Video abgelehnt.");
-                }
-                await Task.Delay(500, wait.Token);
-            }
+            work.GateHeld = true;
+            await RunDownloadPipelineAsync(job, work, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -167,15 +87,168 @@ public sealed class YouTubeDownloadCoordinator(
         }
         finally
         {
-            try
+            CleanupDownload(work);
+            if (work.GateHeld) downloadGate.Release();
+        }
+    }
+
+    private async Task RunDownloadPipelineAsync(DownloadJob job, DownloadWork work, CancellationToken cancellationToken)
+    {
+        var sourceKey = $"youtube:{job.VideoId}";
+        if (await UseExistingDownloadAsync(job, sourceKey, cancellationToken)) return;
+
+        var destination = await GetDownloadFolderAsync(cancellationToken);
+        work.StagingDirectory = Path.Combine(downloadRoot, job.VideoId, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(work.StagingDirectory);
+
+        var safePath = await DownloadStagedFileAsync(job, work.StagingDirectory, cancellationToken);
+        await ValidatePlaybackAsync(job, safePath, cancellationToken);
+        var publishedPath = await PublishDownloadedFileAsync(destination.Path, safePath, job.VideoId, cancellationToken);
+        work.PublishedPath = publishedPath;
+        work.Published = true;
+
+        await mediaScanner.ScanAllAsync(cancellationToken);
+        var asset = await mediaStore.RegisterDownloadedAsync(sourceKey, publishedPath, cancellationToken);
+        work.Registered = true;
+        var analyzed = await WaitForAnalysisAsync(sourceKey, cancellationToken);
+        job.SetSnapshot(YouTubeDownloadPhase.Ready, asset.Id, duration: analyzed.Duration);
+        await FlushIntentAsync(job, cancellationToken);
+    }
+
+    private async Task<bool> UseExistingDownloadAsync(DownloadJob job, string sourceKey, CancellationToken cancellationToken)
+    {
+        var existing = await mediaStore.GetBySourceKeyAsync(sourceKey, cancellationToken);
+        if (existing is not { IsAvailable: true, Enabled: true, PlaybackStatus: MediaPlaybackStatus.Supported } || !File.Exists(existing.FullPath))
+        {
+            return false;
+        }
+
+        job.SetSnapshot(YouTubeDownloadPhase.Ready, existing.Id, duration: existing.Duration);
+        await FlushIntentAsync(job, cancellationToken);
+        return true;
+    }
+
+    private async Task<MediaFolder> GetDownloadFolderAsync(CancellationToken cancellationToken)
+    {
+        var destination = (await mediaFolders.GetAllAsync(cancellationToken))
+            .FirstOrDefault(folder => folder.Enabled && Directory.Exists(folder.Path))
+            ?? throw new InvalidOperationException("Bitte zuerst einen verfügbaren Videoordner in der Desktop-App festlegen.");
+        if ((File.GetAttributes(destination.Path) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidOperationException("Der Videoordner ist eine Umleitung und kann nicht gescannt werden.");
+        }
+
+        return destination;
+    }
+
+    private async Task<string> DownloadStagedFileAsync(DownloadJob job, string stagingDirectory, CancellationToken cancellationToken)
+    {
+        job.SetSnapshot(YouTubeDownloadPhase.Installing);
+        var downloadedPath = await downloadTool.DownloadAsync(job.VideoId, stagingDirectory,
+            phase => job.SetSnapshot(phase), cancellationToken);
+        var safePath = Path.GetFullPath(downloadedPath);
+        if (!IsSafeStagedPath(safePath, stagingDirectory))
+        {
+            throw new InvalidOperationException("Der Downloader lieferte einen ungültigen Dateipfad.");
+        }
+
+        if (!YouTubeDownloadLimits.IsValidSize(new FileInfo(safePath).Length))
+        {
+            throw new InvalidOperationException("Die Videodatei ist leer oder größer als 5 GB.");
+        }
+
+        return safePath;
+    }
+
+    private static bool IsSafeStagedPath(string safePath, string stagingDirectory) =>
+        string.Equals(Path.GetDirectoryName(safePath), Path.GetFullPath(stagingDirectory), StringComparison.OrdinalIgnoreCase) &&
+        safePath.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) &&
+        File.Exists(safePath) &&
+        (File.GetAttributes(safePath) & FileAttributes.ReparsePoint) == 0;
+
+    private async Task ValidatePlaybackAsync(DownloadJob job, string safePath, CancellationToken cancellationToken)
+    {
+        job.SetSnapshot(YouTubeDownloadPhase.Analyzing);
+        var probe = await ffprobe.ProbeAsync(safePath, cancellationToken);
+        if (probe.ProbeStatus != MediaProbeStatus.Valid || probe.PlaybackStatus != MediaPlaybackStatus.Supported || probe.Duration is null or { Ticks: <= 0 })
+        {
+            throw new InvalidOperationException(probe.Error ?? "Das heruntergeladene Video ist im Presenter nicht abspielbar.");
+        }
+    }
+
+    private async Task<string> PublishDownloadedFileAsync(string folder, string safePath, string videoId, CancellationToken cancellationToken)
+    {
+        var publishedPath = MakeUniqueDestination(folder, videoId);
+        var temporaryPath = Path.Combine(folder, $".YouTube-{videoId}-{Guid.NewGuid():N}.download");
+        try
+        {
+            await using (var source = new FileStream(safePath, FileMode.Open, FileAccess.Read, FileShare.Read, 128 * 1024, true))
+            await using (var target = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 128 * 1024, true))
             {
-                if (published && !registered && publishedPath is not null && File.Exists(publishedPath)) File.Delete(publishedPath);
-                if (stagingDirectory is not null && Path.GetFullPath(stagingDirectory).StartsWith(downloadRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-                    && Directory.Exists(stagingDirectory)) Directory.Delete(stagingDirectory, recursive: true);
+                await source.CopyToAsync(target, cancellationToken);
             }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-            if (gateHeld) downloadGate.Release();
+            if (!YouTubeDownloadLimits.IsValidSize(new FileInfo(temporaryPath).Length))
+            {
+                throw new InvalidOperationException("Die Videodatei ist leer oder größer als 5 GB.");
+            }
+
+            File.Move(temporaryPath, publishedPath);
+            return publishedPath;
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+        }
+    }
+
+    private async Task<VideoAsset> WaitForAnalysisAsync(string sourceKey, CancellationToken cancellationToken)
+    {
+        using var wait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        wait.CancelAfter(TimeSpan.FromMinutes(3));
+        while (true)
+        {
+            var analyzed = await mediaStore.GetBySourceKeyAsync(sourceKey, wait.Token);
+            if (analyzed?.ProbeStatus == MediaProbeStatus.Valid && analyzed.PlaybackStatus == MediaPlaybackStatus.Supported)
+            {
+                return analyzed;
+            }
+
+            if (IsRejected(analyzed))
+            {
+                throw new InvalidOperationException(analyzed!.ProbeError ?? "Die Medienanalyse hat das Video abgelehnt.");
+            }
+
+            await Task.Delay(500, wait.Token);
+        }
+    }
+
+    private static bool IsRejected(VideoAsset? analyzed) =>
+        analyzed?.ProbeStatus is MediaProbeStatus.Invalid or MediaProbeStatus.Missing or MediaProbeStatus.Unsupported ||
+        analyzed?.PlaybackStatus == MediaPlaybackStatus.Unsupported;
+
+    private void CleanupDownload(DownloadWork work)
+    {
+        try
+        {
+            if (work.Published && !work.Registered && work.PublishedPath is not null && File.Exists(work.PublishedPath))
+            {
+                File.Delete(work.PublishedPath);
+            }
+
+            if (work.StagingDirectory is not null &&
+                Path.GetFullPath(work.StagingDirectory).StartsWith(downloadRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) &&
+                Directory.Exists(work.StagingDirectory))
+            {
+                Directory.Delete(work.StagingDirectory, recursive: true);
+            }
+        }
+        catch (IOException)
+        {
+            // Temporary download files may already be removed or locked by the OS during shutdown.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Cleanup is best effort; the next scan ignores files outside the active media library.
         }
     }
 
@@ -260,5 +333,14 @@ public sealed class YouTubeDownloadCoordinator(
         public YouTubeDownloadSnapshot Snapshot => Volatile.Read(ref snapshot);
         public void SetSnapshot(YouTubeDownloadPhase phase, int? mediaId = null, string? error = null, TimeSpan? duration = null) =>
             Volatile.Write(ref snapshot, new YouTubeDownloadSnapshot(VideoId, phase, mediaId, error, duration));
+    }
+
+    private sealed class DownloadWork
+    {
+        public string? StagingDirectory { get; set; }
+        public string? PublishedPath { get; set; }
+        public bool Published { get; set; }
+        public bool Registered { get; set; }
+        public bool GateHeld { get; set; }
     }
 }

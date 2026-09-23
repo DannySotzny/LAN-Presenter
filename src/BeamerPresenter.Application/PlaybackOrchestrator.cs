@@ -203,54 +203,72 @@ public sealed class PlaybackOrchestrator(
 
             if (item.Mode == NewsMode.Ticker)
             {
-                if (currentTicker is null || item.Priority >= currentTicker.Priority)
-                {
-                    CancelTickerTimeout();
-                    currentTicker = item;
-                    await presenter.ShowTickerAsync(item, cancellationToken);
-                    ScheduleNewsTimeout(item);
-                }
-
+                await ShowTickerAsync(item, cancellationToken);
                 return;
             }
 
             if (item.Mode == NewsMode.Fullscreen)
             {
-                if (currentNews?.Mode == NewsMode.SplitScreen)
-                {
-                    suspendedNews = currentNews;
-                }
-
-                CancelNewsTimeout();
-                if (currentNews?.Mode != NewsMode.Fullscreen)
-                {
-                    await presenter.PauseAsync(cancellationToken);
-                }
-
-                currentNews = item;
-                await presenter.ShowNewsAsync(item, cancellationToken);
-                ScheduleNewsTimeout(item);
+                await ShowFullscreenNewsAsync(item, cancellationToken);
                 return;
             }
 
-            if (currentNews?.Mode == NewsMode.Fullscreen)
-            {
-                if (suspendedNews is null || item.Priority >= suspendedNews.Priority)
-                {
-                    suspendedNews = item;
-                }
-
-                return;
-            }
-
-            if (currentNews is null || item.Priority >= currentNews.Priority)
-            {
-                CancelNewsTimeout();
-                currentNews = item;
-                await presenter.ShowNewsAsync(item, cancellationToken);
-                ScheduleNewsTimeout(item);
-            }
+            await ShowMainNewsAsync(item, cancellationToken);
         }, cancellationToken);
+
+    private async Task ShowTickerAsync(NewsItem item, CancellationToken cancellationToken)
+    {
+        if (currentTicker is not null && item.Priority < currentTicker.Priority)
+        {
+            return;
+        }
+
+        CancelTickerTimeout();
+        currentTicker = item;
+        await presenter.ShowTickerAsync(item, cancellationToken);
+        ScheduleNewsTimeout(item);
+    }
+
+    private async Task ShowFullscreenNewsAsync(NewsItem item, CancellationToken cancellationToken)
+    {
+        if (currentNews?.Mode == NewsMode.SplitScreen)
+        {
+            suspendedNews = currentNews;
+        }
+
+        CancelNewsTimeout();
+        if (currentNews?.Mode != NewsMode.Fullscreen)
+        {
+            await presenter.PauseAsync(cancellationToken);
+        }
+
+        currentNews = item;
+        await presenter.ShowNewsAsync(item, cancellationToken);
+        ScheduleNewsTimeout(item);
+    }
+
+    private async Task ShowMainNewsAsync(NewsItem item, CancellationToken cancellationToken)
+    {
+        if (currentNews?.Mode == NewsMode.Fullscreen)
+        {
+            if (suspendedNews is null || item.Priority >= suspendedNews.Priority)
+            {
+                suspendedNews = item;
+            }
+
+            return;
+        }
+
+        if (currentNews is not null && item.Priority < currentNews.Priority)
+        {
+            return;
+        }
+
+        CancelNewsTimeout();
+        currentNews = item;
+        await presenter.ShowNewsAsync(item, cancellationToken);
+        ScheduleNewsTimeout(item);
+    }
 
     private async Task EnsureDisplayActiveAsync(CancellationToken cancellationToken)
     {

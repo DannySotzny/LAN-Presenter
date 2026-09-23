@@ -44,13 +44,17 @@ public sealed class NewsSchedulingWorkerTests
     [Fact]
     public async Task Synchronization_logs_and_swallows_service_failures()
     {
+        var commands = new RecordingNewsCommands();
         var worker = new NewsSchedulingWorker(
             new StubNewsService { Failure = new InvalidOperationException("database unavailable") },
-            new RecordingNewsCommands(),
+            commands,
             new MutableTimeProvider(Now),
             NullLogger<NewsSchedulingWorker>.Instance);
 
         await worker.SynchronizeAsync();
+
+        Assert.Empty(commands.ShownIds);
+        Assert.Empty(commands.StoppedIds);
     }
 
     [Fact]

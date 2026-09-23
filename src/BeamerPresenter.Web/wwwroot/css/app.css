@@ -94,6 +94,7 @@ body .mud-button-text-secondary {
     min-height: 3rem;
     color: #aeb9d0;
     border-radius: .7rem;
+    background-color: #0a0e19;
 }
 
 .management-nav .mud-nav-link.active {
@@ -282,9 +283,12 @@ body .mud-button-text-secondary {
 
 .panel-icon {
     display: grid;
+    width: 3.2rem;
+    height: 3.2rem;
     place-items: center;
     color: #5637d8;
     background: #eeeaff;
+    border-radius: .9rem;
 }
 
 .media-preview {
@@ -307,12 +311,6 @@ body .mud-button-text-secondary {
 
 .media-preview.is-ready .mud-icon-root {
     display: none;
-}
-
-.panel-icon {
-    width: 3.2rem;
-    height: 3.2rem;
-    border-radius: .9rem;
 }
 
 .upload-dropzone {

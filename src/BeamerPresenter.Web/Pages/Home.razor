@@ -185,7 +185,7 @@
         }
         else
         {
-            <MudTable T="QueueEntry" Items="@QueueDisplay" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="queue-table">
+            <MudTable T="QueueEntry" Items="@GetQueueDisplay()" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="queue-table">
                 <HeaderContent>
                     <MudTh>Position</MudTh>
                     <MudTh>Video</MudTh>
@@ -414,7 +414,7 @@
                 <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
                     <div>
                         <MudText Typo="Typo.h5">Videobibliothek</MudText>
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">@FilteredVideos.Count von @_videos.Count Einträgen</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@GetFilteredVideos().Count von @_videos.Count Einträgen</MudText>
                     </div>
                     <form method="get" action="/media" class="library-search-form">
                         <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" />
@@ -430,14 +430,14 @@
                     </form>
                 </MudStack>
 
-                @if (FilteredVideos.Count == 0)
+                @if (GetFilteredVideos().Count == 0)
                 {
                     <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">@(string.IsNullOrWhiteSpace(Search) ? "Noch keine Videos erfasst." : "Keine Videos passen zu dieser Suche.")</MudAlert>
                 }
                 else
                 {
                     <div class="media-library-list">
-                        @foreach (var video in FilteredVideos)
+                        @foreach (var video in GetFilteredVideos())
                         {
                             <article class="media-card">
                                 <div class="media-preview" data-preview-url="@($"/api/videos/{video.Id}/preview")" data-preview-count="@PreviewFrameCount(video)" role="img" aria-label="Vorschau für @video.FileName">
@@ -596,8 +596,8 @@ else if (IsMedia)
     private static int PreviewFrameCount(VideoAsset video) => video.Duration is { } duration && duration > TimeSpan.Zero
         ? (int)Math.Clamp(Math.Ceiling(duration.TotalSeconds / 5), 1, 24)
         : 1;
-    private IReadOnlyList<VideoAsset> FilteredVideos => _videos.Where(MatchesMediaFilter).ToList();
-    private IReadOnlyList<QueueEntry> QueueDisplay =>
+    private IReadOnlyList<VideoAsset> GetFilteredVideos() => _videos.Where(MatchesMediaFilter).ToList();
+    private IReadOnlyList<QueueEntry> GetQueueDisplay() =>
         _queue.Where(entry => entry.Status == QueueEntryStatus.Playing)
             .Concat(_queue.Where(entry => entry.Status == QueueEntryStatus.Pending).Take(10))
             .ToList();
@@ -712,9 +712,17 @@ else if (IsMedia)
         return !string.IsNullOrWhiteSpace(codecText) ? codecText.ToUpperInvariant() : "–";
     }
 
-    private static string FormatDuration(TimeSpan? duration) => duration is null
-        ? "–"
-        : duration.Value.TotalHours >= 1 ? duration.Value.ToString(@"h\:mm\:ss") : duration.Value.ToString(@"m\:ss");
+    private static string FormatDuration(TimeSpan? duration)
+    {
+        if (duration is null)
+        {
+            return "–";
+        }
+
+        return duration.Value.TotalHours >= 1
+            ? duration.Value.ToString(@"h\:mm\:ss")
+            : duration.Value.ToString(@"m\:ss");
+    }
 
     private string FormatLastPlayed(int mediaId) => _allHistory
         .Where(entry => entry.MediaId == mediaId)

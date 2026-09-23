@@ -281,9 +281,18 @@ internal sealed class PresenterForm : Form
             _monitor.SelectedItem = monitors.FirstOrDefault(item => item.IsPrimary) ?? monitors.FirstOrDefault();
         }
 
-        _monitorStatus.Text = _configuredMonitorMissing
-            ? $"Nicht verfügbar: {configuredDeviceName}"
-            : monitors.Length == 0 ? "Keine Anzeige erkannt" : "Verfügbar";
+        if (_configuredMonitorMissing)
+        {
+            _monitorStatus.Text = $"Nicht verfügbar: {configuredDeviceName}";
+        }
+        else if (monitors.Length == 0)
+        {
+            _monitorStatus.Text = "Keine Anzeige erkannt";
+        }
+        else
+        {
+            _monitorStatus.Text = "Verfügbar";
+        }
     }
     private void UpdateSelectedMonitorStatus()
     {

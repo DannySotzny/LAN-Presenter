@@ -64,7 +64,7 @@ internal sealed class WindowsPowerManagementService : IPowerManagementService, I
             {
                 Version = 0,
                 Flags = SimpleReasonString,
-                SimpleReasonString = reason
+                ReasonDescriptionPointer = reason
             };
             requestHandle = PowerCreateRequest(ref context);
             if (requestHandle == 0 || requestHandle == new nint(-1))
@@ -127,7 +127,7 @@ internal sealed class WindowsPowerManagementService : IPowerManagementService, I
     {
         public uint Version;
         public uint Flags;
-        public nint SimpleReasonString;
+        public nint ReasonDescriptionPointer;
     }
 
     [DllImport(Kernel32Library, SetLastError = true)]

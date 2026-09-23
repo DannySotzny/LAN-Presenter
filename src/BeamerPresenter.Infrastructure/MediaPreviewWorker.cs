@@ -45,10 +45,7 @@ internal sealed class MediaPreviewWorker(
     {
         var assets = await mediaLibrary.GetAllAsync(cancellationToken);
         var folders = (await mediaFolders.GetAllAsync(cancellationToken)).Where(folder => folder.Enabled).ToList();
-        var pending = assets.Where(asset => asset.IsAvailable && asset.Duration > TimeSpan.Zero &&
-            folders.Any(folder => IsInsideFolder(asset.FullPath, folder.Path)) &&
-            asset.ProbeStatus == MediaProbeStatus.Valid && previews.GetReadyPreviewPath(asset) is null &&
-            (!retryAfter.TryGetValue(asset.Id, out var nextRetry) || nextRetry <= DateTimeOffset.UtcNow)).ToList();
+        var pending = assets.Where(asset => NeedsPreview(asset, folders)).ToList();
         if (pending.Count == 0)
         {
             return;
@@ -64,53 +61,85 @@ internal sealed class MediaPreviewWorker(
         foreach (var asset in pending)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var destination = previews.GetCachePath(asset);
-            var temporary = Path.Combine(previews.CacheDirectory, $"{asset.Id}-{Guid.NewGuid():N}.jpg");
-            try
-            {
-                var snapshot = new FileInfo(asset.FullPath);
-                if (!snapshot.Exists || snapshot.Length != asset.FileSize || snapshot.LastWriteTimeUtc != asset.LastWriteUtc.UtcDateTime)
-                {
-                    continue;
-                }
-
-                Directory.CreateDirectory(previews.CacheDirectory);
-                var result = await processRunner.RunAsync(executable,
-                    ["-nostdin", "-hide_banner", "-loglevel", "error", "-i", asset.FullPath,
-                     "-t", "120", "-vf", "fps=1/5,scale=384:216:force_original_aspect_ratio=decrease,pad=384:216:(ow-iw)/2:(oh-ih)/2,tile=6x4:nb_frames=24",
-                     "-frames:v", "1", "-update", "1", temporary],
-                    TimeSpan.FromMinutes(3), cancellationToken);
-                snapshot.Refresh();
-                if (result.ExitCode != 0 || !File.Exists(temporary) || new FileInfo(temporary).Length == 0 ||
-                    !snapshot.Exists || snapshot.Length != asset.FileSize || snapshot.LastWriteTimeUtc != asset.LastWriteUtc.UtcDateTime)
-                {
-                    retryAfter[asset.Id] = DateTimeOffset.UtcNow + RetryInterval;
-                    logger.LogWarning("Could not generate media preview for video {MediaId}: {ExitCode}", asset.Id, result.ExitCode);
-                    continue;
-                }
-
-                File.Move(temporary, destination, overwrite: true);
-                foreach (var old in Directory.EnumerateFiles(previews.CacheDirectory, $"{asset.Id}-*.jpg")
-                             .Where(path => !string.Equals(path, destination, StringComparison.OrdinalIgnoreCase)))
-                {
-                    File.Delete(old);
-                }
-                retryAfter.Remove(asset.Id);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                retryAfter[asset.Id] = DateTimeOffset.UtcNow + RetryInterval;
-                logger.LogWarning(exception, "Could not generate media preview for video {MediaId}", asset.Id);
-            }
-            finally
-            {
-                if (File.Exists(temporary)) File.Delete(temporary);
-            }
+            await GeneratePreviewAsync(asset, executable, cancellationToken);
         }
+    }
+
+    private bool NeedsPreview(VideoAsset asset, IReadOnlyList<MediaFolder> folders) =>
+        asset.IsAvailable && asset.Duration > TimeSpan.Zero &&
+        folders.Any(folder => IsInsideFolder(asset.FullPath, folder.Path)) &&
+        asset.ProbeStatus == MediaProbeStatus.Valid && previews.GetReadyPreviewPath(asset) is null &&
+        (!retryAfter.TryGetValue(asset.Id, out var nextRetry) || nextRetry <= DateTimeOffset.UtcNow);
+
+    private async Task GeneratePreviewAsync(VideoAsset asset, string executable, CancellationToken cancellationToken)
+    {
+        var destination = previews.GetCachePath(asset);
+        var temporary = Path.Combine(previews.CacheDirectory, $"{asset.Id}-{Guid.NewGuid():N}.jpg");
+        try
+        {
+            var snapshot = new FileInfo(asset.FullPath);
+            if (!MatchesSnapshot(snapshot, asset))
+            {
+                return;
+            }
+
+            Directory.CreateDirectory(previews.CacheDirectory);
+            var result = await processRunner.RunAsync(executable,
+                ["-nostdin", "-hide_banner", "-loglevel", "error", "-i", asset.FullPath,
+                 "-t", "120", "-vf", "fps=1/5,scale=384:216:force_original_aspect_ratio=decrease,pad=384:216:(ow-iw)/2:(oh-ih)/2,tile=6x4:nb_frames=24",
+                 "-frames:v", "1", "-update", "1", temporary],
+                TimeSpan.FromMinutes(3), cancellationToken);
+            snapshot.Refresh();
+            if (!IsUsablePreview(result.ExitCode, temporary, snapshot, asset))
+            {
+                ScheduleRetry(asset, result.ExitCode);
+                return;
+            }
+
+            PublishPreview(asset, temporary, destination);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            ScheduleRetry(asset, exception);
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
+    }
+
+    private static bool MatchesSnapshot(FileInfo snapshot, VideoAsset asset) =>
+        snapshot.Exists && snapshot.Length == asset.FileSize && snapshot.LastWriteTimeUtc == asset.LastWriteUtc.UtcDateTime;
+
+    private static bool IsUsablePreview(int exitCode, string temporary, FileInfo snapshot, VideoAsset asset) =>
+        exitCode == 0 && File.Exists(temporary) && new FileInfo(temporary).Length > 0 && MatchesSnapshot(snapshot, asset);
+
+    private void PublishPreview(VideoAsset asset, string temporary, string destination)
+    {
+        File.Move(temporary, destination, overwrite: true);
+        foreach (var old in Directory.EnumerateFiles(previews.CacheDirectory, $"{asset.Id}-*.jpg")
+                     .Where(path => !string.Equals(path, destination, StringComparison.OrdinalIgnoreCase)))
+        {
+            File.Delete(old);
+        }
+
+        retryAfter.Remove(asset.Id);
+    }
+
+    private void ScheduleRetry(VideoAsset asset, int exitCode)
+    {
+        retryAfter[asset.Id] = DateTimeOffset.UtcNow + RetryInterval;
+        logger.LogWarning("Could not generate media preview for video {MediaId}: {ExitCode}", asset.Id, exitCode);
+    }
+
+    private void ScheduleRetry(VideoAsset asset, Exception exception)
+    {
+        retryAfter[asset.Id] = DateTimeOffset.UtcNow + RetryInterval;
+        logger.LogWarning(exception, "Could not generate media preview for video {MediaId}", asset.Id);
     }
 
     private static bool IsInsideFolder(string path, string folder)

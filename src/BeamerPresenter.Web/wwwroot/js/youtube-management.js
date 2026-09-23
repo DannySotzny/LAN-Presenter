@@ -71,19 +71,26 @@
         failed: "Download fehlgeschlagen."
     };
 
-    const showDownload = snapshot => {
-        const phase = String(snapshot.phase || "").toLowerCase();
-        if ((phase === "ready" || phase === "failed") && downloadPoll) {
-            window.clearInterval(downloadPoll);
-            downloadPoll = null;
+    const pendingDownloadNote = phase => {
+        if (!pendingAction) return "";
+        if (phase === "ready") {
+            return pendingAction === "Sofort"
+                ? " Lokale Wiedergabe wurde gestartet."
+                : " Lokale Wiedergabe wurde als Nächstes eingereiht.";
         }
-        const note = pendingAction && phase === "ready"
-            ? (pendingAction === "Sofort" ? " Lokale Wiedergabe wurde gestartet." : " Lokale Wiedergabe wurde als Nächstes eingereiht.")
-            : pendingAction && phase !== "failed" ? ` ${pendingAction} ist vorgemerkt.` : "";
+        return phase === "failed" ? "" : ` ${pendingAction} ist vorgemerkt.`;
+    };
+
+    const showDownloadStatus = (snapshot, phase) => {
+        const note = pendingDownloadNote(phase);
         status.textContent = snapshot.error || `${phaseText[phase] || "Download wird vorbereitet …"}${note}`;
-        status.className = phase === "failed" || snapshot.error ? "error" : phase === "ready" ? "success" : "loading";
+        if (phase === "failed" || snapshot.error) status.className = "error";
+        else if (phase === "ready") status.className = "success";
+        else status.className = "loading";
         if (phase === "failed") actionButtons.forEach(button => { button.disabled = true; });
-        if (phase !== "ready") return;
+    };
+
+    const showDownloadPreview = snapshot => {
         fullMode.disabled = false;
         durationLabel.textContent = Number.isFinite(snapshot.durationSeconds) && snapshot.durationSeconds > 0
             ? `Dauer: ${formatDuration(snapshot.durationSeconds)}` : "Dauer: lokal analysiert";
@@ -96,6 +103,16 @@
             preview.replaceChildren(video);
             preview.hidden = false;
         }
+    };
+
+    const showDownload = snapshot => {
+        const phase = String(snapshot.phase || "").toLowerCase();
+        if ((phase === "ready" || phase === "failed") && downloadPoll) {
+            window.clearInterval(downloadPoll);
+            downloadPoll = null;
+        }
+        showDownloadStatus(snapshot, phase);
+        if (phase === "ready") showDownloadPreview(snapshot);
     };
 
     const showError = error => {

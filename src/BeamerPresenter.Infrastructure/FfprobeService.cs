@@ -180,32 +180,9 @@ internal sealed class FfprobeService(
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
         var format = root.TryGetProperty("format", out var formatElement) ? formatElement : default;
-        var duration = format.ValueKind == JsonValueKind.Object
-            && format.TryGetProperty("duration", out var durationElement)
-            && double.TryParse(durationElement.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var durationSeconds)
-                ? TimeSpan.FromSeconds(durationSeconds)
-                : (TimeSpan?)null;
-        var container = format.ValueKind == JsonValueKind.Object && format.TryGetProperty("format_name", out var containerElement)
-            ? containerElement.GetString()
-            : null;
-
-        JsonElement? videoStream = null;
-        JsonElement? audioStream = null;
-        if (root.TryGetProperty("streams", out var streams) && streams.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var stream in streams.EnumerateArray())
-            {
-                var codecType = GetString(stream, "codec_type");
-                if (videoStream is null && string.Equals(codecType, "video", StringComparison.Ordinal))
-                {
-                    videoStream = stream.Clone();
-                }
-                else if (audioStream is null && string.Equals(codecType, "audio", StringComparison.Ordinal))
-                {
-                    audioStream = stream.Clone();
-                }
-            }
-        }
+        var duration = GetDuration(format);
+        var container = format.ValueKind == JsonValueKind.Object ? GetString(format, "format_name") : null;
+        var (videoStream, audioStream) = FindFirstStreams(root);
 
         var videoCodec = videoStream is { } video ? GetString(video, "codec_name") : null;
         var audioCodec = audioStream is { } audio ? GetString(audio, "codec_name") : null;
@@ -224,6 +201,38 @@ internal sealed class FfprobeService(
             audioCodec,
             audioStream is { } channelsAudio ? GetInt32(channelsAudio, "channels") : null,
             null);
+    }
+
+    private static TimeSpan? GetDuration(JsonElement format) =>
+        format.ValueKind == JsonValueKind.Object &&
+        format.TryGetProperty("duration", out var durationElement) &&
+        double.TryParse(durationElement.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var durationSeconds)
+            ? TimeSpan.FromSeconds(durationSeconds)
+            : null;
+
+    private static (JsonElement? Video, JsonElement? Audio) FindFirstStreams(JsonElement root)
+    {
+        JsonElement? videoStream = null;
+        JsonElement? audioStream = null;
+        if (!root.TryGetProperty("streams", out var streams) || streams.ValueKind != JsonValueKind.Array)
+        {
+            return (videoStream, audioStream);
+        }
+
+        foreach (var stream in streams.EnumerateArray())
+        {
+            var codecType = GetString(stream, "codec_type");
+            if (videoStream is null && string.Equals(codecType, "video", StringComparison.Ordinal))
+            {
+                videoStream = stream.Clone();
+            }
+            else if (audioStream is null && string.Equals(codecType, "audio", StringComparison.Ordinal))
+            {
+                audioStream = stream.Clone();
+            }
+        }
+
+        return (videoStream, audioStream);
     }
 
     private static string? GetString(JsonElement element, string propertyName) =>
