@@ -107,6 +107,27 @@ public sealed class AuthenticatedWebRouteTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Media_preview_requires_login_and_is_absent_for_unknown_video()
+    {
+        using var client = _application!.GetTestClient();
+        using var anonymous = await client.GetAsync("/api/videos/987654/preview");
+        Assert.Equal(HttpStatusCode.Redirect, anonymous.StatusCode);
+
+        var cookie = await LoginAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/videos/987654/preview");
+        request.Headers.Add("Cookie", cookie);
+        using var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.True(response.Headers.CacheControl?.NoStore);
+        Assert.True(response.Headers.CacheControl?.Private);
+
+        using var pageRequest = new HttpRequestMessage(HttpMethod.Get, "/media");
+        pageRequest.Headers.Add("Cookie", cookie);
+        using var page = await client.SendAsync(pageRequest);
+        Assert.Contains("media-previews.js", await page.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Anonymous_health_is_available_without_exposing_dashboard_details()
     {
         using var client = _application!.GetTestClient();

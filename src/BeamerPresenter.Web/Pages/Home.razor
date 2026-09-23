@@ -436,7 +436,9 @@
                         <RowTemplate>
                             <MudTd DataLabel="Video">
                                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                                    <div class="media-file-icon"><MudIcon Icon="@Icons.Material.Filled.Movie" Size="Size.Small" /></div>
+                                    <div class="media-preview" data-preview-url="@($"/api/videos/{context.Id}/preview")" data-preview-count="@PreviewFrameCount(context)" role="img" aria-label="Vorschau für @context.FileName">
+                                        <MudIcon Icon="@Icons.Material.Filled.Movie" Size="Size.Small" />
+                                    </div>
                                     <div class="media-name-cell">
                                         <MudText Typo="Typo.body2">@context.FileName</MudText>
                                         <MudText Typo="Typo.caption" Color="Color.Secondary">@(context.IsAvailable ? FormatResolution(context) : "Datei nicht verfügbar")</MudText>
@@ -510,6 +512,10 @@ else if (IsPlayback)
 {
     <script src="_content/BeamerPresenter.Web/js/youtube-management.js"></script>
 }
+else if (IsMedia)
+{
+    <script src="_content/BeamerPresenter.Web/js/media-previews.js"></script>
+}
 
 @code {
     private IReadOnlyList<VideoAsset> _videos = [];
@@ -574,6 +580,9 @@ else if (IsPlayback)
     private int ReadyCount => _videos.Count(video => video.Enabled && video.IsAvailable && video.PlaybackStatus == MediaPlaybackStatus.Supported);
     private int PendingCount => _videos.Count(video => video.Enabled && video.IsAvailable && video.ProbeStatus == MediaProbeStatus.Unknown);
     private int ProblemCount => _videos.Count(video => video.Enabled && (!video.IsAvailable || video.ProbeStatus is MediaProbeStatus.Invalid or MediaProbeStatus.Missing || video.PlaybackStatus == MediaPlaybackStatus.Unsupported));
+    private static int PreviewFrameCount(VideoAsset video) => video.Duration is { } duration && duration > TimeSpan.Zero
+        ? (int)Math.Clamp(Math.Ceiling(duration.TotalSeconds / 5), 1, 24)
+        : 1;
     private IReadOnlyList<VideoAsset> FilteredVideos => _videos.Where(MatchesMediaFilter).ToList();
     private IReadOnlyList<QueueEntry> QueueDisplay =>
         _queue.Where(entry => entry.Status == QueueEntryStatus.Playing)

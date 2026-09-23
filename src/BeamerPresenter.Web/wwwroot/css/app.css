@@ -288,6 +288,27 @@ body .mud-button-text-secondary {
     background: #eeeaff;
 }
 
+.media-preview {
+    display: grid;
+    width: 160px;
+    height: 90px;
+    flex: 0 0 auto;
+    place-items: center;
+    overflow: hidden;
+    border-radius: .65rem;
+    color: #5637d8;
+    background-color: #eeeaff;
+    background-repeat: no-repeat;
+}
+
+.media-preview.is-ready {
+    background-size: 960px 360px;
+}
+
+.media-preview.is-ready .mud-icon-root {
+    display: none;
+}
+
 .panel-icon {
     width: 3.2rem;
     height: 3.2rem;

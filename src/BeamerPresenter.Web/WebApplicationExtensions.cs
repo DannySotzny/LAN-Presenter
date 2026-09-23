@@ -42,6 +42,7 @@ public static class WebApplicationExtensions
         app.MapPost("/api/videos/upload", (Delegate)UploadAsync).RequireAuthorization();
         app.MapPost("/api/videos/set-enabled", (Delegate)SetVideoEnabledAsync).RequireAuthorization();
         app.MapPost("/api/videos/reanalyze", (Delegate)ReanalyzeVideoAsync).RequireAuthorization();
+        app.MapGet("/api/videos/{mediaId:int}/preview", (Delegate)GetMediaPreviewAsync).RequireAuthorization();
         app.MapPost("/api/queue/next", (Delegate)PlayNextAsync).RequireAuthorization();
         app.MapPost("/api/queue/now", (Delegate)PlayNowAsync).RequireAuthorization();
         app.MapPost("/api/queue/move-up", (Delegate)MoveQueueUpAsync).RequireAuthorization();
@@ -531,6 +532,31 @@ public static class WebApplicationExtensions
             // Video elements routinely abort stale range requests while seeking or switching sources.
             return Results.StatusCode(ClientClosedRequestStatusCode);
         }
+    }
+
+    private static async Task<IResult> GetMediaPreviewAsync(
+        int mediaId,
+        HttpContext context,
+        IMediaLibraryService mediaLibraryService,
+        IMediaFolderService mediaFolderService,
+        IMediaPreviewService mediaPreviewService,
+        CancellationToken cancellationToken)
+    {
+        context.Response.Headers.CacheControl = "private, no-store";
+        var asset = await mediaLibraryService.GetByIdAsync(mediaId, cancellationToken);
+        if (asset is null || !asset.IsAvailable)
+        {
+            return Results.NotFound();
+        }
+
+        var folders = await mediaFolderService.GetAllAsync(cancellationToken);
+        if (!folders.Any(folder => folder.Enabled && IsPathInside(asset.FullPath, folder.Path)))
+        {
+            return Results.NotFound();
+        }
+
+        var preview = mediaPreviewService.GetReadyPreviewPath(asset);
+        return preview is null ? Results.NotFound() : Results.File(preview, "image/jpeg");
     }
 
     private static bool IsPathInside(string filePath, string folderPath)

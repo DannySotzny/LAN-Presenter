@@ -51,6 +51,11 @@ public interface IMediaProbeQueue
     ValueTask QueueAsync(int mediaId, string fullPath, CancellationToken cancellationToken = default);
 }
 
+public interface IMediaPreviewService
+{
+    string? GetReadyPreviewPath(VideoAsset asset);
+}
+
 public interface IFfprobeService
 {
     Task<FfprobeAvailability> CheckAvailabilityAsync(CancellationToken cancellationToken = default);

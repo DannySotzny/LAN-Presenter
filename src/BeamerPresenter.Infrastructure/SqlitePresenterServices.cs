@@ -18,6 +18,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPresenterSettingsService, SqlitePresenterSettingsService>();
         services.AddSingleton<IMediaFolderService, SqliteMediaFolderService>();
         services.AddSingleton<IMediaLibraryService, SqliteMediaLibraryService>();
+        services.AddSingleton(new MediaPreviewService(dataDirectory));
+        services.AddSingleton<IMediaPreviewService>(provider => provider.GetRequiredService<MediaPreviewService>());
         services.AddSingleton<IPlaybackStore, SqlitePlaybackStore>();
         services.AddSingleton<INewsService, SqliteNewsService>();
         services.AddSingleton<SqliteMediaScanner>();
@@ -33,6 +35,7 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<FfprobeService>>(),
             toolsDirectory ?? Path.Combine(Directory.GetParent(Path.GetFullPath(dataDirectory))?.FullName ?? dataDirectory, "Tools")));
         services.AddHostedService<MediaProbeQueue>(provider => provider.GetRequiredService<MediaProbeQueue>());
+        services.AddHostedService<MediaPreviewWorker>();
         services.AddHostedService<MediaFolderWatcher>();
         services.AddHostedService<MediaReconciliationWorker>();
         services.AddSingleton<PlaybackController>();
