@@ -11,6 +11,7 @@ jobs:
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+      SONAR_JAVASCRIPT_LCOV: ${{ github.workspace }}/artifacts/JavaScriptCoverage/lcov.info
     steps:
       - uses: actions/checkout@v7
         with:
@@ -39,16 +40,21 @@ jobs:
           /d:sonar.host.url="$env:SONAR_HOST_URL"
           /d:sonar.token="$env:SONAR_TOKEN"
           /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
-          /d:sonar.javascript.lcov.reportPaths="artifacts/JavaScriptCoverage/lcov.info"
+          /d:sonar.javascript.lcov.reportPaths="$env:SONAR_JAVASCRIPT_LCOV"
           /d:sonar.coverage.exclusions="**/Migrations/**,**/*.g.cs,**/*.Designer.cs,**/PresenterForm.cs,**/Program.cs,**/*.razor,**/PresenterDbContextDesignFactory.cs"
       - run: dotnet build BeamerPresenterForLanParties.slnx -c Release --no-restore
       - name: Install Chromium for presenter browser tests
         shell: pwsh
         run: pwsh tests/BeamerPresenter.Browser.Tests/bin/Release/net10.0/playwright.ps1 install chromium
       - name: Test with coverage
-        env:
-          SONAR_JAVASCRIPT_LCOV: artifacts/JavaScriptCoverage/lcov.info
         run: dotnet test BeamerPresenterForLanParties.slnx -c Release --no-build --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory artifacts/TestResults
+      - name: Verify browser coverage report
+        if: github.event_name == 'push' && env.SONAR_TOKEN != ''
+        shell: pwsh
+        run: |
+          $report = Get-Item -LiteralPath $env:SONAR_JAVASCRIPT_LCOV -ErrorAction Stop
+          if ($report.Length -eq 0) { throw 'The browser LCOV report is empty.' }
+          Write-Output "Browser LCOV report: $($report.Length) bytes"
       - name: Complete SonarQube analysis
         if: github.event_name == 'push' && env.SONAR_TOKEN != ''
         shell: pwsh

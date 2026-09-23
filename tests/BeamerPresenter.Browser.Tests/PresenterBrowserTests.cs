@@ -475,7 +475,7 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
     private static async Task WriteJavaScriptCoverageAsync()
     {
         var outputPath = Environment.GetEnvironmentVariable("SONAR_JAVASCRIPT_LCOV");
-        if (string.IsNullOrWhiteSpace(outputPath) || JavaScriptLineHits.IsEmpty) return;
+        if (string.IsNullOrWhiteSpace(outputPath)) return;
 
         await CoverageFileGate.WaitAsync();
         try
@@ -502,6 +502,7 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
             }
 
             await File.WriteAllLinesAsync(resolvedPath, report);
+            Console.WriteLine($"Wrote browser JavaScript coverage for {JavaScriptLineHits.Count} scripts to {resolvedPath}.");
         }
         finally
         {
@@ -565,6 +566,7 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
                 }
             }
 
+            await WriteJavaScriptCoverageAsync();
             stopping.Dispose();
         }
 
