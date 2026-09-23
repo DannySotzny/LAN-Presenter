@@ -231,6 +231,99 @@ public sealed class PresenterBrowserTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Presenter_plays_youtube_segments_and_advances_when_the_segment_ends()
+    {
+        await using var context = await _browser!.NewContextAsync();
+        await context.AddInitScriptAsync(MediaAndSocketTestDoubles);
+        await context.AddInitScriptAsync("window.__previousYouTubeCallbackCalls = 0; window.onYouTubeIframeAPIReady = () => window.__previousYouTubeCallbackCalls++;");
+        await context.RouteAsync("https://www.youtube.com/iframe_api", route => route.FulfillAsync(new RouteFulfillOptions
+        {
+            Status = 200,
+            ContentType = "application/javascript",
+            Body = """
+                window.YT = {
+                    PlayerState: { ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3 },
+                    Player: class {
+                        constructor(element, options) {
+                            this.options = options;
+                            this.currentTime = 0;
+                            this.duration = 90;
+                            this.destroyed = false;
+                            window.__youtubePlayer = this;
+                            queueMicrotask(() => options.events.onReady({ target: this }));
+                        }
+                        getCurrentTime() { return this.currentTime; }
+                        getDuration() { return this.duration; }
+                        seekTo(position) { this.currentTime = position; }
+                        setVolume(volume) { this.volume = volume; }
+                        playVideo() { this.options.events.onStateChange({ data: window.YT.PlayerState.PLAYING }); }
+                        pauseVideo() { this.options.events.onStateChange({ data: window.YT.PlayerState.PAUSED }); }
+                        destroy() { this.destroyed = true; }
+                    }
+                };
+                window.onYouTubeIframeAPIReady?.();
+                """
+        }));
+        await using var coverage = new BrowserCoverageCapture(context);
+        var page = await coverage.NewPageAsync();
+
+        await page.GotoAsync($"{_baseAddress}/presenter");
+        await WaitForTextAsync(page, "#presenter-status", "Verbunden");
+        var gateway = _application!.Services.GetRequiredService<IPresenterGateway>();
+        await gateway.LoadYouTubeVideoAsync("M7lc1UVf-VE", TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(8), autoPlay: true);
+
+        await WaitForTelemetryAsync("Playing");
+        Assert.Equal(1, await page.EvaluateAsync<int>("window.__previousYouTubeCallbackCalls"));
+        Assert.Equal(5, await page.EvaluateAsync<double>("window.__youtubePlayer.currentTime"));
+        Assert.True(await page.Locator("#presenter-youtube-host").EvaluateAsync<bool>("host => !host.classList.contains('presenter-media-hidden')"));
+        Assert.True(await page.Locator("#presenter-video").EvaluateAsync<bool>("video => video.classList.contains('presenter-media-hidden')"));
+
+        await gateway.PauseAsync();
+        await WaitForTelemetryAsync("Paused");
+        await gateway.PlayAsync();
+        await WaitForTelemetryAsync("Playing");
+        await gateway.SeekAsync(TimeSpan.FromSeconds(7));
+        await gateway.SetVolumeAsync(0.4);
+        await page.WaitForFunctionAsync("window.__youtubePlayer.currentTime === 7 && window.__youtubePlayer.volume === 40");
+
+        await page.EvaluateAsync("window.__youtubePlayer.currentTime = 8");
+        await WaitForAdvanceCountAsync(1);
+        Assert.True(_playbackCommands.AdvanceCalls.TryPeek(out var ended));
+        Assert.True(ended.Successful);
+        Assert.Equal(TimeSpan.FromSeconds(8), ended.Position);
+
+        await gateway.StopAsync();
+        await page.WaitForFunctionAsync("window.__youtubePlayer.destroyed === true");
+        Assert.True(await page.Locator("#presenter-idle").EvaluateAsync<bool>("idle => !idle.classList.contains('presenter-idle-hidden')"));
+    }
+
+    [Fact]
+    public async Task Presenter_advances_as_failed_when_the_youtube_player_api_cannot_load()
+    {
+        await using var context = await _browser!.NewContextAsync();
+        await context.AddInitScriptAsync(MediaAndSocketTestDoubles);
+        await context.RouteAsync("https://www.youtube.com/iframe_api", route => route.FulfillAsync(new RouteFulfillOptions
+        {
+            Status = 503,
+            ContentType = "application/javascript",
+            Body = string.Empty
+        }));
+        await using var coverage = new BrowserCoverageCapture(context);
+        var page = await coverage.NewPageAsync();
+
+        await page.GotoAsync($"{_baseAddress}/presenter");
+        await WaitForTextAsync(page, "#presenter-status", "Verbunden");
+        var gateway = _application!.Services.GetRequiredService<IPresenterGateway>();
+        await gateway.LoadYouTubeVideoAsync("M7lc1UVf-VE", null, null, autoPlay: true);
+
+        await WaitForAdvanceCountAsync(1);
+        Assert.True(_playbackCommands.AdvanceCalls.TryPeek(out var failed));
+        Assert.False(failed.Successful);
+        Assert.Equal("Error", _application.Services.GetRequiredService<PresenterConnectionState>().LatestReport.Status);
+        Assert.Contains("YouTube Player API unavailable", _application.Services.GetRequiredService<PresenterConnectionState>().LatestReport.Message);
+    }
+
+    [Fact]
     public async Task YouTube_metadata_always_downloads_single_video_and_queues_local_next()
     {
         await using var context = await _browser!.NewContextAsync();
