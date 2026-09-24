@@ -7,11 +7,15 @@ internal sealed class YtDlpDownloadTool(
     IExternalProcessRunner processRunner,
     string toolsDirectory,
     IEnumerable<string>? executableCandidates = null,
-    IYtDlpDownloadProcessLauncher? downloadProcessLauncher = null) : IYouTubeDownloadTool
+    IYtDlpDownloadProcessLauncher? downloadProcessLauncher = null,
+    TimeSpan? maximumDownloadDuration = null,
+    Func<string, long>? getStagingDirectorySize = null) : IYouTubeDownloadTool
 {
     private const string ExecutableName = "yt-dlp.exe";
     private readonly SemaphoreSlim installGate = new(1, 1);
     private readonly IYtDlpDownloadProcessLauncher processLauncher = downloadProcessLauncher ?? new YtDlpDownloadProcessLauncher();
+    private readonly TimeSpan maximumDownloadDuration = maximumDownloadDuration ?? TimeSpan.FromHours(2);
+    private readonly Func<string, long> getStagingDirectorySize = getStagingDirectorySize ?? GetStagingDirectorySize;
 
     public async Task<string> DownloadAsync(string videoId, string stagingDirectory, Action<YouTubeDownloadPhase> reportPhase, CancellationToken cancellationToken)
     {
@@ -24,13 +28,15 @@ internal sealed class YtDlpDownloadTool(
 
         var output = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var errors = process.StandardError.ReadToEndAsync(cancellationToken);
-        await WaitForDownloadAsync(process, stagingDirectory, cancellationToken);
+        await WaitForDownloadAsync(process, stagingDirectory, getStagingDirectorySize, maximumDownloadDuration, cancellationToken);
         _ = await output;
         _ = await errors;
         EnsureSuccessfulExit(process.ExitCode);
 
-        var file = Directory.EnumerateFiles(stagingDirectory, "*.mp4", SearchOption.TopDirectoryOnly).SingleOrDefault()
-            ?? throw new InvalidOperationException("yt-dlp hat keine MP4-Datei erzeugt.");
+        var files = Directory.EnumerateFiles(stagingDirectory, "*.mp4", SearchOption.TopDirectoryOnly).Take(2).ToArray();
+        if (files.Length == 0) throw new InvalidOperationException("yt-dlp hat keine MP4-Datei erzeugt.");
+        if (files.Length > 1) throw new InvalidOperationException("yt-dlp hat mehrere MP4-Dateien erzeugt.");
+        var file = files[0];
         EnsureValidDownloadedFile(file);
         return file;
     }
@@ -43,12 +49,18 @@ internal sealed class YtDlpDownloadTool(
         }
     }
 
-    private static async Task WaitForDownloadAsync(IYtDlpDownloadProcess process, string stagingDirectory, CancellationToken cancellationToken)
+    private static async Task WaitForDownloadAsync(
+        IYtDlpDownloadProcess process,
+        string stagingDirectory,
+        Func<string, long> getDirectorySize,
+        TimeSpan maximumDownloadDuration,
+        CancellationToken cancellationToken)
     {
         var sizeExceeded = 0;
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        limit.CancelAfter(TimeSpan.FromHours(2));
-        var sizeMonitor = MonitorDownloadSizeAsync(stagingDirectory, limit, () => Interlocked.Exchange(ref sizeExceeded, 1));
+        limit.CancelAfter(maximumDownloadDuration);
+        var sizeMonitor = MonitorDownloadSizeAsync(
+            stagingDirectory, limit, getDirectorySize, () => Interlocked.Exchange(ref sizeExceeded, 1));
         try
         {
             await process.WaitForExitAsync(limit.Token);
@@ -66,7 +78,11 @@ internal sealed class YtDlpDownloadTool(
         }
     }
 
-    private static async Task MonitorDownloadSizeAsync(string stagingDirectory, CancellationTokenSource limit, Action onLimitReached)
+    private static async Task MonitorDownloadSizeAsync(
+        string stagingDirectory,
+        CancellationTokenSource limit,
+        Func<string, long> getDirectorySize,
+        Action onLimitReached)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
         while (true)
@@ -85,8 +101,7 @@ internal sealed class YtDlpDownloadTool(
             long currentBytes;
             try
             {
-                currentBytes = Directory.EnumerateFiles(stagingDirectory, "*", SearchOption.AllDirectories)
-                    .Sum(path => new FileInfo(path).Length);
+                currentBytes = getDirectorySize(stagingDirectory);
             }
             catch (IOException)
             {
@@ -129,6 +144,10 @@ internal sealed class YtDlpDownloadTool(
             throw new InvalidOperationException("Die heruntergeladene Datei ist leer oder größer als 5 GB.");
         }
     }
+
+    private static long GetStagingDirectorySize(string stagingDirectory) =>
+        Directory.EnumerateFiles(stagingDirectory, "*", SearchOption.AllDirectories)
+            .Sum(path => new FileInfo(path).Length);
 
     internal static IReadOnlyList<string> BuildArguments(string videoId, string stagingDirectory) =>
     [
@@ -229,9 +248,16 @@ internal sealed class YtDlpDownloadProcessLauncher : IYtDlpDownloadProcessLaunch
             }
         };
         foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
-        if (process.Start()) return new RunningYtDlpDownloadProcess(process);
-        process.Dispose();
-        throw new InvalidOperationException("yt-dlp konnte nicht gestartet werden.");
+        try
+        {
+            if (process.Start()) return new RunningYtDlpDownloadProcess(process);
+            throw new InvalidOperationException("yt-dlp konnte nicht gestartet werden.");
+        }
+        catch
+        {
+            process.Dispose();
+            throw;
+        }
     }
 
     private sealed class RunningYtDlpDownloadProcess(Process process) : IYtDlpDownloadProcess

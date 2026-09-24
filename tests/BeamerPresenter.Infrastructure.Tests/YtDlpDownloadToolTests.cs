@@ -63,6 +63,18 @@ public sealed class YtDlpDownloadToolTests
                 missingTool.DownloadAsync(VideoId, Path.Combine(root, "missing"), _ => { }, CancellationToken.None));
             Assert.Contains("keine MP4-Datei", missing.Message);
 
+            var duplicateLauncher = new RecordingDownloadProcessLauncher(arguments =>
+            {
+                var staging = arguments[Array.IndexOf(arguments.ToArray(), "--paths") + 1];
+                File.WriteAllBytes(Path.Combine(staging, "first.mp4"), [1]);
+                File.WriteAllBytes(Path.Combine(staging, "second.mp4"), [2]);
+                return new RecordingDownloadProcess();
+            });
+            var duplicateTool = new YtDlpDownloadTool(new RecordingRunner(executable), root, [executable], duplicateLauncher);
+            var duplicate = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                duplicateTool.DownloadAsync(VideoId, Path.Combine(root, "duplicate"), _ => { }, CancellationToken.None));
+            Assert.Contains("mehrere MP4-Dateien", duplicate.Message);
+
             var emptyLauncher = new RecordingDownloadProcessLauncher(arguments =>
             {
                 var staging = arguments[Array.IndexOf(arguments.ToArray(), "--paths") + 1];
@@ -100,6 +112,121 @@ public sealed class YtDlpDownloadToolTests
             Assert.True(process.Disposed);
         }
         finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task Download_timeout_kills_the_process_and_reports_a_timeout()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PresenterYtDlpTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var executable = Path.Combine(root, "yt-dlp.exe");
+            File.WriteAllText(executable, "test");
+            var process = new RecordingDownloadProcess(blockUntilCancelled: true);
+            var launcher = new RecordingDownloadProcessLauncher(_ => process);
+            var tool = new YtDlpDownloadTool(new RecordingRunner(executable), root, [executable], launcher,
+                TimeSpan.FromMilliseconds(25));
+
+            var error = await Assert.ThrowsAsync<TimeoutException>(() =>
+                tool.DownloadAsync(VideoId, Path.Combine(root, "staging"), _ => { }, CancellationToken.None));
+
+            Assert.Contains("Zeitlimit", error.Message);
+            Assert.True(process.KillCalled);
+            Assert.True(process.Disposed);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task Download_size_limit_stops_the_process_before_an_oversized_file_is_published()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PresenterYtDlpTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var executable = Path.Combine(root, "yt-dlp.exe");
+            File.WriteAllText(executable, "test");
+            var process = new RecordingDownloadProcess(blockUntilCancelled: true);
+            var launcher = new RecordingDownloadProcessLauncher(_ => process);
+            var tool = new YtDlpDownloadTool(new RecordingRunner(executable), root, [executable], launcher,
+                getStagingDirectorySize: _ => YouTubeDownloadLimits.MaximumBytes + 1);
+
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                tool.DownloadAsync(VideoId, Path.Combine(root, "staging"), _ => { }, CancellationToken.None));
+
+            Assert.Contains("5 GB", error.Message);
+            Assert.True(process.KillCalled);
+            Assert.True(process.Disposed);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task Download_size_monitor_retries_transient_file_access_failures()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PresenterYtDlpTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var executable = Path.Combine(root, "yt-dlp.exe");
+            File.WriteAllText(executable, "test");
+            var process = new RecordingDownloadProcess(blockUntilCancelled: true);
+            var launcher = new RecordingDownloadProcessLauncher(arguments =>
+            {
+                var staging = arguments[Array.IndexOf(arguments.ToArray(), "--paths") + 1];
+                File.WriteAllBytes(Path.Combine(staging, $"YouTube-{VideoId}.mp4"), [1, 2, 3]);
+                return process;
+            });
+            var checks = 0;
+            long GetStagingSize(string _)
+            {
+                switch (Interlocked.Increment(ref checks))
+                {
+                    case 1: throw new IOException("File is being moved.");
+                    case 2: throw new UnauthorizedAccessException("Folder is temporarily locked.");
+                    default:
+                        process.Complete();
+                        return 3;
+                }
+            }
+            var tool = new YtDlpDownloadTool(new RecordingRunner(executable), root, [executable], launcher,
+                getStagingDirectorySize: GetStagingSize);
+
+            var downloaded = await tool.DownloadAsync(VideoId, Path.Combine(root, "staging"), _ => { }, CancellationToken.None);
+
+            Assert.True(File.Exists(downloaded));
+            Assert.Equal(3, Volatile.Read(ref checks));
+            Assert.False(process.KillCalled);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task System_process_launcher_preserves_argument_boundaries_and_waits_for_exit()
+    {
+        var executable = Environment.GetEnvironmentVariable("COMSPEC")
+            ?? Path.Combine(Environment.SystemDirectory, "cmd.exe");
+        var launcher = new YtDlpDownloadProcessLauncher();
+
+        using var process = launcher.Start(executable, ["/d", "/c", "echo", "yt-dlp argument boundary"]);
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync(CancellationToken.None);
+
+        Assert.Equal(0, process.ExitCode);
+        Assert.True(process.HasExited);
+        Assert.Equal("\"yt-dlp argument boundary\"", (await output).Trim());
+        Assert.Empty(await error);
+    }
+
+    [Fact]
+    public void System_process_launcher_releases_process_when_start_fails()
+    {
+        var executable = Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.exe");
+        var launcher = new YtDlpDownloadProcessLauncher();
+
+        Assert.ThrowsAny<System.ComponentModel.Win32Exception>(() => launcher.Start(executable, []));
     }
 
     [Theory]
@@ -262,6 +389,12 @@ public sealed class YtDlpDownloadToolTests
         public void Kill()
         {
             KillCalled = true;
+            HasExited = true;
+            exited.TrySetResult();
+        }
+
+        public void Complete()
+        {
             HasExited = true;
             exited.TrySetResult();
         }
