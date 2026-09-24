@@ -1,9 +1,107 @@
+using System.Text;
+using BeamerPresenter.Application;
 using BeamerPresenter.Infrastructure;
 
 namespace BeamerPresenter.Infrastructure.Tests;
 
 public sealed class YtDlpDownloadToolTests
 {
+    private const string VideoId = "M7lc1UVf-VE";
+
+    [Fact]
+    public async Task Download_runs_with_restricted_arguments_and_returns_a_nonempty_mp4()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PresenterYtDlpTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var executable = Path.Combine(root, "yt-dlp.exe");
+            File.WriteAllText(executable, "test");
+            var process = new RecordingDownloadProcess();
+            var launcher = new RecordingDownloadProcessLauncher(arguments =>
+            {
+                var staging = arguments[Array.IndexOf(arguments.ToArray(), "--paths") + 1];
+                File.WriteAllBytes(Path.Combine(staging, $"YouTube-{VideoId}.mp4"), [1, 2, 3]);
+                return process;
+            });
+            var tool = new YtDlpDownloadTool(new RecordingRunner(executable), root, [executable], launcher);
+            var phases = new List<YouTubeDownloadPhase>();
+
+            var downloaded = await tool.DownloadAsync(VideoId, Path.Combine(root, "staging"), phases.Add, CancellationToken.None);
+
+            Assert.Equal([YouTubeDownloadPhase.Downloading], phases);
+            Assert.Equal(Path.Combine(root, "staging", $"YouTube-{VideoId}.mp4"), downloaded);
+            Assert.Equal(executable, launcher.Executable);
+            Assert.Contains("--ignore-config", launcher.Arguments);
+            Assert.Contains("--no-playlist", launcher.Arguments);
+            Assert.Equal($"https://www.youtube.com/watch?v={VideoId}", launcher.Arguments[^1]);
+            Assert.True(process.Disposed);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task Download_failure_and_missing_or_empty_outputs_are_rejected()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PresenterYtDlpTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var executable = Path.Combine(root, "yt-dlp.exe");
+            File.WriteAllText(executable, "test");
+
+            var failedProcess = new RecordingDownloadProcess(exitCode: 42);
+            var failedTool = new YtDlpDownloadTool(new RecordingRunner(executable), root, [executable],
+                new RecordingDownloadProcessLauncher(_ => failedProcess));
+            var failed = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                failedTool.DownloadAsync(VideoId, Path.Combine(root, "failed"), _ => { }, CancellationToken.None));
+            Assert.Contains("Code 42", failed.Message);
+
+            var missingTool = new YtDlpDownloadTool(new RecordingRunner(executable), root, [executable],
+                new RecordingDownloadProcessLauncher(_ => new RecordingDownloadProcess()));
+            var missing = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                missingTool.DownloadAsync(VideoId, Path.Combine(root, "missing"), _ => { }, CancellationToken.None));
+            Assert.Contains("keine MP4-Datei", missing.Message);
+
+            var emptyLauncher = new RecordingDownloadProcessLauncher(arguments =>
+            {
+                var staging = arguments[Array.IndexOf(arguments.ToArray(), "--paths") + 1];
+                File.WriteAllBytes(Path.Combine(staging, "empty.mp4"), []);
+                return new RecordingDownloadProcess();
+            });
+            var emptyTool = new YtDlpDownloadTool(new RecordingRunner(executable), root, [executable], emptyLauncher);
+            var empty = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                emptyTool.DownloadAsync(VideoId, Path.Combine(root, "empty"), _ => { }, CancellationToken.None));
+            Assert.Contains("leer", empty.Message);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task Cancelling_download_kills_the_process_and_propagates_cancellation()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PresenterYtDlpTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var executable = Path.Combine(root, "yt-dlp.exe");
+            File.WriteAllText(executable, "test");
+            var process = new RecordingDownloadProcess(blockUntilCancelled: true);
+            var launcher = new RecordingDownloadProcessLauncher(_ => process);
+            var tool = new YtDlpDownloadTool(new RecordingRunner(executable), root, [executable], launcher);
+            using var cancellation = new CancellationTokenSource();
+            var download = tool.DownloadAsync(VideoId, Path.Combine(root, "staging"), _ => { }, cancellation.Token);
+
+            await launcher.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            cancellation.Cancel();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => download);
+            Assert.True(process.KillCalled);
+            Assert.True(process.Disposed);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("too-short")]
@@ -122,6 +220,56 @@ public sealed class YtDlpDownloadToolTests
         Assert.Contains("avc1", args[Array.IndexOf(args.ToArray(), "--format") + 1]);
         Assert.Contains("mp4a", args[Array.IndexOf(args.ToArray(), "--format") + 1]);
         Assert.Equal("https://www.youtube.com/watch?v=M7lc1UVf-VE", args[^1]);
+    }
+
+    private sealed class RecordingDownloadProcessLauncher(Func<IReadOnlyList<string>, RecordingDownloadProcess> createProcess)
+        : IYtDlpDownloadProcessLauncher
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public string? Executable { get; private set; }
+        public IReadOnlyList<string> Arguments { get; private set; } = [];
+
+        public IYtDlpDownloadProcess Start(string executable, IReadOnlyList<string> arguments)
+        {
+            Executable = executable;
+            Arguments = arguments;
+            var process = createProcess(arguments);
+            Started.TrySetResult();
+            return process;
+        }
+    }
+
+    private sealed class RecordingDownloadProcess : IYtDlpDownloadProcess
+    {
+        private readonly TaskCompletionSource exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int ExitCode { get; }
+        public bool HasExited { get; private set; }
+        public bool KillCalled { get; private set; }
+        public bool Disposed { get; private set; }
+        public StreamReader StandardOutput => CreateReader();
+        public StreamReader StandardError => CreateReader();
+
+        public RecordingDownloadProcess(int exitCode = 0, bool blockUntilCancelled = false)
+        {
+            ExitCode = exitCode;
+            HasExited = !blockUntilCancelled;
+            if (!blockUntilCancelled) exited.TrySetResult();
+        }
+
+        public Task WaitForExitAsync(CancellationToken cancellationToken) => exited.Task.WaitAsync(cancellationToken);
+
+        public void Kill()
+        {
+            KillCalled = true;
+            HasExited = true;
+            exited.TrySetResult();
+        }
+
+        public void Dispose() => Disposed = true;
+
+        private static StreamReader CreateReader() =>
+            new(new MemoryStream(Encoding.UTF8.GetBytes(string.Empty)));
     }
 
     private sealed class RecordingRunner(string executable) : IExternalProcessRunner

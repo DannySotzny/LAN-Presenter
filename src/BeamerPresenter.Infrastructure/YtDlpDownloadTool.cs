@@ -3,10 +3,15 @@ using BeamerPresenter.Application;
 
 namespace BeamerPresenter.Infrastructure;
 
-internal sealed class YtDlpDownloadTool(IExternalProcessRunner processRunner, string toolsDirectory, IEnumerable<string>? executableCandidates = null) : IYouTubeDownloadTool
+internal sealed class YtDlpDownloadTool(
+    IExternalProcessRunner processRunner,
+    string toolsDirectory,
+    IEnumerable<string>? executableCandidates = null,
+    IYtDlpDownloadProcessLauncher? downloadProcessLauncher = null) : IYouTubeDownloadTool
 {
     private const string ExecutableName = "yt-dlp.exe";
     private readonly SemaphoreSlim installGate = new(1, 1);
+    private readonly IYtDlpDownloadProcessLauncher processLauncher = downloadProcessLauncher ?? new YtDlpDownloadProcessLauncher();
 
     public async Task<string> DownloadAsync(string videoId, string stagingDirectory, Action<YouTubeDownloadPhase> reportPhase, CancellationToken cancellationToken)
     {
@@ -15,7 +20,7 @@ internal sealed class YtDlpDownloadTool(IExternalProcessRunner processRunner, st
         reportPhase(YouTubeDownloadPhase.Downloading);
         Directory.CreateDirectory(stagingDirectory);
         var arguments = BuildArguments(videoId, stagingDirectory);
-        using var process = StartProcess(executable, arguments);
+        using var process = processLauncher.Start(executable, arguments);
 
         var output = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var errors = process.StandardError.ReadToEndAsync(cancellationToken);
@@ -38,26 +43,7 @@ internal sealed class YtDlpDownloadTool(IExternalProcessRunner processRunner, st
         }
     }
 
-    private static Process StartProcess(string executable, IReadOnlyList<string> arguments)
-    {
-        var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = executable,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            }
-        };
-        foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
-        if (process.Start()) return process;
-        process.Dispose();
-        throw new InvalidOperationException("yt-dlp konnte nicht gestartet werden.");
-    }
-
-    private static async Task WaitForDownloadAsync(Process process, string stagingDirectory, CancellationToken cancellationToken)
+    private static async Task WaitForDownloadAsync(IYtDlpDownloadProcess process, string stagingDirectory, CancellationToken cancellationToken)
     {
         var sizeExceeded = 0;
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -69,7 +55,7 @@ internal sealed class YtDlpDownloadTool(IExternalProcessRunner processRunner, st
         }
         catch (OperationCanceledException) when (limit.IsCancellationRequested)
         {
-            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            if (!process.HasExited) process.Kill();
             await process.WaitForExitAsync(CancellationToken.None);
             ThrowDownloadCancellation(Volatile.Read(ref sizeExceeded) != 0, cancellationToken);
         }
@@ -209,5 +195,53 @@ internal sealed class YtDlpDownloadTool(IExternalProcessRunner processRunner, st
             }
         }
         return null;
+    }
+}
+
+internal interface IYtDlpDownloadProcess : IDisposable
+{
+    StreamReader StandardOutput { get; }
+    StreamReader StandardError { get; }
+    int ExitCode { get; }
+    bool HasExited { get; }
+    Task WaitForExitAsync(CancellationToken cancellationToken);
+    void Kill();
+}
+
+internal interface IYtDlpDownloadProcessLauncher
+{
+    IYtDlpDownloadProcess Start(string executable, IReadOnlyList<string> arguments);
+}
+
+internal sealed class YtDlpDownloadProcessLauncher : IYtDlpDownloadProcessLauncher
+{
+    public IYtDlpDownloadProcess Start(string executable, IReadOnlyList<string> arguments)
+    {
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = executable,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            }
+        };
+        foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
+        if (process.Start()) return new RunningYtDlpDownloadProcess(process);
+        process.Dispose();
+        throw new InvalidOperationException("yt-dlp konnte nicht gestartet werden.");
+    }
+
+    private sealed class RunningYtDlpDownloadProcess(Process process) : IYtDlpDownloadProcess
+    {
+        public StreamReader StandardOutput => process.StandardOutput;
+        public StreamReader StandardError => process.StandardError;
+        public int ExitCode => process.ExitCode;
+        public bool HasExited => process.HasExited;
+        public Task WaitForExitAsync(CancellationToken cancellationToken) => process.WaitForExitAsync(cancellationToken);
+        public void Kill() => process.Kill(entireProcessTree: true);
+        public void Dispose() => process.Dispose();
     }
 }
