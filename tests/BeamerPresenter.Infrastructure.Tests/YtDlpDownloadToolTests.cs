@@ -17,7 +17,7 @@ public sealed class YtDlpDownloadToolTests
         {
             var executable = Path.Combine(root, "yt-dlp.exe");
             File.WriteAllText(executable, "test");
-            var process = new RecordingDownloadProcess();
+            var process = new RecordingDownloadProcess(blockUntilCancelled: true);
             var launcher = new RecordingDownloadProcessLauncher(arguments =>
             {
                 var staging = arguments[Array.IndexOf(arguments.ToArray(), "--paths") + 1];
@@ -27,7 +27,11 @@ public sealed class YtDlpDownloadToolTests
             var tool = new YtDlpDownloadTool(new RecordingRunner(executable), root, [executable], launcher);
             var phases = new List<YouTubeDownloadPhase>();
 
-            var downloaded = await tool.DownloadAsync(VideoId, Path.Combine(root, "staging"), phases.Add, CancellationToken.None);
+            var download = tool.DownloadAsync(VideoId, Path.Combine(root, "staging"), phases.Add, CancellationToken.None);
+            await launcher.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.Delay(TimeSpan.FromMilliseconds(1200));
+            process.Complete();
+            var downloaded = await download;
 
             Assert.Equal([YouTubeDownloadPhase.Downloading], phases);
             Assert.Equal(Path.Combine(root, "staging", $"YouTube-{VideoId}.mp4"), downloaded);
